@@ -1,0 +1,216 @@
+/* Light mode - Task bars dengan warna biru */
+.gantt_task_line {
+    background-color: #3b82f6 !important;
+    border-color: #2563eb !important;
+}
+
+.gantt_task_progress {
+    background-color: #2563eb !important;
+}
+
+.gantt_task_line.overdue {
+    background-color: #ef4444 !important;
+}
+
+.gantt_task_progress.overdue {
+    background-color: #dc2626 !important;
+}
+
+.gantt_grid_scale .gantt_grid_head_cell,
+.gantt_task .gantt_task_scale .gantt_scale_cell {
+    font-size: 12px;
+}
+
+.gantt_container {
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Dark mode support */
+.dark .gantt_container {
+    background: rgb(31 41 55) !important;
+    color: white !important;
+}
+
+/* Dark mode - Grid area */
+.dark .gantt_grid {
+    background: rgb(31 41 55) !important;
+    border-color: rgb(55 65 81) !important;
+}
+
+.dark .gantt_grid_scale {
+    background: rgb(17 24 39) !important;
+    border-color: rgb(55 65 81) !important;
+}
+
+.dark .gantt_grid_head_cell {
+    background: rgb(17 24 39) !important;
+    color: white !important;
+    border-color: rgb(55 65 81) !important;
+}
+
+.dark .gantt_row {
+    background: rgb(31 41 55) !important;
+    border-color: rgb(55 65 81) !important;
+}
+
+.dark .gantt_row:nth-child(odd) {
+    background: rgb(37 47 63) !important;
+}
+
+.dark .gantt_row.gantt_selected {
+    background: rgb(59 130 246) !important;
+}
+
+.dark .gantt_cell {
+    color: white !important;
+    border-color: rgb(55 65 81) !important;
+}
+
+/* Dark mode - Task area */
+.dark .gantt_task {
+    background: rgb(31 41 55) !important;
+    border-color: rgb(55 65 81) !important;
+}
+
+.dark .gantt_task_scale {
+    background: rgb(17 24 39) !important;
+    border-color: rgb(55 65 81) !important;
+}
+
+.dark .gantt_scale_cell {
+    background: rgb(17 24 39) !important;
+    color: white !important;
+    border-color: rgb(55 65 81) !important;
+}
+
+.dark .gantt_task_row {
+    background: rgb(31 41 55) !important;
+    border-color: rgb(55 65 81) !important;
+}
+
+.dark .gantt_task_row:nth-child(odd) {
+    background: rgb(37 47 63) !important;
+}
+
+/* Dark mode - Task bars tetap biru */
+.dark .gantt_task_line {
+    background: rgb(59 130 246) !important;
+    border-color: rgb(37 99 235) !important;
+}
+
+.dark .gantt_task_progress {
+    background: rgb(37 99 235) !important;
+}
+
+.dark .gantt_task_content {
+    color: white !important;
+    font-weight: 500;
+}
+
+/* Dark mode - Overdue tasks */
+.dark .gantt_task_line.overdue {
+    background: rgb(239 68 68) !important;
+    border-color: rgb(220 38 38) !important;
+}
+
+.dark .gantt_task_progress.overdue {
+    background: rgb(220 38 38) !important;
+}
+
+/* Dark mode - Tooltip */
+.dark .gantt_tooltip {
+    background: rgb(17 24 39) !important;
+    color: white !important;
+    border: 1px solid rgb(55 65 81) !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Dark mode - Scrollbars */
+.dark .gantt_layout_cell::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.dark .gantt_layout_cell::-webkit-scrollbar-track {
+    background: rgb(31 41 55);
+}
+
+.dark .gantt_layout_cell::-webkit-scrollbar-thumb {
+    background: rgb(75 85 99);
+    border-radius: 4px;
+}
+
+.dark .gantt_layout_cell::-webkit-scrollbar-thumb:hover {
+    background: rgb(107 114 128);
+}
+
+/* Dark mode - Today line */
+.dark .gantt_today {
+    background: rgba(239 68 68 / 0.3) !important;
+}
+
+/* Dark mode - Weekend styling */
+.dark .gantt_task_cell.week_end {
+    background: rgba(55 65 81 / 0.3) !important;
+}
+
+/* Dark mode - Links */
+.dark .gantt_link_line {
+    stroke: rgb(156 163 175) !important;
+}
+
+.dark .gantt_link_arrow {
+    fill: rgb(156 163 175) !important;
+}
+
+/* Dark mode - Selection */
+.dark .gantt_selected .gantt_cell {
+    background: rgba(59 130 246 / 0.2) !important;
+}
+
+.dark .gantt_selected .gantt_task_cell {
+    background: rgba(59 130 246 / 0.1) !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .gantt_container {
+        font-size: 12px;
+    }
+    
+    .gantt_grid_head_cell,
+    .gantt_scale_cell {
+        font-size: 11px;
+    }
+}
+
+
+/* Add these styles to your existing gantt-timeline.css file */
+.gantt-task-text,
+.gantt-task-text-truncated {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    cursor: help;
+}
+
+.gantt-task-text-truncated {
+    text-overflow: ellipsis;
+}
+
+.gantt-task-row {
+    position: relative;
+}
+
+/* Ensure tooltips are visible */
+.gantt_grid_data .gantt_cell {
+    overflow: visible;
+}
+
+/* Style for task name column */
+.gantt_grid_data .gantt_cell[data-column="text"] {
+    padding: 8px 12px;
+    line-height: 1.4;
+}
