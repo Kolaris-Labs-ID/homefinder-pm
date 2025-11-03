@@ -28,6 +28,8 @@ class User extends Authenticatable implements FilamentUser
         'email',
         'password',
         'google_id',
+        'division',
+        'is_division_head',
     ];
 
     /**
@@ -72,6 +74,11 @@ class User extends Authenticatable implements FilamentUser
      public function createdTickets(): HasMany
     {
         return $this->hasMany(Ticket::class, 'created_by');
+    }
+
+    public function dailyTodos(): HasMany
+    {
+        return $this->hasMany(DailyTodo::class);
     }
 
     public function isAssignedToTicket(Ticket $ticket): bool

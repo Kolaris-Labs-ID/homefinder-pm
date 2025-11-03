@@ -48,6 +48,16 @@ class UserResource extends Resource
                     ->multiple()
                     ->preload()
                     ->searchable(),
+                
+                Forms\Components\TextInput::make('division')
+                    ->label('Division')
+                    ->maxLength(255)
+                    ->helperText('Division or department name'),
+                
+                Forms\Components\Toggle::make('is_division_head')
+                    ->label('Is Division Head')
+                    ->helperText('Enable this if this user is a division head')
+                    ->default(false),
             ]);
     }
 
@@ -69,6 +79,20 @@ class UserResource extends Resource
                     ->separator(',')
                     ->tooltip(fn (User $record): string => $record->roles->pluck('name')->join(', ') ?: 'No Roles')
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('division')
+                    ->label('Division')
+                    ->badge()
+                    ->color('info')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
+                Tables\Columns\IconColumn::make('is_division_head')
+                    ->label('Division Head')
+                    ->boolean()
+                    ->sortable()
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('projects_count')
                     ->label('Projects')
@@ -124,6 +148,21 @@ class UserResource extends Resource
                     ->multiple()
                     ->searchable()
                     ->preload(),
+
+                Tables\Filters\SelectFilter::make('division')
+                    ->label('Division')
+                    ->options(function () {
+                        return User::whereNotNull('division')
+                            ->distinct()
+                            ->pluck('division', 'division')
+                            ->toArray();
+                    })
+                    ->searchable(),
+
+                Tables\Filters\Filter::make('is_division_head')
+                    ->label('Division Head Only')
+                    ->query(fn (Builder $query): Builder => $query->where('is_division_head', true))
+                    ->toggle(),
 
                 Tables\Filters\Filter::make('email_unverified')
                     ->label('Email Unverified')
