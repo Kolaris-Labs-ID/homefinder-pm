@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
+use Spatie\Permission\Models\Role;
 
 class GoogleController extends Controller
 {
@@ -24,6 +25,10 @@ class GoogleController extends Controller
             $user = User::where('google_id', $googleUser->id)->first();
             
             if ($user) {
+                // Ensure user has at least one role
+                if (!$user->hasAnyRole(Role::all())) {
+                    $this->assignDefaultRole($user);
+                }
                 Auth::login($user);
                 return redirect()->intended('/admin');
             }
@@ -34,6 +39,10 @@ class GoogleController extends Controller
                 $existingUser->update([
                     'google_id' => $googleUser->id
                 ]);
+                // Ensure user has at least one role
+                if (!$existingUser->hasAnyRole(Role::all())) {
+                    $this->assignDefaultRole($existingUser);
+                }
                 Auth::login($existingUser);
                 return redirect()->intended('/admin');
             }
@@ -45,11 +54,44 @@ class GoogleController extends Controller
                 'password' => null,
             ]);
             
+            // Assign default role to new users BEFORE logging in
+            $this->assignDefaultRole($newUser);
+            
+            // Verify user has a role before logging in
+            if (!$newUser->hasAnyRole(Role::all())) {
+                return redirect('/admin/login')->with('error', 'Account created but no role assigned. Please contact administrator.');
+            }
+            
             Auth::login($newUser);
             return redirect()->intended('/admin');
             
         } catch (\Exception $e) {
             return redirect('/admin/login')->with('error', 'Something went wrong with Google authentication.');
+        }
+    }
+
+    /**
+     * Assign default role to user (member or Employee, whichever exists)
+     */
+    private function assignDefaultRole(User $user): void
+    {
+        // Try 'member' first (from RoleSeeder), then 'Employee' as fallback
+        // Use 'web' guard explicitly to avoid guard mismatch
+        $defaultRole = Role::whereIn('name', ['member', 'Employee'])
+            ->where('guard_name', 'web')
+            ->first();
+        
+        if (!$defaultRole) {
+            // If no role with 'web' guard exists, try to find any and update guard
+            $defaultRole = Role::whereIn('name', ['member', 'Employee'])->first();
+            if ($defaultRole && $defaultRole->guard_name !== 'web') {
+                $defaultRole->guard_name = 'web';
+                $defaultRole->save();
+            }
+        }
+        
+        if ($defaultRole) {
+            $user->assignRole($defaultRole);
         }
     }
 }
