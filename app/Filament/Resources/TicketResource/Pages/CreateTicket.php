@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\TicketResource\Pages;
 
 use App\Filament\Resources\TicketResource;
+use App\Helpers\RoleHelper;
 use App\Models\Project;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Notifications\Notification;
@@ -58,6 +59,7 @@ class CreateTicket extends CreateRecord
                 $validAssignees = [];
                 $invalidAssignees = [];
                 
+                // First check project membership
                 foreach ($data['assignees'] as $userId) {
                     $isMember = $project->members()->where('users.id', $userId)->exists();
                     
@@ -68,15 +70,25 @@ class CreateTicket extends CreateRecord
                     }
                 }
                 
+                // Then validate role-based assignment restrictions
+                $validation = RoleHelper::validateAssignments($validAssignees);
+                $validAssignees = $validation['allowed'];
+                $invalidAssignees = array_merge($invalidAssignees, $validation['disallowed']);
+                
                 if (!empty($validAssignees)) {
                     $ticket->assignees()->sync($validAssignees);
                 }
                 
                 if (!empty($invalidAssignees)) {
+                    $reasons = [];
+                    if (count($invalidAssignees) > 0) {
+                        $reasons[] = 'Some selected users are not members of this project or do not meet role requirements.';
+                    }
+                    
                     Notification::make()
                         ->warning()
                         ->title('Some assignees removed')
-                        ->body('Some selected users are not members of this project and have been removed from assignees.')
+                        ->body(implode(' ', $reasons) ?: 'Some selected users have been removed from assignees.')
                         ->send();
                 }
                 

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\TicketResource\Pages;
 
 use App\Filament\Resources\TicketResource;
+use App\Helpers\RoleHelper;
 use App\Models\Project;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
@@ -30,6 +31,7 @@ class EditTicket extends EditRecord
                 $validAssignees = [];
                 $invalidAssignees = [];
                 
+                // First check project membership
                 foreach ($data['assignees'] as $userId) {
                     $isMember = $project->members()->where('users.id', $userId)->exists();
                     
@@ -40,15 +42,25 @@ class EditTicket extends EditRecord
                     }
                 }
                 
+                // Then validate role-based assignment restrictions
+                $validation = RoleHelper::validateAssignments($validAssignees);
+                $validAssignees = $validation['allowed'];
+                $invalidAssignees = array_merge($invalidAssignees, $validation['disallowed']);
+                
                 // Update data with only valid assignees
                 $data['assignees'] = $validAssignees;
                 
                 // Show warning if some users were invalid
                 if (!empty($invalidAssignees)) {
+                    $reasons = [];
+                    if (count($invalidAssignees) > 0) {
+                        $reasons[] = 'Some selected users are not members of this project or do not meet role requirements.';
+                    }
+                    
                     Notification::make()
                         ->warning()
                         ->title('Some assignees removed')
-                        ->body('Some selected users are not members of this project and have been removed from assignees.')
+                        ->body(implode(' ', $reasons) ?: 'Some selected users have been removed from assignees.')
                         ->send();
                 }
             }

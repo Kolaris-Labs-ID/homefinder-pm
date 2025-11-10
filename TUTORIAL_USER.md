@@ -81,9 +81,25 @@ Each project shows:
 
 ### Understanding Project Membership
 
-- You can only see projects you've been added to by a Super Admin or Admin
+- You can only see projects you've been added to by a Super Admin, Admin, or Head Division
 - If you don't see a project you should have access to, contact your project manager or HR
-- Project members are managed by administrators
+- Project members are managed by administrators or Head Division members
+
+### Adding Members to Projects
+
+If you have permission to manage project members:
+
+1. Open a project
+2. Go to the **Members** tab
+3. Click **"Add Member"**
+4. Select users from the dropdown
+
+**Assignment Restrictions Apply**:
+- **C-Level roles** (CEO, COO, CTO, HR): Can only add Head Division members to projects
+- **Head Division**: Can add anyone to projects
+- **Regular users**: Typically cannot add members (contact administrators)
+
+**Note**: The same role-based assignment rules apply to project membership as they do to ticket assignments.
 
 ---
 
@@ -206,6 +222,10 @@ Each column header has a menu (three dots icon):
 - **Assignees**: Assign to yourself or teammates
   - You can assign multiple people
   - Only project members can be assigned
+  - **Note**: Assignment restrictions may apply based on your role:
+    - **Regular users**: Can typically assign to any project member
+    - **C-Level roles** (CEO, COO, CTO, HR): Can only assign to Head Division members
+    - **Head Division**: Can assign to anyone in the project
 - **Start Date**: When work should begin
 - **Due Date**: Target completion date
 
@@ -239,9 +259,27 @@ Each column header has a menu (three dots icon):
 - Status
 - Priority
 - Epic assignment
-- Assignees
+- Assignees (subject to role-based restrictions - see below)
 - Due dates
 - Start dates
+
+**Understanding Assignment Restrictions**:
+
+When assigning tickets or adding project members, your role determines who you can assign to:
+
+- **Regular Users**: Generally can assign to any project member
+- **C-Level Roles** (CEO, COO, CTO, HR): Can **only** assign to Head Division members
+  - If you're a C-Level role, you'll only see Head Division members in the assignee dropdown
+  - You'll see a helper message: "C-Level roles can only assign to Head Division members"
+- **Head Division**: Can assign to **anyone** in the project
+  - No restrictions on who you can assign tickets to
+  - You'll see a helper message: "Head Division can assign to any project member"
+
+**What This Means for You**:
+- If you're a regular user, you can assign tickets to yourself or any teammate
+- If you're a C-Level role, you must assign to Head Division members, who can then assign to their team members
+- If you're a Head Division, you have full assignment flexibility
+- If you try to assign someone who doesn't meet role requirements, you'll receive a warning and the assignment may be automatically removed
 
 ### Understanding Ticket Statuses
 
@@ -797,9 +835,15 @@ As a team member, you have access to:
 ---
 
 **Last Updated**: [Current Date]
-**Version**: 1.1
+**Version**: 1.2
 
 ### Changelog
+
+**Version 1.2**:
+- Added role-based assignment restrictions explanation
+- Updated ticket assignment section with C-Level and Head Division restrictions
+- Added project membership assignment rules
+- Clarified who can assign to whom based on role hierarchy
 
 **Version 1.1**:
 - Added Daily Todos Management section

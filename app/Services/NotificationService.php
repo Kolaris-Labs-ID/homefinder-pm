@@ -3,6 +3,10 @@
 namespace App\Services;
 
 use App\Mail\ProjectAssignmentNotification;
+use App\Mail\TicketOverdueNotification;
+use App\Mail\TicketNearingOverdueNotification;
+use App\Mail\ProjectOverdueNotification;
+use App\Mail\ProjectNearingOverdueNotification;
 use App\Models\Notification;
 use App\Models\Project;
 use App\Models\Ticket;
@@ -11,6 +15,7 @@ use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Carbon\Carbon;
 
 class NotificationService
 {
@@ -26,7 +31,7 @@ class NotificationService
                 'user_id' => $user->id,
                 'type' => 'comment_added',
                 'title' => 'New Comment on Ticket',
-                'message' => "{$commenter->name} added a comment on ticket {$ticket->title}",
+                'message' => "{$commenter->name} added a comment on ticket {$ticket->name}",
                 'data' => [
                     'ticket_id' => $ticket->id,
                     'comment_id' => $comment->id,
@@ -49,7 +54,7 @@ class NotificationService
                 'user_id' => $user->id,
                 'type' => 'comment_updated',
                 'title' => 'Comment Updated',
-                'message' => "{$commenter->name} updated a comment on ticket {$ticket->title}",
+                'message' => "{$commenter->name} updated a comment on ticket {$ticket->name}",
                 'data' => [
                     'ticket_id' => $ticket->id,
                     'comment_id' => $comment->id,
@@ -156,5 +161,218 @@ class NotificationService
                 'removed_by_name' => $removedBy->name,
             ],
         ]);
+    }
+
+    /**
+     * Notify users about overdue ticket
+     */
+    public function notifyTicketOverdue(Ticket $ticket): void
+    {
+        $usersToNotify = $this->getUsersToNotifyForTicket($ticket);
+        $overdueDays = Carbon::parse($ticket->due_date)->diffInDays(Carbon::today());
+
+        foreach ($usersToNotify as $user) {
+            // Create in-app notification
+            try {
+                Notification::create([
+                    'user_id' => $user->id,
+                    'type' => 'ticket_overdue',
+                    'title' => 'Ticket Overdue',
+                    'message' => "Ticket '{$ticket->name}' ({$ticket->uuid}) is overdue by {$overdueDays} day(s)",
+                    'data' => [
+                        'ticket_id' => $ticket->id,
+                        'ticket_uuid' => $ticket->uuid,
+                        'ticket_name' => $ticket->name,
+                        'project_id' => $ticket->project_id,
+                        'project_name' => $ticket->project->name ?? 'Unknown',
+                        'due_date' => $ticket->due_date?->format('Y-m-d'),
+                        'overdue_days' => $overdueDays,
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to create overdue ticket notification: ' . $e->getMessage(), [
+                    'ticket_id' => $ticket->id,
+                    'user_id' => $user->id,
+                ]);
+            }
+
+            // Send email notification
+            try {
+                $mail = new TicketOverdueNotification($ticket, $user, $overdueDays);
+                Mail::to($user->email)->send($mail);
+            } catch (\Exception $e) {
+                Log::error('Failed to send overdue ticket email: ' . $e->getMessage(), [
+                    'ticket_id' => $ticket->id,
+                    'user_id' => $user->id,
+                    'to_email' => $user->email,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Notify users about ticket nearing overdue
+     */
+    public function notifyTicketNearingOverdue(Ticket $ticket, int $daysUntilDue): void
+    {
+        $usersToNotify = $this->getUsersToNotifyForTicket($ticket);
+
+        foreach ($usersToNotify as $user) {
+            // Create in-app notification
+            try {
+                Notification::create([
+                    'user_id' => $user->id,
+                    'type' => 'ticket_nearing_overdue',
+                    'title' => 'Ticket Due Soon',
+                    'message' => "Ticket '{$ticket->name}' ({$ticket->uuid}) is due in {$daysUntilDue} day(s)",
+                    'data' => [
+                        'ticket_id' => $ticket->id,
+                        'ticket_uuid' => $ticket->uuid,
+                        'ticket_name' => $ticket->name,
+                        'project_id' => $ticket->project_id,
+                        'project_name' => $ticket->project->name ?? 'Unknown',
+                        'due_date' => $ticket->due_date?->format('Y-m-d'),
+                        'days_until_due' => $daysUntilDue,
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to create nearing overdue ticket notification: ' . $e->getMessage(), [
+                    'ticket_id' => $ticket->id,
+                    'user_id' => $user->id,
+                ]);
+            }
+
+            // Send email notification
+            try {
+                $mail = new TicketNearingOverdueNotification($ticket, $user, $daysUntilDue);
+                Mail::to($user->email)->send($mail);
+            } catch (\Exception $e) {
+                Log::error('Failed to send nearing overdue ticket email: ' . $e->getMessage(), [
+                    'ticket_id' => $ticket->id,
+                    'user_id' => $user->id,
+                    'to_email' => $user->email,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Notify users about overdue project
+     */
+    public function notifyProjectOverdue(Project $project): void
+    {
+        if (!$project->end_date) {
+            return;
+        }
+
+        $usersToNotify = $project->members;
+        $overdueDays = Carbon::parse($project->end_date)->diffInDays(Carbon::today());
+
+        foreach ($usersToNotify as $user) {
+            // Create in-app notification
+            try {
+                Notification::create([
+                    'user_id' => $user->id,
+                    'type' => 'project_overdue',
+                    'title' => 'Project Overdue',
+                    'message' => "Project '{$project->name}' is overdue by {$overdueDays} day(s)",
+                    'data' => [
+                        'project_id' => $project->id,
+                        'project_name' => $project->name,
+                        'end_date' => $project->end_date?->format('Y-m-d'),
+                        'overdue_days' => $overdueDays,
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to create overdue project notification: ' . $e->getMessage(), [
+                    'project_id' => $project->id,
+                    'user_id' => $user->id,
+                ]);
+            }
+
+            // Send email notification
+            try {
+                $mail = new ProjectOverdueNotification($project, $user, $overdueDays);
+                Mail::to($user->email)->send($mail);
+            } catch (\Exception $e) {
+                Log::error('Failed to send overdue project email: ' . $e->getMessage(), [
+                    'project_id' => $project->id,
+                    'user_id' => $user->id,
+                    'to_email' => $user->email,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Notify users about project nearing overdue
+     */
+    public function notifyProjectNearingOverdue(Project $project, ?int $daysUntilDue): void
+    {
+        if (!$project->end_date || $daysUntilDue === null) {
+            return;
+        }
+
+        $usersToNotify = $project->members;
+
+        foreach ($usersToNotify as $user) {
+            // Create in-app notification
+            try {
+                Notification::create([
+                    'user_id' => $user->id,
+                    'type' => 'project_nearing_overdue',
+                    'title' => 'Project Due Soon',
+                    'message' => "Project '{$project->name}' is due in {$daysUntilDue} day(s)",
+                    'data' => [
+                        'project_id' => $project->id,
+                        'project_name' => $project->name,
+                        'end_date' => $project->end_date?->format('Y-m-d'),
+                        'days_until_due' => $daysUntilDue,
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to create nearing overdue project notification: ' . $e->getMessage(), [
+                    'project_id' => $project->id,
+                    'user_id' => $user->id,
+                ]);
+            }
+
+            // Send email notification
+            try {
+                $mail = new ProjectNearingOverdueNotification($project, $user, $daysUntilDue);
+                Mail::to($user->email)->send($mail);
+            } catch (\Exception $e) {
+                Log::error('Failed to send nearing overdue project email: ' . $e->getMessage(), [
+                    'project_id' => $project->id,
+                    'user_id' => $user->id,
+                    'to_email' => $user->email,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Get users to notify for a ticket (assignees, creator, project members)
+     */
+    private function getUsersToNotifyForTicket(Ticket $ticket): Collection
+    {
+        $usersToNotify = collect();
+
+        // Add assignees
+        $assignees = $ticket->assignees;
+        $usersToNotify = $usersToNotify->merge($assignees);
+
+        // Add creator
+        if ($ticket->creator) {
+            $usersToNotify->push($ticket->creator);
+        }
+
+        // Add project members (if project exists)
+        if ($ticket->project) {
+            $projectMembers = $ticket->project->members;
+            $usersToNotify = $usersToNotify->merge($projectMembers);
+        }
+
+        return $usersToNotify->unique('id');
     }
 }

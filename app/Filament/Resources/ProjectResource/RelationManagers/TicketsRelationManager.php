@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ProjectResource\RelationManagers;
 
+use App\Helpers\RoleHelper;
 use App\Models\Epic;
 use App\Models\TicketStatus;
 use App\Models\TicketPriority;
@@ -65,7 +66,7 @@ class TicketsRelationManager extends RelationManager
                     })
                     ->nullable(),
                 
-                // UPDATED: Multi-user assignment
+                // UPDATED: Multi-user assignment with role-based restrictions
                 Forms\Components\Select::make('assignees')
                     ->label('Assignees')
                     ->multiple()
@@ -74,10 +75,14 @@ class TicketsRelationManager extends RelationManager
                         titleAttribute: 'name',
                         modifyQueryUsing: function ($query) {
                             $projectId = $this->getOwnerRecord()->id;
-                            // Only show project members
-                            return $query->whereHas('projects', function ($query) use ($projectId) {
+                            
+                            // First filter by project members
+                            $query = $query->whereHas('projects', function ($query) use ($projectId) {
                                 $query->where('projects.id', $projectId);
                             });
+                            
+                            // Then apply role-based restrictions
+                            return RoleHelper::scopeAllowedAssignees($query);
                         }
                     )
                     ->searchable()
@@ -93,7 +98,15 @@ class TicketsRelationManager extends RelationManager
                         
                         return $isCurrentUserMember ? [auth()->id()] : [];
                     })
-                    ->helperText('Select multiple users to assign this ticket to. Only project members can be assigned.'),
+                    ->helperText(function () {
+                        if (RoleHelper::isCLevel()) {
+                            return 'C-Level roles can only assign to Head Division members.';
+                        }
+                        if (RoleHelper::isHeadDivision()) {
+                            return 'Head Division can assign to any project member.';
+                        }
+                        return 'Select multiple users to assign this ticket to. Only project members can be assigned.';
+                    }),
                 
                 Forms\Components\DatePicker::make('start_date')
                     ->label('Start Date')

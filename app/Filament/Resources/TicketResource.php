@@ -3,10 +3,12 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\TicketResource\Pages;
+use App\Helpers\RoleHelper;
 use App\Models\Project;
 use App\Models\Ticket;
 use App\Models\TicketStatus;
 use App\Models\TicketPriority;
+use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -145,14 +147,26 @@ class TicketResource extends Resource
                                 return $query->whereRaw('1 = 0');
                             }
 
-                            return $query->whereHas('projects', function ($query) use ($projectId) {
+                            // First filter by project members
+                            $query = $query->whereHas('projects', function ($query) use ($projectId) {
                                 $query->where('projects.id', $projectId);
                             });
+
+                            // Then apply role-based restrictions
+                            return RoleHelper::scopeAllowedAssignees($query);
                         }
                     )
                     ->searchable()
                     ->preload()
-                    ->helperText('Select multiple users to assign this ticket to. Only project members can be assigned.')
+                    ->helperText(function () {
+                        if (RoleHelper::isCLevel()) {
+                            return 'C-Level roles can only assign to Head Division members.';
+                        }
+                        if (RoleHelper::isHeadDivision()) {
+                            return 'Head Division can assign to any project member.';
+                        }
+                        return 'Select multiple users to assign this ticket to. Only project members can be assigned.';
+                    })
                     ->hidden(fn (callable $get): bool => !$get('project_id'))
                     ->live(),
                 

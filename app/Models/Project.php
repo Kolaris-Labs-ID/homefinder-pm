@@ -92,7 +92,7 @@ class Project extends Model
             return 0;
         }
 
-        return $today->diffInDays($endDate);
+        return (int) $today->diffInDays($endDate);
     }
     
     public function getProgressPercentageAttribute(): float
