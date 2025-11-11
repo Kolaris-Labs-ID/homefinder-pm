@@ -3,6 +3,9 @@
 namespace App\Filament\Resources\ProjectResource\Pages;
 
 use App\Filament\Resources\ProjectResource;
+use App\Events\ProjectMemberAttached;
+use App\Helpers\RoleHelper;
+use App\Models\User;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateProject extends CreateRecord
@@ -28,8 +31,35 @@ class CreateProject extends CreateRecord
         }
 
         // Ensure the user who created the project is added as a member so they can access it
-        if (auth()->check()) {
-            $this->record->members()->syncWithoutDetaching(auth()->id());
+        $creatorId = auth()->id();
+        if ($creatorId) {
+            $this->record->members()->syncWithoutDetaching($creatorId);
+        }
+
+        // Dispatch events for members added during creation
+        // Filament's relationship component will sync members automatically,
+        // but we need to dispatch events for them
+        $memberIds = $this->data['members'] ?? [];
+        $assignedBy = auth()->user();
+        
+        if ($assignedBy && !empty($memberIds)) {
+            foreach ($memberIds as $memberId) {
+                $user = User::find($memberId);
+                if ($user && $user->id !== $creatorId) {
+                    // Only dispatch if user can be assigned (role validation)
+                    if (RoleHelper::canAssignTo($user, $assignedBy)) {
+                        ProjectMemberAttached::dispatch($this->record, $user, $assignedBy);
+                    }
+                }
+            }
+        }
+        
+        // Also dispatch event for creator if they weren't already in the members list
+        if ($creatorId && !in_array($creatorId, $memberIds)) {
+            $creator = User::find($creatorId);
+            if ($creator && $assignedBy) {
+                ProjectMemberAttached::dispatch($this->record, $creator, $assignedBy);
+            }
         }
     }
 }

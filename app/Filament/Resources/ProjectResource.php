@@ -6,6 +6,8 @@ use App\Filament\Actions\ImportTicketsAction;
 use App\Filament\Resources\ProjectResource\Pages;
 use App\Filament\Resources\ProjectResource\RelationManagers;
 use App\Models\Project;
+use App\Models\User;
+use App\Helpers\RoleHelper;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -51,6 +53,17 @@ class ProjectResource extends Resource
                     ->helperText('Create standard Backlog, To Do, In Progress, Review, and Done statuses automatically')
                     ->default(true)
                     ->dehydrated(false)
+                    ->visible(fn ($livewire) => $livewire instanceof Pages\CreateProject),
+                
+                Forms\Components\Select::make('members')
+                    ->label('Project Members')
+                    ->helperText('Select users to add as project members. You can also add members later.')
+                    ->multiple()
+                    ->relationship('members', 'name')
+                    ->searchable(['name', 'email'])
+                    ->preload()
+                    ->optionsQuery(fn (Builder $query) => RoleHelper::scopeAllowedAssignees($query))
+                    ->getOptionLabelFromRecordUsing(fn (User $record): string => "{$record->name} ({$record->email})")
                     ->visible(fn ($livewire) => $livewire instanceof Pages\CreateProject),
                 
                 Forms\Components\Toggle::make('is_pinned')

@@ -55,12 +55,17 @@ class MembersRelationManager extends RelationManager
                         fn (Builder $query) => RoleHelper::scopeAllowedAssignees($query)
                     )
                     ->after(function (Model $record) {
-                        $project = $this->getOwnerRecord();
-                        $user = User::find($record->id);
-                        $assignedBy = auth()->user();
-                        
-                        // Validate role-based assignment (double-check)
-                        if ($user && $assignedBy) {
+                        try {
+                            $project = $this->getOwnerRecord();
+                            // $record is the User model that was attached
+                            $user = $record instanceof User ? $record : User::find($record->id ?? $record->getKey());
+                            $assignedBy = auth()->user();
+                            
+                            if (!$user || !$assignedBy) {
+                                return;
+                            }
+                            
+                            // Validate role-based assignment (double-check)
                             if (!RoleHelper::canAssignTo($user, $assignedBy)) {
                                 Notification::make()
                                     ->danger()
@@ -74,6 +79,12 @@ class MembersRelationManager extends RelationManager
                             }
                             
                             ProjectMemberAttached::dispatch($project, $user, $assignedBy);
+                        } catch (\Exception $e) {
+                            // Log the error but don't break the attach action
+                            \Log::error('Error in MembersRelationManager attach after callback: ' . $e->getMessage(), [
+                                'exception' => $e,
+                                'record_id' => $record->id ?? null,
+                            ]);
                         }
                     }),
             ])
@@ -81,12 +92,21 @@ class MembersRelationManager extends RelationManager
                 Tables\Actions\DetachAction::make()
                     ->label('Remove')
                     ->after(function (Model $record) {
-                        $project = $this->getOwnerRecord();
-                        $user = User::find($record->id);
-                        $removedBy = auth()->user();
-                        
-                        if ($user && $removedBy) {
-                            ProjectMemberDetached::dispatch($project, $user, $removedBy);
+                        try {
+                            $project = $this->getOwnerRecord();
+                            // $record is the User model that was detached
+                            $user = $record instanceof User ? $record : User::find($record->id ?? $record->getKey());
+                            $removedBy = auth()->user();
+                            
+                            if ($user && $removedBy) {
+                                ProjectMemberDetached::dispatch($project, $user, $removedBy);
+                            }
+                        } catch (\Exception $e) {
+                            // Log the error but don't break the detach action
+                            \Log::error('Error in MembersRelationManager detach after callback: ' . $e->getMessage(), [
+                                'exception' => $e,
+                                'record_id' => $record->id ?? null,
+                            ]);
                         }
                     }),
             ])
