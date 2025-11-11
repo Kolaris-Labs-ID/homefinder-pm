@@ -59,20 +59,23 @@ class ProjectResource extends Resource
                     ->label('Project Members')
                     ->helperText('Select users to add as project members. You can also add members later.')
                     ->multiple()
-                    ->relationship('members', 'name')
+                    ->relationship(
+                        name: 'members',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: function (Builder $query) {
+                            try {
+                                if (auth()->check()) {
+                                    return RoleHelper::scopeAllowedAssignees($query);
+                                }
+                                return $query;
+                            } catch (\Exception $e) {
+                                \Log::error('Error in members modifyQueryUsing: ' . $e->getMessage());
+                                return $query;
+                            }
+                        }
+                    )
                     ->searchable(['name', 'email'])
                     ->preload()
-                    ->optionsQuery(function (Builder $query) {
-                        try {
-                            if (auth()->check()) {
-                                return RoleHelper::scopeAllowedAssignees($query);
-                            }
-                            return $query;
-                        } catch (\Exception $e) {
-                            \Log::error('Error in members optionsQuery: ' . $e->getMessage());
-                            return $query;
-                        }
-                    })
                     ->getOptionLabelFromRecordUsing(fn (User $record): string => "{$record->name} ({$record->email})")
                     ->visible(fn ($livewire) => $livewire instanceof Pages\CreateProject)
                     ->hidden(fn ($livewire) => !($livewire instanceof Pages\CreateProject))
