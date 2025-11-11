@@ -72,6 +72,7 @@ class GoogleController extends Controller
 
     /**
      * Assign default role to user (member or Employee, whichever exists)
+     * Also assign panel_user role for Filament Shield access
      */
     private function assignDefaultRole(User $user): void
     {
@@ -92,6 +93,14 @@ class GoogleController extends Controller
         
         if ($defaultRole) {
             $user->assignRole($defaultRole);
+        }
+        
+        // Assign panel_user role for Filament Shield access
+        $panelUserRole = Role::firstOrCreate(
+            ['name' => 'panel_user', 'guard_name' => 'web']
+        );
+        if (!$user->hasRole('panel_user')) {
+            $user->assignRole($panelUserRole);
         }
     }
 }
