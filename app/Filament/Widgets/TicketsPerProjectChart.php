@@ -17,6 +17,7 @@ class TicketsPerProjectChart extends ChartWidget
     protected static ?int $sort = 2;
     
     protected int | string | array $columnSpan = [
+        'sm' => 1,
         'md' => 6,
         'xl' => 6,
     ];

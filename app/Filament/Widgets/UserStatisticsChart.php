@@ -13,6 +13,7 @@ class UserStatisticsChart extends ChartWidget
     protected static ?string $heading = 'User Statistics Chart';
     
     protected int | string | array $columnSpan = [
+        'sm' => 1,
         'md' => 6,
         'xl' => 6,
     ];
