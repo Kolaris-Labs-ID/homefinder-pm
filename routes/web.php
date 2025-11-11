@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
 use App\Livewire\ExternalLogin;
 use App\Livewire\ExternalDashboard;
 use App\Http\Controllers\Auth\GoogleController;
