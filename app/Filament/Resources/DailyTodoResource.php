@@ -10,6 +10,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Models\User;
@@ -186,8 +187,14 @@ class DailyTodoResource extends Resource
                     ->limit(50)
                     ->weight('medium'),
                 
-                Tables\Columns\TextColumn::make('status')
+                Tables\Columns\SelectColumn::make('status')
                     ->label('Status')
+                    ->options([
+                        'pending' => 'Pending',
+                        'in_progress' => 'In Progress',
+                        'done' => 'Done',
+                    ])
+                    ->selectablePlaceholder(false)
                     ->badge()
                     ->color(fn (string $state): string => match($state) {
                         'pending' => 'gray',
@@ -195,13 +202,22 @@ class DailyTodoResource extends Resource
                         'done' => 'success',
                         default => 'gray',
                     })
-                    ->formatStateUsing(fn (string $state): string => match($state) {
-                        'pending' => 'Pending',
-                        'in_progress' => 'In Progress',
-                        'done' => 'Done',
-                        default => 'Pending',
-                    })
-                    ->sortable(),
+                    ->sortable()
+                    ->disabled(fn ($record) => !auth()->user()->can('update', $record))
+                    ->afterStateUpdated(function ($record, $state) {
+                        $record->save();
+                        
+                        Notification::make()
+                            ->success()
+                            ->title('Status updated')
+                            ->body("Daily todo status changed to " . match($state) {
+                                'pending' => 'Pending',
+                                'in_progress' => 'In Progress',
+                                'done' => 'Done',
+                                default => $state,
+                            })
+                            ->send();
+                    }),
                 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Created At')
