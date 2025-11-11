@@ -62,9 +62,22 @@ class ProjectResource extends Resource
                     ->relationship('members', 'name')
                     ->searchable(['name', 'email'])
                     ->preload()
-                    ->optionsQuery(fn (Builder $query) => RoleHelper::scopeAllowedAssignees($query))
+                    ->optionsQuery(function (Builder $query) {
+                        try {
+                            if (auth()->check()) {
+                                return RoleHelper::scopeAllowedAssignees($query);
+                            }
+                            return $query;
+                        } catch (\Exception $e) {
+                            \Log::error('Error in members optionsQuery: ' . $e->getMessage());
+                            return $query;
+                        }
+                    })
                     ->getOptionLabelFromRecordUsing(fn (User $record): string => "{$record->name} ({$record->email})")
-                    ->visible(fn ($livewire) => $livewire instanceof Pages\CreateProject),
+                    ->visible(fn ($livewire) => $livewire instanceof Pages\CreateProject)
+                    ->hidden(fn ($livewire) => !($livewire instanceof Pages\CreateProject))
+                    ->dehydrated(fn ($livewire) => $livewire instanceof Pages\CreateProject)
+                    ->disabled(fn ($livewire) => !($livewire instanceof Pages\CreateProject)),
                 
                 Forms\Components\Toggle::make('is_pinned')
                     ->label('Pin Project')
