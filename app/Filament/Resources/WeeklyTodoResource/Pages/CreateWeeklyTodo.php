@@ -1,14 +1,15 @@
 <?php
 
-namespace App\Filament\Resources\DailyTodoResource\Pages;
+namespace App\Filament\Resources\WeeklyTodoResource\Pages;
 
-use App\Filament\Resources\DailyTodoResource;
+use App\Filament\Resources\WeeklyTodoResource;
 use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
+use Carbon\Carbon;
 
-class CreateDailyTodo extends CreateRecord
+class CreateWeeklyTodo extends CreateRecord
 {
-    protected static string $resource = DailyTodoResource::class;
+    protected static string $resource = WeeklyTodoResource::class;
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
@@ -21,6 +22,11 @@ class CreateDailyTodo extends CreateRecord
         } elseif (!isset($data['user_id']) || empty($data['user_id'])) {
             // For management roles, use selected user_id or default to current user
             $data['user_id'] = $data['user_id'] ?? $user->id;
+        }
+        
+        // Ensure week_start_date is set to start of week (Monday)
+        if (isset($data['week_start_date'])) {
+            $data['week_start_date'] = Carbon::parse($data['week_start_date'])->startOfWeek(Carbon::MONDAY);
         }
         
         return $data;
@@ -43,7 +49,8 @@ class CreateDailyTodo extends CreateRecord
     {
         return \Filament\Notifications\Notification::make()
             ->success()
-            ->title('Daily To-Do Created')
-            ->body('Your daily to-do has been created successfully.');
+            ->title('Weekly To-Do Created')
+            ->body('Your weekly to-do has been created successfully.');
     }
 }
+

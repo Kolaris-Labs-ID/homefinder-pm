@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\DailyTodoResource\Pages;
-use App\Filament\Resources\DailyTodoResource\RelationManagers;
-use App\Models\DailyTodo;
+use App\Filament\Resources\WeeklyTodoResource\Pages;
+use App\Filament\Resources\WeeklyTodoResource\RelationManagers;
+use App\Models\WeeklyTodo;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -13,16 +13,17 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use App\Models\User;
+use Carbon\Carbon;
 
-class DailyTodoResource extends Resource
+class WeeklyTodoResource extends Resource
 {
-    protected static ?string $model = DailyTodo::class;
+    protected static ?string $model = WeeklyTodo::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
 
-    protected static ?string $navigationLabel = 'Daily To-Do';
+    protected static ?string $navigationLabel = 'Weekly To-Do List';
 
-    protected static ?string $navigationGroup = 'Daily Management';
+    protected static ?string $navigationGroup = 'To-Do Management';
 
     protected static ?int $navigationSort = 1;
 
@@ -39,10 +40,10 @@ class DailyTodoResource extends Resource
             return true;
         }
         
-        // Check if user has any daily todo permission
-        return $user->can('view_any_daily::todo') 
-            || $user->can('view_daily::todo')
-            || $user->can('create_daily::todo');
+        // Check if user has any weekly todo permission
+        return $user->can('view_any_weekly::todo') 
+            || $user->can('view_weekly::todo')
+            || $user->can('create_weekly::todo');
     }
 
     /**
@@ -75,6 +76,15 @@ class DailyTodoResource extends Resource
     private static function isManagementRole(?User $user): bool
     {
         return self::isFullManagementRole($user) || self::isHeadDivision($user);
+    }
+
+    /**
+     * Get the start of the week (Monday)
+     */
+    private static function getStartOfWeek(?Carbon $date = null): Carbon
+    {
+        $date = $date ?? today();
+        return $date->copy()->startOfWeek(Carbon::MONDAY);
     }
 
     public static function getEloquentQuery(): Builder
@@ -125,12 +135,20 @@ class DailyTodoResource extends Resource
                     ->visible(fn () => self::isManagementRole(auth()->user()))
                     ->dehydrated(fn ($state, $operation) => $operation === 'create' ? ($state ?? auth()->id()) : $state),
                 
-                Forms\Components\DatePicker::make('date')
-                    ->label('Date')
-                    ->default(today())
+                Forms\Components\DatePicker::make('week_start_date')
+                    ->label('Week Start Date (Monday)')
+                    ->default(fn () => self::getStartOfWeek())
                     ->required()
                     ->displayFormat('d/m/Y')
-                    ->native(false),
+                    ->native(false)
+                    ->helperText('Select the Monday of the week for this to-do'),
+                
+                Forms\Components\DatePicker::make('deadline')
+                    ->label('Deadline / Due Date')
+                    ->displayFormat('d/m/Y')
+                    ->native(false)
+                    ->minDate(fn ($get) => $get('week_start_date') ? \Carbon\Carbon::parse($get('week_start_date')) : today())
+                    ->helperText('Optional: Set a deadline for this to-do'),
                 
                 Forms\Components\TextInput::make('title')
                     ->label('Title')
@@ -174,11 +192,29 @@ class DailyTodoResource extends Resource
                     ->color('info')
                     ->visible(fn () => self::isManagementRole(auth()->user())),
                 
-                Tables\Columns\TextColumn::make('date')
-                    ->label('Date')
+                Tables\Columns\TextColumn::make('week_start_date')
+                    ->label('Week Start Date')
                     ->date('d/m/Y')
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->description(fn ($record) => $record->week_start_date ? 'Week of ' . $record->week_start_date->format('M d') . ' - ' . $record->week_start_date->copy()->addDays(6)->format('M d, Y') : null),
+                
+                Tables\Columns\TextColumn::make('deadline')
+                    ->label('Deadline')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->searchable()
+                    ->color(function ($record) {
+                        if (!$record->deadline) return null;
+                        $now = today();
+                        if ($record->deadline->isPast()) return 'danger';
+                        if ($record->deadline->isToday()) return 'warning';
+                        if ($record->deadline->diffInDays($now) <= 3) return 'warning';
+                        return null;
+                    })
+                    ->badge(fn ($record) => $record->deadline && $record->deadline->isPast() && $record->status !== 'done')
+                    ->icon(fn ($record) => $record->deadline && $record->deadline->isPast() && $record->status !== 'done' ? 'heroicon-o-exclamation-triangle' : null)
+                    ->placeholder('No deadline'),
                 
                 Tables\Columns\TextColumn::make('title')
                     ->label('Title')
@@ -227,40 +263,40 @@ class DailyTodoResource extends Resource
                     })
                     ->visible(fn () => self::isManagementRole(auth()->user())),
                 
-                Tables\Filters\Filter::make('date')
+                Tables\Filters\Filter::make('week_start_date')
                     ->form([
-                        Forms\Components\DatePicker::make('date_from')
-                            ->label('From Date')
-                            ->default(today()),
-                        Forms\Components\DatePicker::make('date_until')
-                            ->label('Until Date')
-                            ->default(today()),
+                        Forms\Components\DatePicker::make('week_from')
+                            ->label('From Week Start')
+                            ->default(fn () => self::getStartOfWeek()),
+                        Forms\Components\DatePicker::make('week_until')
+                            ->label('Until Week Start')
+                            ->default(fn () => self::getStartOfWeek()),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
                             ->when(
-                                $data['date_from'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('date', '>=', $date),
+                                $data['week_from'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('week_start_date', '>=', self::getStartOfWeek(Carbon::parse($date))),
                             )
                             ->when(
-                                $data['date_until'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('date', '<=', $date),
+                                $data['week_until'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('week_start_date', '<=', self::getStartOfWeek(Carbon::parse($date))),
                             );
                     })
                     ->indicateUsing(function (array $data): array {
                         $indicators = [];
-                        if ($data['date_from'] ?? null) {
-                            $indicators[] = 'From: ' . \Carbon\Carbon::parse($data['date_from'])->format('d/m/Y');
+                        if ($data['week_from'] ?? null) {
+                            $indicators[] = 'From Week: ' . self::getStartOfWeek(Carbon::parse($data['week_from']))->format('d/m/Y');
                         }
-                        if ($data['date_until'] ?? null) {
-                            $indicators[] = 'Until: ' . \Carbon\Carbon::parse($data['date_until'])->format('d/m/Y');
+                        if ($data['week_until'] ?? null) {
+                            $indicators[] = 'Until Week: ' . self::getStartOfWeek(Carbon::parse($data['week_until']))->format('d/m/Y');
                         }
                         return $indicators;
                     }),
                 
-                Tables\Filters\Filter::make('today')
-                    ->label('Today Only')
-                    ->query(fn (Builder $query): Builder => $query->whereDate('date', today()))
+                Tables\Filters\Filter::make('this_week')
+                    ->label('This Week')
+                    ->query(fn (Builder $query): Builder => $query->whereDate('week_start_date', self::getStartOfWeek()))
                     ->toggle(),
                 
                 Tables\Filters\SelectFilter::make('status')
@@ -271,7 +307,7 @@ class DailyTodoResource extends Resource
                         'done' => 'Done',
                     ]),
             ])
-            ->defaultSort('date', 'desc')
+            ->defaultSort('week_start_date', 'desc')
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
@@ -294,10 +330,10 @@ class DailyTodoResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListDailyTodos::route('/'),
-            'create' => Pages\CreateDailyTodo::route('/create'),
-            'view' => Pages\ViewDailyTodo::route('/{record}'),
-            'edit' => Pages\EditDailyTodo::route('/{record}/edit'),
+            'index' => Pages\ListWeeklyTodos::route('/'),
+            'create' => Pages\CreateWeeklyTodo::route('/create'),
+            'view' => Pages\ViewWeeklyTodo::route('/{record}'),
+            'edit' => Pages\EditWeeklyTodo::route('/{record}/edit'),
         ];
     }
 
@@ -314,10 +350,10 @@ class DailyTodoResource extends Resource
             return true;
         }
         
-        // Check for any daily todo permission
-        return $user->can('view_any_daily::todo') 
-            || $user->can('view_daily::todo')
-            || $user->can('create_daily::todo');
+        // Check for any weekly todo permission
+        return $user->can('view_any_weekly::todo') 
+            || $user->can('view_weekly::todo')
+            || $user->can('create_weekly::todo');
     }
 
     public static function canCreate(): bool
@@ -330,7 +366,8 @@ class DailyTodoResource extends Resource
         $user = auth()->user();
         
         // Check for create permission (supports both formats)
-        return $user->can('create_daily::todo') 
-            || $user->can('create_daily_todo');
+        return $user->can('create_weekly::todo') 
+            || $user->can('create_weekly_todo');
     }
 }
+

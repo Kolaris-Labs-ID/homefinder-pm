@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Filament\Resources\DailyTodoResource\Pages;
+namespace App\Filament\Resources\WeeklyTodoResource\Pages;
 
-use App\Filament\Resources\DailyTodoResource;
+use App\Filament\Resources\WeeklyTodoResource;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 
-class EditDailyTodo extends EditRecord
+class EditWeeklyTodo extends EditRecord
 {
-    protected static string $resource = DailyTodoResource::class;
+    protected static string $resource = WeeklyTodoResource::class;
 
     protected function getHeaderActions(): array
     {
@@ -18,3 +18,4 @@ class EditDailyTodo extends EditRecord
         ];
     }
 }
+

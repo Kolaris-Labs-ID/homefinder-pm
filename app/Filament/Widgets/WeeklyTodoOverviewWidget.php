@@ -2,19 +2,20 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\DailyTodo;
+use App\Models\WeeklyTodo;
 use App\Models\User;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
+use Carbon\Carbon;
 
-class DailyTodoOverviewWidget extends BaseWidget
+class WeeklyTodoOverviewWidget extends BaseWidget
 {
     use HasWidgetShield;
 
-    protected static ?string $heading = 'Daily To-Do Overview';
+    protected static ?string $heading = 'Weekly To-Do List Overview';
     
     protected int | string | array $columnSpan = 'full';
     
@@ -54,6 +55,15 @@ class DailyTodoOverviewWidget extends BaseWidget
         return self::isFullManagementRole($user) || self::isHeadDivision($user);
     }
 
+    /**
+     * Get the start of the week (Monday)
+     */
+    private static function getStartOfWeek(?Carbon $date = null): Carbon
+    {
+        $date = $date ?? today();
+        return $date->copy()->startOfWeek(Carbon::MONDAY);
+    }
+
     public static function canView(): bool
     {
         $user = auth()->user();
@@ -66,7 +76,7 @@ class DailyTodoOverviewWidget extends BaseWidget
         
         return $table
             ->query(
-                DailyTodo::query()
+                WeeklyTodo::query()
                     ->with('user')
                     ->when(self::isFullManagementRole($user), function ($query) {
                         // Full management sees all todos
@@ -81,7 +91,7 @@ class DailyTodoOverviewWidget extends BaseWidget
                         // Regular users see only their own
                         $query->where('user_id', auth()->id());
                     })
-                    ->latest('date')
+                    ->latest('week_start_date')
                     ->latest('created_at')
             )
             ->columns([
@@ -99,11 +109,29 @@ class DailyTodoOverviewWidget extends BaseWidget
                     ->searchable()
                     ->visible(fn () => self::isManagementRole(auth()->user())),
                 
-                Tables\Columns\TextColumn::make('date')
-                    ->label('Date')
+                Tables\Columns\TextColumn::make('week_start_date')
+                    ->label('Week Start Date')
                     ->date('d/m/Y')
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->description(fn ($record) => $record->week_start_date ? 'Week of ' . $record->week_start_date->format('M d') . ' - ' . $record->week_start_date->copy()->addDays(6)->format('M d, Y') : null),
+                
+                Tables\Columns\TextColumn::make('deadline')
+                    ->label('Deadline')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->searchable()
+                    ->color(function ($record) {
+                        if (!$record->deadline) return null;
+                        $now = today();
+                        if ($record->deadline->isPast()) return 'danger';
+                        if ($record->deadline->isToday()) return 'warning';
+                        if ($record->deadline->diffInDays($now) <= 3) return 'warning';
+                        return null;
+                    })
+                    ->badge(fn ($record) => $record->deadline && $record->deadline->isPast() && $record->status !== 'done')
+                    ->icon(fn ($record) => $record->deadline && $record->deadline->isPast() && $record->status !== 'done' ? 'heroicon-o-exclamation-triangle' : null)
+                    ->placeholder('No deadline'),
                 
                 Tables\Columns\TextColumn::make('title')
                     ->label('Title')
@@ -128,7 +156,7 @@ class DailyTodoOverviewWidget extends BaseWidget
                     })
                     ->sortable(),
             ])
-            ->defaultSort('date', 'desc')
+            ->defaultSort('week_start_date', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('user_id')
                     ->label('User')
@@ -147,30 +175,30 @@ class DailyTodoOverviewWidget extends BaseWidget
                     })
                     ->visible(fn () => self::isManagementRole(auth()->user())),
                 
-                Tables\Filters\Filter::make('date')
+                Tables\Filters\Filter::make('week_start_date')
                     ->form([
-                        \Filament\Forms\Components\DatePicker::make('date_from')
-                            ->label('From Date')
-                            ->default(today()),
-                        \Filament\Forms\Components\DatePicker::make('date_until')
-                            ->label('Until Date')
-                            ->default(today()),
+                        \Filament\Forms\Components\DatePicker::make('week_from')
+                            ->label('From Week Start')
+                            ->default(fn () => self::getStartOfWeek()),
+                        \Filament\Forms\Components\DatePicker::make('week_until')
+                            ->label('Until Week Start')
+                            ->default(fn () => self::getStartOfWeek()),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
                             ->when(
-                                $data['date_from'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('date', '>=', $date),
+                                $data['week_from'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('week_start_date', '>=', self::getStartOfWeek(Carbon::parse($date))),
                             )
                             ->when(
-                                $data['date_until'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('date', '<=', $date),
+                                $data['week_until'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('week_start_date', '<=', self::getStartOfWeek(Carbon::parse($date))),
                             );
                     }),
                 
-                Tables\Filters\Filter::make('today')
-                    ->label('Today Only')
-                    ->query(fn (Builder $query): Builder => $query->whereDate('date', today()))
+                Tables\Filters\Filter::make('this_week')
+                    ->label('This Week')
+                    ->query(fn (Builder $query): Builder => $query->whereDate('week_start_date', self::getStartOfWeek()))
                     ->toggle(),
                 
                 Tables\Filters\SelectFilter::make('status')
@@ -186,20 +214,20 @@ class DailyTodoOverviewWidget extends BaseWidget
                     ->label('')
                     ->icon('heroicon-o-eye')
                     ->size('sm')
-                    ->tooltip('View To-Do')
-                    ->url(fn (DailyTodo $record): string => 
-                        route('filament.admin.resources.daily-todos.view', $record)
+                    ->tooltip('View Weekly To-Do')
+                    ->url(fn (WeeklyTodo $record): string => 
+                        route('filament.admin.resources.weekly-todos.view', $record)
                     )
                     ->openUrlInNewTab(),
             ])
-            ->recordUrl(fn (DailyTodo $record) => 
-                route('filament.admin.resources.daily-todos.view', $record)
+            ->recordUrl(fn (WeeklyTodo $record) => 
+                route('filament.admin.resources.weekly-todos.view', $record)
             )
             ->paginated([10, 25, 50])
             ->poll('30s')
             ->striped()
-            ->emptyStateHeading('No To-Do Items Found')
-            ->emptyStateDescription('No daily to-do items found for the selected filters.')
+            ->emptyStateHeading('No Weekly To-Do Items Found')
+            ->emptyStateDescription('No weekly to-do items found for the selected filters.')
             ->emptyStateIcon('heroicon-o-clipboard-document-check');
     }
 }

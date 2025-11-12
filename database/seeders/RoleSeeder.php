@@ -19,7 +19,7 @@ class RoleSeeder extends Seeder
             'ticket_comment',
             'notification',
             'user',
-            'daily_todo',
+            'weekly_todo',
         ];
 
         $actions = ['view', 'view_any', 'create', 'update', 'delete'];
@@ -49,7 +49,7 @@ class RoleSeeder extends Seeder
         $adminPermissions = Permission::whereNotIn('name', ['delete_user'])->get();
         $admin->syncPermissions($adminPermissions);
 
-        // member: hanya view/view_any project, ticket, ticket_priority, ticket_comment, notification, daily_todo, dan update ticket (untuk drag & drop)
+        // member: hanya view/view_any project, ticket, ticket_priority, ticket_comment, notification, weekly_todo, dan update ticket (untuk drag & drop)
         $memberPermissions = Permission::where(function($q) {
             $q->whereIn('name', [
                 'view_project', 'view_any_project',
@@ -57,8 +57,8 @@ class RoleSeeder extends Seeder
                 'view_ticket_priority', 'view_any_ticket_priority',
                 'view_ticket_comment', 'view_any_ticket_comment',
                 'view_notification', 'view_any_notification',
-                'view_daily_todo', 'view_any_daily_todo',
-                'create_daily_todo', 'update_daily_todo', 'delete_daily_todo',
+                'view_weekly_todo', 'view_any_weekly_todo',
+                'create_weekly_todo', 'update_weekly_todo', 'delete_weekly_todo',
             ]);
         })->get();
         $member->syncPermissions($memberPermissions);

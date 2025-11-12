@@ -6,20 +6,22 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class DailyTodo extends Model
+class WeeklyTodo extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'user_id',
-        'date',
+        'week_start_date',
+        'deadline',
         'title',
         'description',
         'status',
     ];
 
     protected $casts = [
-        'date' => 'date',
+        'week_start_date' => 'date',
+        'deadline' => 'date',
     ];
 
     public function user(): BelongsTo
@@ -47,3 +49,4 @@ class DailyTodo extends Model
         };
     }
 }
+

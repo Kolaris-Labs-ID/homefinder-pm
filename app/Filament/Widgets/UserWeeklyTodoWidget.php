@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\DailyTodo;
+use App\Models\WeeklyTodo;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -11,12 +11,13 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
+use Carbon\Carbon;
 
-class UserDailyTodoWidget extends BaseWidget
+class UserWeeklyTodoWidget extends BaseWidget
 {
     use HasWidgetShield;
 
-    protected static ?string $heading = 'My Daily To-Do';
+    protected static ?string $heading = 'My Weekly To-Do List';
     
     protected int | string | array $columnSpan = 'full';
     
@@ -24,26 +25,53 @@ class UserDailyTodoWidget extends BaseWidget
 
     protected static bool $isLazy = false;
 
-    public ?DailyTodo $dailyTodo = null;
+    public ?WeeklyTodo $weeklyTodo = null;
     
     public bool $showCreateModal = false;
+
+    /**
+     * Get the start of the week (Monday)
+     */
+    private static function getStartOfWeek(?Carbon $date = null): Carbon
+    {
+        $date = $date ?? today();
+        return $date->copy()->startOfWeek(Carbon::MONDAY);
+    }
 
     public function table(Table $table): Table
     {
         return $table
             ->query(
-                DailyTodo::query()
+                WeeklyTodo::query()
                     ->where('user_id', auth()->id())
-                    ->latest('date')
+                    ->latest('week_start_date')
                     ->latest('created_at')
             )
             ->columns([
-                Tables\Columns\TextColumn::make('date')
-                    ->label('Date')
+                Tables\Columns\TextColumn::make('week_start_date')
+                    ->label('Week Start Date')
                     ->date('d/m/Y')
                     ->sortable()
                     ->searchable()
-                    ->weight('medium'),
+                    ->weight('medium')
+                    ->description(fn ($record) => $record->week_start_date ? 'Week of ' . $record->week_start_date->format('M d') . ' - ' . $record->week_start_date->copy()->addDays(6)->format('M d, Y') : null),
+                
+                Tables\Columns\TextColumn::make('deadline')
+                    ->label('Deadline')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->searchable()
+                    ->color(function ($record) {
+                        if (!$record->deadline) return null;
+                        $now = today();
+                        if ($record->deadline->isPast()) return 'danger';
+                        if ($record->deadline->isToday()) return 'warning';
+                        if ($record->deadline->diffInDays($now) <= 3) return 'warning';
+                        return null;
+                    })
+                    ->badge(fn ($record) => $record->deadline && $record->deadline->isPast() && $record->status !== 'done')
+                    ->icon(fn ($record) => $record->deadline && $record->deadline->isPast() && $record->status !== 'done' ? 'heroicon-o-exclamation-triangle' : null)
+                    ->placeholder('No deadline'),
                 
                 Tables\Columns\TextColumn::make('title')
                     ->label('Title')
@@ -73,32 +101,32 @@ class UserDailyTodoWidget extends BaseWidget
                     })
                     ->sortable(),
             ])
-            ->defaultSort('date', 'desc')
+            ->defaultSort('week_start_date', 'desc')
             ->filters([
-                Tables\Filters\Filter::make('date')
+                Tables\Filters\Filter::make('week_start_date')
                     ->form([
-                        Forms\Components\DatePicker::make('date_from')
-                            ->label('From Date')
-                            ->default(today()),
-                        Forms\Components\DatePicker::make('date_until')
-                            ->label('Until Date')
-                            ->default(today()),
+                        Forms\Components\DatePicker::make('week_from')
+                            ->label('From Week Start')
+                            ->default(fn () => self::getStartOfWeek()),
+                        Forms\Components\DatePicker::make('week_until')
+                            ->label('Until Week Start')
+                            ->default(fn () => self::getStartOfWeek()),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
                             ->when(
-                                $data['date_from'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('date', '>=', $date),
+                                $data['week_from'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('week_start_date', '>=', self::getStartOfWeek(Carbon::parse($date))),
                             )
                             ->when(
-                                $data['date_until'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('date', '<=', $date),
+                                $data['week_until'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('week_start_date', '<=', self::getStartOfWeek(Carbon::parse($date))),
                             );
                     }),
                 
-                Tables\Filters\Filter::make('today')
-                    ->label('Today Only')
-                    ->query(fn (Builder $query): Builder => $query->whereDate('date', today()))
+                Tables\Filters\Filter::make('this_week')
+                    ->label('This Week')
+                    ->query(fn (Builder $query): Builder => $query->whereDate('week_start_date', self::getStartOfWeek()))
                     ->toggle(),
                 
                 Tables\Filters\SelectFilter::make('status')
@@ -111,15 +139,23 @@ class UserDailyTodoWidget extends BaseWidget
             ])
             ->headerActions([
                 Tables\Actions\Action::make('create')
-                    ->label('New To-Do')
+                    ->label('New Weekly To-Do')
                     ->icon('heroicon-o-plus')
                     ->form([
-                        Forms\Components\DatePicker::make('date')
-                            ->label('Date')
-                            ->default(today())
+                        Forms\Components\DatePicker::make('week_start_date')
+                            ->label('Week Start Date (Monday)')
+                            ->default(fn () => self::getStartOfWeek())
                             ->required()
                             ->displayFormat('d/m/Y')
-                            ->native(false),
+                            ->native(false)
+                            ->helperText('Select the Monday of the week for this to-do'),
+                        
+                        Forms\Components\DatePicker::make('deadline')
+                            ->label('Deadline / Due Date')
+                            ->displayFormat('d/m/Y')
+                            ->native(false)
+                            ->minDate(fn ($get) => $get('week_start_date') ? Carbon::parse($get('week_start_date')) : today())
+                            ->helperText('Optional: Set a deadline for this to-do'),
                         
                         Forms\Components\TextInput::make('title')
                             ->label('Title')
@@ -142,16 +178,17 @@ class UserDailyTodoWidget extends BaseWidget
                             ->native(false),
                     ])
                     ->action(function (array $data) {
-                        DailyTodo::create([
+                        WeeklyTodo::create([
                             'user_id' => auth()->id(),
-                            'date' => $data['date'],
+                            'week_start_date' => self::getStartOfWeek(Carbon::parse($data['week_start_date'])),
+                            'deadline' => isset($data['deadline']) ? Carbon::parse($data['deadline']) : null,
                             'title' => $data['title'],
                             'description' => $data['description'] ?? null,
                             'status' => $data['status'],
                         ]);
                         
                         Notification::make()
-                            ->title('To-Do Created')
+                            ->title('Weekly To-Do Created')
                             ->success()
                             ->send();
                         
@@ -164,14 +201,23 @@ class UserDailyTodoWidget extends BaseWidget
                     ->icon('heroicon-o-pencil')
                     ->size('sm')
                     ->tooltip('Edit')
-                    ->form(function (DailyTodo $record) {
+                    ->form(function (WeeklyTodo $record) {
                         return [
-                            Forms\Components\DatePicker::make('date')
-                                ->label('Date')
-                                ->default($record->date)
+                            Forms\Components\DatePicker::make('week_start_date')
+                                ->label('Week Start Date (Monday)')
+                                ->default($record->week_start_date)
                                 ->required()
                                 ->displayFormat('d/m/Y')
-                                ->native(false),
+                                ->native(false)
+                                ->helperText('Select the Monday of the week for this to-do'),
+                            
+                            Forms\Components\DatePicker::make('deadline')
+                                ->label('Deadline / Due Date')
+                                ->default($record->deadline)
+                                ->displayFormat('d/m/Y')
+                                ->native(false)
+                                ->minDate(fn ($get) => $get('week_start_date') ? Carbon::parse($get('week_start_date')) : today())
+                                ->helperText('Optional: Set a deadline for this to-do'),
                             
                             Forms\Components\TextInput::make('title')
                                 ->label('Title')
@@ -196,25 +242,31 @@ class UserDailyTodoWidget extends BaseWidget
                                 ->native(false),
                         ];
                     })
-                    ->action(function (DailyTodo $record, array $data) {
+                    ->action(function (WeeklyTodo $record, array $data) {
+                        $data['week_start_date'] = self::getStartOfWeek(Carbon::parse($data['week_start_date']));
+                        if (isset($data['deadline']) && $data['deadline']) {
+                            $data['deadline'] = Carbon::parse($data['deadline']);
+                        } else {
+                            $data['deadline'] = null;
+                        }
                         $record->update($data);
                         
                         Notification::make()
-                            ->title('To-Do Updated')
+                            ->title('Weekly To-Do Updated')
                             ->success()
                             ->send();
                     }),
                 
                 Tables\Actions\DeleteAction::make(),
             ])
-            ->recordUrl(fn (DailyTodo $record) => 
-                route('filament.admin.resources.daily-todos.view', $record)
+            ->recordUrl(fn (WeeklyTodo $record) => 
+                route('filament.admin.resources.weekly-todos.view', $record)
             )
             ->paginated([10, 25, 50])
             ->poll('30s')
             ->striped()
-            ->emptyStateHeading('No To-Do Items Found')
-            ->emptyStateDescription('You haven\'t created any daily to-do items yet. Click "New To-Do" to get started!')
+            ->emptyStateHeading('No Weekly To-Do Items Found')
+            ->emptyStateDescription('You haven\'t created any weekly to-do items yet. Click "New Weekly To-Do" to get started!')
             ->emptyStateIcon('heroicon-o-clipboard-document-check');
     }
 }

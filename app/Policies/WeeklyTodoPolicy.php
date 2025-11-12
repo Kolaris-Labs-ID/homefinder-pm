@@ -2,11 +2,11 @@
 
 namespace App\Policies;
 
-use App\Models\DailyTodo;
+use App\Models\WeeklyTodo;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 
-class DailyTodoPolicy
+class WeeklyTodoPolicy
 {
     /**
      * Check if user is in full management role (can view all todos across all divisions)
@@ -40,13 +40,13 @@ class DailyTodoPolicy
         }
         
         // Regular users can view their own todos (through resource query)
-        return $user->can('view_any_daily_todo') || $user->can('view_daily::todo');
+        return $user->can('view_any_weekly_todo') || $user->can('view_weekly::todo');
     }
 
     /**
      * Determine whether the user can view the model.
      */
-    public function view(User $user, DailyTodo $dailyTodo): bool
+    public function view(User $user, WeeklyTodo $weeklyTodo): bool
     {
         // Full management roles can view all
         if ($this->isFullManagementRole($user)) {
@@ -56,14 +56,14 @@ class DailyTodoPolicy
         // Head Division can view todos in their division
         if ($this->isHeadDivision($user)) {
             // Load user relationship if not already loaded
-            if (!$dailyTodo->relationLoaded('user')) {
-                $dailyTodo->load('user');
+            if (!$weeklyTodo->relationLoaded('user')) {
+                $weeklyTodo->load('user');
             }
-            return $dailyTodo->user && $dailyTodo->user->division === $user->division;
+            return $weeklyTodo->user && $weeklyTodo->user->division === $user->division;
         }
         
         // Users can view their own todos
-        return $dailyTodo->user_id === $user->id;
+        return $weeklyTodo->user_id === $user->id;
     }
 
     /**
@@ -73,14 +73,14 @@ class DailyTodoPolicy
     {
         // All authenticated users can create their own todos
         // Check for create permission (supports both formats)
-        return $user->can('create_daily::todo') 
-            || $user->can('create_daily_todo');
+        return $user->can('create_weekly::todo') 
+            || $user->can('create_weekly_todo');
     }
 
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, DailyTodo $dailyTodo): bool
+    public function update(User $user, WeeklyTodo $weeklyTodo): bool
     {
         // Full management roles can update all
         if ($this->isFullManagementRole($user)) {
@@ -90,20 +90,20 @@ class DailyTodoPolicy
         // Head Division can update todos in their division
         if ($this->isHeadDivision($user)) {
             // Load user relationship if not already loaded
-            if (!$dailyTodo->relationLoaded('user')) {
-                $dailyTodo->load('user');
+            if (!$weeklyTodo->relationLoaded('user')) {
+                $weeklyTodo->load('user');
             }
-            return $dailyTodo->user && $dailyTodo->user->division === $user->division;
+            return $weeklyTodo->user && $weeklyTodo->user->division === $user->division;
         }
         
         // Users can only update their own todos
-        return $dailyTodo->user_id === $user->id;
+        return $weeklyTodo->user_id === $user->id;
     }
 
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, DailyTodo $dailyTodo): bool
+    public function delete(User $user, WeeklyTodo $weeklyTodo): bool
     {
         // Full management roles can delete all
         if ($this->isFullManagementRole($user)) {
@@ -113,20 +113,20 @@ class DailyTodoPolicy
         // Head Division can delete todos in their division
         if ($this->isHeadDivision($user)) {
             // Load user relationship if not already loaded
-            if (!$dailyTodo->relationLoaded('user')) {
-                $dailyTodo->load('user');
+            if (!$weeklyTodo->relationLoaded('user')) {
+                $weeklyTodo->load('user');
             }
-            return $dailyTodo->user && $dailyTodo->user->division === $user->division;
+            return $weeklyTodo->user && $weeklyTodo->user->division === $user->division;
         }
         
         // Users can only delete their own todos
-        return $dailyTodo->user_id === $user->id;
+        return $weeklyTodo->user_id === $user->id;
     }
 
     /**
      * Determine whether the user can restore the model.
      */
-    public function restore(User $user, DailyTodo $dailyTodo): bool
+    public function restore(User $user, WeeklyTodo $weeklyTodo): bool
     {
         return false;
     }
@@ -134,8 +134,9 @@ class DailyTodoPolicy
     /**
      * Determine whether the user can permanently delete the model.
      */
-    public function forceDelete(User $user, DailyTodo $dailyTodo): bool
+    public function forceDelete(User $user, WeeklyTodo $weeklyTodo): bool
     {
         return false;
     }
 }
+
