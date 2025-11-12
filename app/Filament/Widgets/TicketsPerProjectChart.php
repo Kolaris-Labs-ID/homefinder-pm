@@ -17,8 +17,9 @@ class TicketsPerProjectChart extends ChartWidget
     protected static ?int $sort = 2;
     
     protected int | string | array $columnSpan = [
-        'sm' => 1,
+        'default' => 'full',
         'md' => 6,
+        'lg' => 6,
         'xl' => 6,
     ];
     
@@ -104,6 +105,12 @@ class TicketsPerProjectChart extends ChartWidget
             ],
             'responsive' => true,
             'maintainAspectRatio' => false,
+            'layout' => [
+                'padding' => [
+                    'top' => 10,
+                    'bottom' => 10,
+                ],
+            ],
         ];
     }
 }

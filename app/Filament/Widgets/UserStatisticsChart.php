@@ -13,8 +13,9 @@ class UserStatisticsChart extends ChartWidget
     protected static ?string $heading = 'User Statistics Chart';
     
     protected int | string | array $columnSpan = [
-        'sm' => 1,
+        'default' => 'full',
         'md' => 6,
+        'lg' => 6,
         'xl' => 6,
     ];
     
@@ -86,6 +87,12 @@ class UserStatisticsChart extends ChartWidget
             ],
             'responsive' => true,
             'maintainAspectRatio' => false,
+            'layout' => [
+                'padding' => [
+                    'top' => 10,
+                    'bottom' => 10,
+                ],
+            ],
         ];
     }
 }
