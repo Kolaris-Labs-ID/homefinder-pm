@@ -139,6 +139,34 @@
             </div>
         </div>
 
+        <!-- Calendar Widget -->
+        <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Project Calendar</h3>
+                <p class="text-sm text-gray-600 mt-1">View project tickets and timeline in calendar view</p>
+            </div>
+            
+            <div class="calendar-wrapper" wire:ignore>
+                <div id="external-calendar" class="calendar-container"></div>
+            </div>
+
+            <!-- Legend -->
+            <div class="mt-4 flex flex-wrap items-center gap-4 text-sm">
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded" style="background-color: #3b82f6;"></div>
+                    <span class="text-gray-600">Projects</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded" style="background-color: #10b981;"></div>
+                    <span class="text-gray-600">Completed</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded" style="background-color: #ef4444;"></div>
+                    <span class="text-gray-600">Overdue</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Tab Layout Container -->
         <div class="bg-white rounded-lg border border-gray-200 shadow-sm" id="dashboard-tabs">
             <!-- Tab Navigation -->
@@ -2239,4 +2267,139 @@
             }
         });
     </script>
+
+    <!-- EventCalendar Library -->
+    <link href="https://cdn.jsdelivr.net/npm/@event-calendar/core@4.7.1/dist/index.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@event-calendar/core@4.7.1/dist/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@event-calendar/day-grid@4.7.1/dist/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@event-calendar/time-grid@4.7.1/dist/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@event-calendar/list@4.7.1/dist/index.global.min.js"></script>
+
+    <script>
+        // Initialize External Calendar
+        document.addEventListener('DOMContentLoaded', function() {
+            const calendarEl = document.getElementById('external-calendar');
+            
+            if (!calendarEl) {
+                return;
+            }
+
+            const events = @json($this->calendarEvents);
+            
+            // Initialize calendar with responsive configuration
+            const calendar = new EventCalendar(calendarEl, {
+                plugins: [EventCalendarDayGrid, EventCalendarTimeGrid, EventCalendarList],
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                },
+                initialView: window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth',
+                events: events,
+                editable: false,
+                selectable: false,
+                height: 'auto',
+                aspectRatio: 1.8,
+                eventClick: function(info) {
+                    // Could add modal or navigation here if needed
+                    console.log('Event clicked:', info.event.extendedProps);
+                },
+                eventDidMount: function(info) {
+                    // Add tooltip with event details
+                    const props = info.event.extendedProps;
+                    let tooltip = `<div class="p-2 max-w-xs">`;
+                    tooltip += `<strong class="block mb-1">${info.event.title}</strong>`;
+                    
+                    if (props.description) {
+                        tooltip += `<p class="text-xs text-gray-600 mb-1">${props.description.substring(0, 100)}${props.description.length > 100 ? '...' : ''}</p>`;
+                    }
+                    
+                    if (props.type === 'ticket') {
+                        tooltip += `<div class="text-xs mt-1">`;
+                        tooltip += `<span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-700 mr-1">${props.status}</span>`;
+                        tooltip += `<span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-700">${props.priority}</span>`;
+                        tooltip += `</div>`;
+                    }
+                    
+                    tooltip += `</div>`;
+                    info.el.setAttribute('title', tooltip.replace(/<[^>]*>/g, ''));
+                },
+                // Responsive breakpoints
+                windowResize: function() {
+                    if (window.innerWidth < 768) {
+                        calendar.changeView('listWeek');
+                    } else {
+                        if (calendar.view.type === 'listWeek') {
+                            calendar.changeView('dayGridMonth');
+                        }
+                    }
+                },
+            });
+
+            // Store calendar instance
+            window.externalCalendar = calendar;
+        });
+    </script>
+
+    <style>
+        /* Calendar wrapper with responsive height */
+        .calendar-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .calendar-container {
+            min-height: 500px;
+            max-height: 800px;
+            width: 100%;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .calendar-container {
+                min-height: 400px;
+                max-height: 600px;
+            }
+        }
+
+        /* Customize calendar colors */
+        .ec {
+            --ec-bg-color: #ffffff;
+            --ec-text-color: #111827;
+            --ec-border-color: #e5e7eb;
+        }
+
+        /* Ensure calendar doesn't break layout on scroll */
+        .calendar-wrapper .ec {
+            position: relative;
+            width: 100%;
+            height: auto;
+        }
+
+        /* Calendar events styling */
+        .ec-event {
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .ec-event:hover {
+            opacity: 0.9;
+            transform: scale(1.02);
+            transition: all 0.2s ease;
+        }
+
+        /* Responsive calendar toolbar */
+        @media (max-width: 640px) {
+            .ec-header-toolbar {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .ec-header-toolbar .ec-button-group {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
 @endpush

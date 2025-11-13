@@ -16,6 +16,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
 
 #[Layout('layouts.external')]
 class ExternalDashboard extends Component
@@ -498,6 +499,83 @@ class ExternalDashboard extends Component
                 'message' => 'Failed to export gantt data'
             ], 500);
         }
+    }
+
+    public function getCalendarEventsProperty(): array
+    {
+        $events = [];
+        
+        // Get tickets for this project
+        $tickets = $this->project->tickets()
+            ->whereNotNull('due_date')
+            ->with(['status', 'priority', 'assignees'])
+            ->get();
+        
+        foreach ($tickets as $ticket) {
+            $isOverdue = $ticket->isOverdue();
+            $isCompleted = $ticket->status && $ticket->status->is_completed;
+            
+            $events[] = [
+                'id' => 'ticket_' . $ticket->id,
+                'title' => $ticket->uuid . ': ' . Str::limit($ticket->name, 30),
+                'start' => $ticket->start_date 
+                    ? $ticket->start_date->format('Y-m-d') 
+                    : $ticket->due_date->copy()->subDays(1)->format('Y-m-d'),
+                'end' => $ticket->due_date->format('Y-m-d'),
+                'allDay' => true,
+                'backgroundColor' => $this->getTicketColor($ticket, $isOverdue, $isCompleted),
+                'textColor' => '#ffffff',
+                'borderColor' => $this->getTicketColor($ticket, $isOverdue, $isCompleted),
+                'extendedProps' => [
+                    'type' => 'ticket',
+                    'uuid' => $ticket->uuid,
+                    'description' => $ticket->description,
+                    'status' => $ticket->status->name ?? 'Unknown',
+                    'priority' => $ticket->priority->name ?? 'Normal',
+                    'project' => $this->project->name,
+                    'isOverdue' => $isOverdue,
+                    'isCompleted' => $isCompleted,
+                ],
+            ];
+        }
+
+        // Add project as event if it has dates
+        if ($this->project->start_date && $this->project->end_date) {
+            $events[] = [
+                'id' => 'project_' . $this->project->id,
+                'title' => '📁 ' . $this->project->name,
+                'start' => $this->project->start_date->format('Y-m-d'),
+                'end' => $this->project->end_date->copy()->addDay()->format('Y-m-d'),
+                'allDay' => true,
+                'backgroundColor' => '#3b82f6',
+                'textColor' => '#ffffff',
+                'borderColor' => '#2563eb',
+                'extendedProps' => [
+                    'type' => 'project',
+                    'description' => $this->project->description,
+                ],
+            ];
+        }
+        
+        return $events;
+    }
+
+    private function getTicketColor(Ticket $ticket, bool $isOverdue, bool $isCompleted): string
+    {
+        if ($isCompleted) {
+            return '#10b981'; // green
+        }
+        
+        if ($isOverdue) {
+            return '#ef4444'; // red
+        }
+
+        // Use priority color if available
+        if ($ticket->priority && $ticket->priority->color) {
+            return $ticket->priority->color;
+        }
+
+        return '#3b82f6'; // default blue
     }
     public function render()
     {
