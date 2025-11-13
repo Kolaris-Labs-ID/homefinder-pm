@@ -93,12 +93,12 @@
                         <p class="text-sm font-medium text-gray-600">Progress</p>
                         <div class="flex items-center space-x-2">
                             <p
-                                class="text-2xl font-bold {{ $projectStats['progress_percentage'] >= 100 ? 'text-green-600' : ($projectStats['progress_percentage'] >= 75 ? 'text-blue-600' : ($projectStats['progress_percentage'] >= 50 ? 'text-yellow-600' : 'text-gray-900')) }}">
+                                class="text-2xl font-bold {{ $projectStats['progress_percentage'] >= 100 ? 'text-green-600' : ($projectStats['progress_percentage'] >= 75 ? 'text-blue-600' : ($projectStats['progress_percentage'] >= 50 ? 'text-orange-600' : 'text-gray-900')) }}">
                                 {{ $projectStats['progress_percentage'] ?? 0 }}%
                             </p>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
-                            <div class="bg-gradient-to-r {{ $projectStats['progress_percentage'] >= 100 ? 'from-green-400 to-green-600' : ($projectStats['progress_percentage'] >= 75 ? 'from-blue-400 to-blue-600' : ($projectStats['progress_percentage'] >= 50 ? 'from-yellow-400 to-yellow-600' : 'from-gray-400 to-gray-600')) }} h-2 rounded-full transition-all duration-300"
+                            <div class="bg-gradient-to-r {{ $projectStats['progress_percentage'] >= 100 ? 'from-green-400 to-green-700' : ($projectStats['progress_percentage'] >= 75 ? 'from-blue-400 to-indigo-600' : ($projectStats['progress_percentage'] >= 50 ? 'from-yellow-400 to-orange-600' : 'from-gray-400 to-gray-600')) }} h-2 rounded-full transition-all duration-300"
                                 style="width: {{ min($projectStats['progress_percentage'] ?? 0, 100) }}%"></div>
                         </div>
                     </div>

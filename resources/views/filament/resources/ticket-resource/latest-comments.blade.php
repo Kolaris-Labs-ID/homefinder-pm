@@ -76,7 +76,7 @@
                                 </div>
                             </div>
                             <div class="mt-2 prose prose-sm max-w-none dark:prose-invert text-gray-700 dark:text-white border-l-4 border-blue-200 dark:border-blue-800 pl-3">
-                                {!! $comment->comment !!}
+                                {!! $comment->sanitized_comment !!}
                             </div>
                         </div>
                     </div>
