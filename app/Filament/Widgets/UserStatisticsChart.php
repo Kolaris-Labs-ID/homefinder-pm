@@ -19,7 +19,7 @@ class UserStatisticsChart extends ChartWidget
         'xl' => 6,
     ];
     
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 4;
     
     protected static ?string $maxHeight = '300px';
     

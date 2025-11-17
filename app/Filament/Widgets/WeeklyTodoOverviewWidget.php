@@ -17,7 +17,12 @@ class WeeklyTodoOverviewWidget extends BaseWidget
 
     protected static ?string $heading = 'Weekly To-Do List Overview';
     
-    protected int | string | array $columnSpan = 'full';
+    protected int | string | array $columnSpan = [
+        'default' => 'full',
+        'md' => 'full',
+        'lg' => 'full',
+        'xl' => 'full',
+    ];
     
     protected static ?int $sort = 1;
 

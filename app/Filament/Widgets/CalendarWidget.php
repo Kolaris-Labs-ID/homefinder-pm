@@ -5,7 +5,7 @@ namespace App\Filament\Widgets;
 use App\Models\WeeklyTodo;
 use App\Models\Ticket;
 use App\Models\Project;
-use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+use App\Models\Epic;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -13,45 +13,36 @@ use Carbon\Carbon;
 
 class CalendarWidget extends Widget
 {
-    use HasWidgetShield;
 
     protected static string $view = 'filament.widgets.calendar';
     
-    protected int | string | array $columnSpan = 'full';
+    protected int | string | array $columnSpan = [
+        'default' => 'full',
+        'md' => 'full',
+        'lg' => 'full',
+        'xl' => 'full',
+    ];
     
-    protected static ?int $sort = 5;
+    protected static ?int $sort = 2;
 
     protected static bool $isLazy = false;
+
+    public static function canView(): bool
+    {
+        // Allow all authenticated users to view the calendar widget
+        return auth()->check();
+    }
 
     public function getCalendarEvents(): array
     {
         $user = Auth::user();
         $events = [];
 
-        // Check if user is super admin or C-level
-        $isSuperAdmin = $user->hasRole('super_admin');
-        $isCLevel = $user->hasAnyRole(['CEO', 'COO', 'CTO', 'admin']);
-
-        // 1. Weekly Todos
-        $weeklyTodosQuery = WeeklyTodo::query()
-            ->whereNotNull('deadline');
-
-        if (!$isSuperAdmin && !$isCLevel) {
-            // Regular users see only their own todos
-            $weeklyTodosQuery->where('user_id', $user->id);
-        } elseif ($isCLevel && !$isSuperAdmin) {
-            // C-level sees their division's todos if they're division head
-            if ($user->is_division_head && $user->division) {
-                $weeklyTodosQuery->whereHas('user', function($q) use ($user) {
-                    $q->where('division', $user->division);
-                });
-            } else {
-                $weeklyTodosQuery->where('user_id', $user->id);
-            }
-        }
-        // Super admin sees all (no filter)
-
-        $weeklyTodos = $weeklyTodosQuery->get();
+        // 1. Weekly Todos - Only user's own todos
+        $weeklyTodos = WeeklyTodo::query()
+            ->whereNotNull('deadline')
+            ->where('user_id', $user->id)
+            ->get();
 
         foreach ($weeklyTodos as $todo) {
             $events[] = [
@@ -67,24 +58,20 @@ class CalendarWidget extends Widget
                     'type' => 'weekly_todo',
                     'description' => $todo->description,
                     'status' => $todo->status,
-                    'user' => $todo->user->name ?? 'Unknown',
+                    'user' => $todo->user?->name ?? 'Unknown',
                     'url' => route('filament.admin.resources.weekly-todos.view', $todo->id),
                 ],
             ];
         }
 
-        // 2. Projects (user is member of or all if super admin)
-        $projectsQuery = Project::query()
+        // 2. Projects - Only projects user is a member of
+        $projects = Project::query()
             ->whereNotNull('start_date')
-            ->whereNotNull('end_date');
-
-        if (!$isSuperAdmin) {
-            $projectsQuery->whereHas('members', function($q) use ($user) {
+            ->whereNotNull('end_date')
+            ->whereHas('members', function($q) use ($user) {
                 $q->where('user_id', $user->id);
-            });
-        }
-
-        $projects = $projectsQuery->get();
+            })
+            ->get();
 
         foreach ($projects as $project) {
             $events[] = [
@@ -104,18 +91,43 @@ class CalendarWidget extends Widget
             ];
         }
 
-        // 3. Assigned Tickets
-        $ticketsQuery = Ticket::query()
-            ->whereNotNull('due_date')
-            ->with(['project', 'status', 'priority', 'assignees']);
-
-        if (!$isSuperAdmin) {
-            $ticketsQuery->whereHas('assignees', function($q) use ($user) {
+        // 3. Epics - Only epics from projects user is a member of
+        $epics = Epic::query()
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date')
+            ->whereHas('project.members', function($q) use ($user) {
                 $q->where('user_id', $user->id);
-            });
+            })
+            ->with('project')
+            ->get();
+
+        foreach ($epics as $epic) {
+            $events[] = [
+                'id' => 'epic_' . $epic->id,
+                'title' => '🎯 ' . $epic->name,
+                'start' => $epic->start_date->format('Y-m-d'),
+                'end' => $epic->end_date->copy()->addDay()->format('Y-m-d'), // Add day for exclusive end
+                'allDay' => true,
+                'backgroundColor' => '#8b5cf6', // purple color for epics
+                'textColor' => '#ffffff',
+                'borderColor' => '#7c3aed',
+                'extendedProps' => [
+                    'type' => 'epic',
+                    'description' => $epic->description,
+                    'project' => $epic->project->name ?? 'Unknown',
+                    'url' => url('/admin/epics-overview/' . $epic->project_id),
+                ],
+            ];
         }
 
-        $tickets = $ticketsQuery->get();
+        // 4. Assigned Tickets - Only tickets assigned to user
+        $tickets = Ticket::query()
+            ->whereNotNull('due_date')
+            ->whereHas('assignees', function($q) use ($user) {
+                $q->where('user_id', $user->id);
+            })
+            ->with(['project', 'status', 'priority', 'assignees'])
+            ->get();
 
         foreach ($tickets as $ticket) {
             $isOverdue = $ticket->isOverdue();

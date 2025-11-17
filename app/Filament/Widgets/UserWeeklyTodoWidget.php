@@ -19,9 +19,14 @@ class UserWeeklyTodoWidget extends BaseWidget
 
     protected static ?string $heading = 'My Weekly To-Do List';
     
-    protected int | string | array $columnSpan = 'full';
+    protected int | string | array $columnSpan = [
+        'default' => 'full',
+        'md' => 'full',
+        'lg' => 6,
+        'xl' => 6,
+    ];
     
-    protected static ?int $sort = 4;
+    protected static ?int $sort = 5;
 
     protected static bool $isLazy = false;
 

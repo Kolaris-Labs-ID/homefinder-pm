@@ -14,9 +14,14 @@ class ProjectTimeline extends Widget
     use HasWidgetShield;
     protected static string $view = 'filament.widgets.project-timeline';
     
-    protected int | string | array $columnSpan = 'full';
+    protected int | string | array $columnSpan = [
+        'default' => 'full',
+        'md' => 'full',
+        'lg' => 6,
+        'xl' => 6,
+    ];
 
-    static ?int $sort = 4;
+    static ?int $sort = 6;
     
     public string $filter = 'pinned';
     public string $viewMode = 'projects'; // 'projects' or 'tickets'

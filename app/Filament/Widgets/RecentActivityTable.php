@@ -15,8 +15,10 @@ class RecentActivityTable extends BaseWidget
     protected static ?string $heading = 'Recent Activities';
     
     protected int | string | array $columnSpan = [
-        'md' => 2,
-        'xl' => 1,
+        'default' => 'full',
+        'md' => 6,
+        'lg' => 6,
+        'xl' => 6,
     ];
     
     protected static ?int $sort = 7;

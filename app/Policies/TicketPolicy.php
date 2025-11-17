@@ -23,27 +23,7 @@ class TicketPolicy
      */
     public function view(User $user, Ticket $ticket): bool
     {
-        // Super admin can view all tickets
-        if ($user->hasRole(['super_admin'])) {
-            return true;
-        }
-
-        // Check if user is assigned to the ticket
-        if ($ticket->assignees()->where('users.id', $user->id)->exists()) {
-            return true;
-        }
-
-        // Check if user created the ticket
-        if ($ticket->created_by === $user->id) {
-            return true;
-        }
-
-        // Check if user is a member of the project
-        if ($ticket->project && $ticket->project->members()->where('users.id', $user->id)->exists()) {
-            return true;
-        }
-
-        return false;
+        return $user->can('view_ticket');
     }
 
     /**
@@ -59,22 +39,7 @@ class TicketPolicy
      */
     public function update(User $user, Ticket $ticket): bool
     {
-        // Super admin can update all tickets
-        if ($user->hasRole(['super_admin'])) {
-            return true;
-        }
-
-        // Check if user created the ticket
-        if ($ticket->created_by === $user->id) {
-            return true;
-        }
-
-        // Check if user is assigned to the ticket
-        if ($ticket->assignees()->where('users.id', $user->id)->exists()) {
-            return true;
-        }
-
-        return false;
+        return $user->can('update_ticket');
     }
 
     /**

@@ -23,13 +23,7 @@ class TicketCommentPolicy
      */
     public function view(User $user, TicketComment $ticketComment): bool
     {
-        // Load ticket relation only if not already loaded to avoid N+1 queries
-        if (!$ticketComment->relationLoaded('ticket')) {
-            $ticketComment->load('ticket');
-        }
-
-        // If user can view the ticket, they can view the comments
-        return $user->can('view', $ticketComment->ticket);
+        return $user->can('view_ticket::comment');
     }
 
     /**
@@ -45,8 +39,7 @@ class TicketCommentPolicy
      */
     public function update(User $user, TicketComment $ticketComment): bool
     {
-        // Comment author or super admin can edit
-        return $ticketComment->user_id === $user->id || $user->hasRole(['super_admin']);
+        return $user->can('update_ticket::comment');
     }
 
     /**
@@ -54,8 +47,7 @@ class TicketCommentPolicy
      */
     public function delete(User $user, TicketComment $ticketComment): bool
     {
-        // Comment author or super admin can delete
-        return $ticketComment->user_id === $user->id || $user->hasRole(['super_admin']);
+        return $user->can('delete_ticket::comment');
     }
 
     /**
