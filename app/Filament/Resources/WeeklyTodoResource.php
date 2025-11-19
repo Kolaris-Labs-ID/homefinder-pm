@@ -253,13 +253,27 @@ class WeeklyTodoResource extends Resource
                     ->preload()
                     ->visible(fn () => self::isManagementRole(auth()->user())),
                 
-                Tables\Filters\SelectFilter::make('division')
+                Tables\Filters\Filter::make('division')
                     ->label('Division')
-                    ->options(function () {
-                        return \App\Models\User::whereNotNull('division')
-                            ->distinct()
-                            ->pluck('division', 'division')
-                            ->toArray();
+                    ->form([
+                        Forms\Components\Select::make('division')
+                            ->label('Division')
+                            ->options(function () {
+                                return \App\Models\User::whereNotNull('division')
+                                    ->distinct()
+                                    ->pluck('division', 'division')
+                                    ->toArray();
+                            })
+                            ->searchable(),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (!isset($data['division']) || $data['division'] === null) {
+                            return $query;
+                        }
+                        
+                        return $query->whereHas('user', function (Builder $q) use ($data) {
+                            $q->where('division', $data['division']);
+                        });
                     })
                     ->visible(fn () => self::isManagementRole(auth()->user())),
                 

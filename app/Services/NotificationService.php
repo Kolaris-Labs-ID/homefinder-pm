@@ -32,12 +32,11 @@ class NotificationService
                 'type' => 'comment_added',
                 'title' => 'New Comment on Ticket',
                 'message' => "{$commenter->name} added a comment on ticket {$ticket->name}",
-                'data' => [
+                'data' => array_merge($this->actorData($commenter), [
                     'ticket_id' => $ticket->id,
+                    'ticket_name' => $ticket->name,
                     'comment_id' => $comment->id,
-                    'commenter_id' => $commenter->id,
-                    'commenter_name' => $commenter->name,
-                ],
+                ]),
             ]);
         }
     }
@@ -55,12 +54,11 @@ class NotificationService
                 'type' => 'comment_updated',
                 'title' => 'Comment Updated',
                 'message' => "{$commenter->name} updated a comment on ticket {$ticket->name}",
-                'data' => [
+                'data' => array_merge($this->actorData($commenter), [
                     'ticket_id' => $ticket->id,
+                    'ticket_name' => $ticket->name,
                     'comment_id' => $comment->id,
-                    'commenter_id' => $commenter->id,
-                    'commenter_name' => $commenter->name,
-                ],
+                ]),
             ]);
         }
     }
@@ -117,12 +115,10 @@ class NotificationService
                 'type' => 'project_assigned',
                 'title' => 'Ditambahkan ke Project',
                 'message' => "Anda telah ditambahkan ke project '{$project->name}' oleh {$assignedBy->name}",
-                'data' => [
+                'data' => array_merge($this->actorData($assignedBy), [
                     'project_id' => $project->id,
                     'project_name' => $project->name,
-                    'assigned_by_id' => $assignedBy->id,
-                    'assigned_by_name' => $assignedBy->name,
-                ],
+                ]),
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to create in-app notification: ' . $e->getMessage(), [
@@ -154,12 +150,10 @@ class NotificationService
             'type' => 'project_removed',
             'title' => 'Dihapus dari Project',
             'message' => "Anda telah dihapus dari project '{$project->name}' oleh {$removedBy->name}",
-            'data' => [
+            'data' => array_merge($this->actorData($removedBy), [
                 'project_id' => $project->id,
                 'project_name' => $project->name,
-                'removed_by_id' => $removedBy->id,
-                'removed_by_name' => $removedBy->name,
-            ],
+            ]),
         ]);
     }
 
@@ -171,7 +165,7 @@ class NotificationService
         $usersToNotify = $this->getUsersToNotifyForTicket($ticket);
         $overdueDays = Carbon::parse($ticket->due_date)->diffInDays(Carbon::today());
 
-        foreach ($usersToNotify as $user) {
+            foreach ($usersToNotify as $user) {
             // Create in-app notification
             try {
                 Notification::create([
@@ -179,7 +173,7 @@ class NotificationService
                     'type' => 'ticket_overdue',
                     'title' => 'Ticket Overdue',
                     'message' => "Ticket '{$ticket->name}' ({$ticket->uuid}) is overdue by {$overdueDays} day(s)",
-                    'data' => [
+                        'data' => array_merge($this->actorData(null), [
                         'ticket_id' => $ticket->id,
                         'ticket_uuid' => $ticket->uuid,
                         'ticket_name' => $ticket->name,
@@ -187,7 +181,7 @@ class NotificationService
                         'project_name' => $ticket->project->name ?? 'Unknown',
                         'due_date' => $ticket->due_date?->format('Y-m-d'),
                         'overdue_days' => $overdueDays,
-                    ],
+                        ]),
                 ]);
             } catch (\Exception $e) {
                 Log::error('Failed to create overdue ticket notification: ' . $e->getMessage(), [
@@ -217,7 +211,7 @@ class NotificationService
     {
         $usersToNotify = $this->getUsersToNotifyForTicket($ticket);
 
-        foreach ($usersToNotify as $user) {
+            foreach ($usersToNotify as $user) {
             // Create in-app notification
             try {
                 Notification::create([
@@ -225,7 +219,7 @@ class NotificationService
                     'type' => 'ticket_nearing_overdue',
                     'title' => 'Ticket Due Soon',
                     'message' => "Ticket '{$ticket->name}' ({$ticket->uuid}) is due in {$daysUntilDue} day(s)",
-                    'data' => [
+                        'data' => array_merge($this->actorData(null), [
                         'ticket_id' => $ticket->id,
                         'ticket_uuid' => $ticket->uuid,
                         'ticket_name' => $ticket->name,
@@ -233,7 +227,7 @@ class NotificationService
                         'project_name' => $ticket->project->name ?? 'Unknown',
                         'due_date' => $ticket->due_date?->format('Y-m-d'),
                         'days_until_due' => $daysUntilDue,
-                    ],
+                        ]),
                 ]);
             } catch (\Exception $e) {
                 Log::error('Failed to create nearing overdue ticket notification: ' . $e->getMessage(), [
@@ -268,7 +262,7 @@ class NotificationService
         $usersToNotify = $project->members;
         $overdueDays = Carbon::parse($project->end_date)->diffInDays(Carbon::today());
 
-        foreach ($usersToNotify as $user) {
+            foreach ($usersToNotify as $user) {
             // Create in-app notification
             try {
                 Notification::create([
@@ -276,12 +270,12 @@ class NotificationService
                     'type' => 'project_overdue',
                     'title' => 'Project Overdue',
                     'message' => "Project '{$project->name}' is overdue by {$overdueDays} day(s)",
-                    'data' => [
+                        'data' => array_merge($this->actorData(null), [
                         'project_id' => $project->id,
                         'project_name' => $project->name,
                         'end_date' => $project->end_date?->format('Y-m-d'),
                         'overdue_days' => $overdueDays,
-                    ],
+                        ]),
                 ]);
             } catch (\Exception $e) {
                 Log::error('Failed to create overdue project notification: ' . $e->getMessage(), [
@@ -315,7 +309,7 @@ class NotificationService
 
         $usersToNotify = $project->members;
 
-        foreach ($usersToNotify as $user) {
+            foreach ($usersToNotify as $user) {
             // Create in-app notification
             try {
                 Notification::create([
@@ -323,12 +317,12 @@ class NotificationService
                     'type' => 'project_nearing_overdue',
                     'title' => 'Project Due Soon',
                     'message' => "Project '{$project->name}' is due in {$daysUntilDue} day(s)",
-                    'data' => [
+                        'data' => array_merge($this->actorData(null), [
                         'project_id' => $project->id,
                         'project_name' => $project->name,
                         'end_date' => $project->end_date?->format('Y-m-d'),
                         'days_until_due' => $daysUntilDue,
-                    ],
+                        ]),
                 ]);
             } catch (\Exception $e) {
                 Log::error('Failed to create nearing overdue project notification: ' . $e->getMessage(), [
@@ -374,5 +368,24 @@ class NotificationService
         }
 
         return $usersToNotify->unique('id');
+    }
+
+    private function actorData(?User $user, string $fallbackName = 'System'): array
+    {
+        if (! $user) {
+            return [
+                'actor_id' => null,
+                'actor_name' => $fallbackName,
+                'actor_avatar' => null,
+                'actor_verified' => false,
+            ];
+        }
+
+        return [
+            'actor_id' => $user->id,
+            'actor_name' => $user->name,
+            'actor_avatar' => $user->avatar_url,
+            'actor_verified' => method_exists($user, 'hasRole') ? $user->hasRole('super_admin') : false,
+        ];
     }
 }

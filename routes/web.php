@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use App\Livewire\ExternalLogin;
 use App\Livewire\ExternalDashboard;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Auth\GoogleController;
 
 Route::get('/', function () {
@@ -26,4 +27,10 @@ Route::get('logout', function () {
 Route::prefix('external')->name('external.')->group(function () {
     Route::get('/{token}', ExternalLogin::class)->name('login');
     Route::get('/{token}/dashboard', ExternalDashboard::class)->name('dashboard');
+});
+
+Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.markAllRead');
 });

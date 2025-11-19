@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Spatie\Permission\Traits\HasRoles;
 use Spatie\Permission\Models\Role;
 
@@ -54,6 +55,11 @@ class User extends Authenticatable implements FilamentUser
             'password' => 'hashed',
         ];
     }
+
+    protected $appends = [
+        'avatar_url',
+        'avatar_initials',
+    ];
 
     public function projects(): BelongsToMany
     {
@@ -110,5 +116,40 @@ class User extends Authenticatable implements FilamentUser
     {
         $roles = Role::all()->pluck('name')->toArray();
         return $this->hasAnyRole($roles);
+    }
+
+    public function getAvatarUrlAttribute(): string
+    {
+        if ($this->google_id) {
+            return sprintf(
+                'https://profiles.google.com/s2/photos/profile/%s',
+                $this->google_id
+            );
+        }
+
+        $name = trim($this->name ?: ($this->email ?? 'User'));
+        $background = 'E0E7FF';
+        $color = '312E81';
+
+        return 'https://ui-avatars.com/api/?' . http_build_query([
+            'name' => $name,
+            'background' => $background,
+            'color' => $color,
+            'size' => 128,
+            'bold' => true,
+        ]);
+    }
+
+    public function getAvatarInitialsAttribute(): string
+    {
+        if (! $this->name) {
+            return '';
+        }
+
+        $segments = collect(preg_split('/\s+/', trim($this->name)))
+            ->filter()
+            ->map(fn (string $segment) => Str::upper(Str::substr($segment, 0, 1)));
+
+        return Str::limit($segments->take(2)->implode(''), 2, '');
     }
 }
