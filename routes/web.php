@@ -29,6 +29,12 @@ Route::prefix('external')->name('external.')->group(function () {
     Route::get('/{token}/dashboard', ExternalDashboard::class)->name('dashboard');
 });
 
+Route::middleware('auth')->group(function () {
+    Route::get('/chat', function () {
+        return view('chat');
+    })->name('chat');
+});
+
 Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
