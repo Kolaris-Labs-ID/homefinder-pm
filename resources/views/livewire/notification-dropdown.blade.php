@@ -8,27 +8,27 @@
             const button = $refs.bellButton;
             const dropdown = $refs.dropdown;
             if (!button || !dropdown) return;
-            
+
             const buttonRect = button.getBoundingClientRect();
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
             const margin = 12; // 0.75rem
-            
-            // Calculate width
-            const maxWidth = Math.min(this.dropdownWidth, viewportWidth - (margin * 2));
-            
-            // Calculate horizontal position
-            let left = buttonRect.right - maxWidth;
-            if (left < margin) {
-                left = margin;
+            const verticalOffset = 12;
+
+            const availableLeftSpace = Math.max(buttonRect.right - margin, margin);
+            let width = Math.min(this.dropdownWidth, availableLeftSpace);
+            let right = Math.max(0, viewportWidth - buttonRect.right);
+
+            const fallbackWidth = Math.min(this.dropdownWidth, viewportWidth - (margin * 2));
+
+            if (availableLeftSpace < 260) {
+                width = fallbackWidth;
+                right = margin;
             }
-            if (left + maxWidth > viewportWidth - margin) {
-                left = viewportWidth - maxWidth - margin;
-            }
-            
+
             // Calculate vertical position
-            let top = buttonRect.bottom + 12; // mt-3
-            
+            let top = buttonRect.bottom + verticalOffset; // mt-3
+
             // Check if dropdown would overflow bottom of viewport
             const dropdownHeight = dropdown.offsetHeight || 500; // estimate if not rendered
             if (top + dropdownHeight > viewportHeight - margin) {
@@ -38,8 +38,8 @@
                     top = margin; // Fallback to top of viewport
                 }
             }
-            
-            this.dropdownStyle = `position: fixed; left: ${left}px; top: ${top}px; width: ${maxWidth}px;`;
+
+            this.dropdownStyle = `position: fixed; right: ${right}px; top: ${top}px; width: ${width}px;`;
         }
     }"
     x-init="$watch('open', value => { if (value) { $nextTick(() => positionDropdown()) } })"
@@ -121,10 +121,10 @@
                             <img
                                 src="{{ $notification->actor['avatar'] ?? $notification->user?->avatar_url }}"
                                 alt="{{ $notification->actor['name'] ?? $notification->user?->name }}"
-                                class="h-12 w-12 rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-700"
+                                class="h-8 w-8 rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-700"
                                 onerror="this.src='{{ $notification->user?->avatar_url }}'"
                             >
-                            <span class="absolute bottom-0 right-0 block h-3 w-3 rounded-full border-2 border-white bg-emerald-400 dark:border-slate-900"></span>
+                            <span class="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-400 dark:border-slate-900"></span>
                         </div>
                     </div>
 
