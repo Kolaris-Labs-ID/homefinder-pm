@@ -3,21 +3,25 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Hris\Employee;
+use App\Models\Hris\LeaveRequest;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use Spatie\Permission\Models\Role;
 
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, HasRoles, Notifiable;
+    use HasApiTokens, HasFactory, HasRoles, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -61,6 +65,11 @@ class User extends Authenticatable implements FilamentUser
         'avatar_initials',
     ];
 
+    public function employee(): HasOne
+    {
+        return $this->hasOne(Employee::class);
+    }
+
     public function projects(): BelongsToMany
     {
         return $this->belongsToMany(Project::class, 'project_members')
@@ -85,6 +94,23 @@ class User extends Authenticatable implements FilamentUser
     public function weeklyTodos(): HasMany
     {
         return $this->hasMany(WeeklyTodo::class);
+    }
+
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class, 'current_approver_id');
+    }
+
+    public function employeeLeaveRequests(): HasMany
+    {
+        return $this->hasManyThrough(
+            LeaveRequest::class,
+            Employee::class,
+            'user_id',
+            'employee_id',
+            'id',
+            'id'
+        );
     }
 
     public function isAssignedToTicket(Ticket $ticket): bool

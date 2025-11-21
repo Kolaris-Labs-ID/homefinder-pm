@@ -24,6 +24,42 @@ A Laravel Filament 3 application for managing projects with ticket management an
 - Leaderboard for team member performance
 - External dashboard view (Client Portal)
 
+## HRIS Module (Phase 1)
+
+The first HRIS phase introduces core employee data management and leave tracking.
+
+- **Data model**: employees, departments, positions, documents, movements, leave types/balances/requests
+- **Filament admin**:
+  - Employees, Departments, Positions, Leave Types, Leave Requests (all under the `HRIS` navigation group)
+  - Relation managers for assignments, documents, movements, and leave balances
+- **Access control**: policies for employees and leave requests plus Filament Shield permissions
+- **API (Sanctum protected)**:
+  - `GET /api/hris/profile`
+  - `PUT /api/hris/profile`
+  - `GET /api/hris/leave-balances`
+  - `GET /api/hris/leave-types`
+  - `GET /api/hris/leave-requests`
+  - `POST /api/hris/leave-requests`
+  - `PUT /api/hris/leave-requests/{id}/cancel`
+
+### Getting Started with HRIS
+
+1. Run migrations & seeders
+   ```bash
+   php artisan migrate
+   php artisan db:seed --class=HrisSeeder
+   ```
+2. Ensure roles exist (`hr-admin`, `hr-staff`, `manager`). Grant them access via Filament Shield.
+3. Generate API tokens for ESS/mobile:
+   ```bash
+   php artisan tinker
+   >>> $user = App\Models\User::first();
+   >>> $token = $user->createToken('mobile')->plainTextToken;
+   ```
+4. Call the endpoints using `Authorization: Bearer {token}`.
+
+> HRIS APIs rely on **Laravel Sanctum**. Make sure `php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"` has been executed and `config/auth.php` contains the `sanctum` guard.
+
 ## Requirements
 
 - PHP > 8.2+

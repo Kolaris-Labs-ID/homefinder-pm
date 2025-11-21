@@ -21,6 +21,9 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // Jalankan RoleSeeder
-        $this->call(RoleSeeder::class);
+        $this->call([
+            RoleSeeder::class,
+            HrisSeeder::class,
+        ]);
     }
 }
