@@ -2,11 +2,13 @@
 
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
+use App\Models\Hris\Employee;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class PositionsRelationManager extends RelationManager
 {
@@ -27,7 +29,12 @@ class PositionsRelationManager extends RelationManager
                     ->preload()
                     ->required(),
                 Forms\Components\Select::make('manager_id')
-                    ->relationship('manager', 'user.name')
+                    ->relationship(
+                        name: 'manager',
+                        titleAttribute: 'id',
+                        modifyQueryUsing: fn (Builder $query) => $query->with('user')
+                    )
+                    ->getOptionLabelFromRecordUsing(fn (Employee $record) => $record->user->name ?? 'N/A')
                     ->searchable()
                     ->preload()
                     ->label('Manager'),
@@ -43,7 +50,6 @@ class PositionsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
-            ->recordsPerPage(10)
             ->columns([
                 Tables\Columns\TextColumn::make('position.title')
                     ->label('Position')
