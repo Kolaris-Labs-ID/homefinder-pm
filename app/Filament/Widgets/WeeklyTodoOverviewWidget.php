@@ -69,15 +69,27 @@ class WeeklyTodoOverviewWidget extends BaseWidget
         return $date->copy()->startOfWeek(Carbon::MONDAY);
     }
 
+    /**
+     * Get the authenticated user
+     * 
+     * @return User|null
+     */
+    private static function getAuthUser(): ?User
+    {
+        /** @var \Illuminate\Contracts\Auth\Authenticatable|null $user */
+        $user = auth()->user();
+        return $user instanceof User ? $user : null;
+    }
+
     public static function canView(): bool
     {
-        $user = auth()->user();
+        $user = self::getAuthUser();
         return self::isManagementRole($user);
     }
 
     public function table(Table $table): Table
     {
-        $user = auth()->user();
+        $user = self::getAuthUser();
         
         return $table
             ->query(
@@ -94,7 +106,11 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                     })
                     ->when(!self::isManagementRole($user), function ($query) {
                         // Regular users see only their own
-                        $query->where('user_id', auth()->id());
+                        /** @var int|string|null $userId */
+                        $userId = auth()->id();
+                        if ($userId) {
+                            $query->where('user_id', $userId);
+                        }
                     })
                     ->latest('week_start_date')
                     ->latest('created_at')
@@ -112,7 +128,9 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                     ->color('info')
                     ->sortable()
                     ->searchable()
-                    ->visible(fn () => self::isManagementRole(auth()->user())),
+                    ->visible(function () {
+                        return self::isManagementRole(self::getAuthUser());
+                    }),
                 
                 Tables\Columns\TextColumn::make('week_start_date')
                     ->label('Week Start Date')
@@ -123,19 +141,73 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                 
                 Tables\Columns\TextColumn::make('deadline')
                     ->label('Deadline')
-                    ->date('d/m/Y')
+                    ->formatStateUsing(function ($state) {
+                        if (!$state) {
+                            return null;
+                        }
+                        try {
+                            // Handle both Carbon instance and string
+                            $date = $state instanceof \Carbon\Carbon ? $state : \Carbon\Carbon::parse($state);
+                            return $date->format('l, d/m/Y'); // l = Full day name (Monday, Tuesday, etc.)
+                        } catch (\Exception $e) {
+                            return $state instanceof \Carbon\Carbon ? $state->format('d/m/Y') : $state;
+                        }
+                    })
                     ->sortable()
                     ->searchable()
-                    ->color(function ($record) {
-                        if (!$record->deadline) return null;
-                        $now = today();
-                        if ($record->deadline->isPast()) return 'danger';
-                        if ($record->deadline->isToday()) return 'warning';
-                        if ($record->deadline->diffInDays($now) <= 3) return 'warning';
+                    ->badge(function ($record) {
+                        if (!$record->deadline) {
+                            return null;
+                        }
+                        
+                        try {
+                            if ($record->deadline->isPast() && $record->status !== 'done') {
+                                return 'Overdue';
+                            }
+                            
+                            if ($record->deadline->isToday()) {
+                                return 'Deadline';
+                            }
+                        } catch (\Exception $e) {
+                            return null;
+                        }
+                        
                         return null;
                     })
-                    ->badge(fn ($record) => $record->deadline && $record->deadline->isPast() && $record->status !== 'done')
-                    ->icon(fn ($record) => $record->deadline && $record->deadline->isPast() && $record->status !== 'done' ? 'heroicon-o-exclamation-triangle' : null)
+                    ->color(function ($record) {
+                        if (!$record->deadline) {
+                            return null;
+                        }
+                        
+                        try {
+                            // Badge color when badge is shown
+                            if ($record->deadline->isPast() && $record->status !== 'done') {
+                                return 'danger';
+                            }
+                            
+                            if ($record->deadline->isToday()) {
+                                return 'warning';
+                            }
+                            
+                            // Text color for dates without badges
+                            $now = today();
+                            if ($record->deadline->isPast()) return 'danger';
+                            if ($record->deadline->isToday()) return 'warning';
+                            if ($record->deadline->diffInDays($now) <= 3) return 'warning';
+                        } catch (\Exception $e) {
+                            return null;
+                        }
+                        
+                        return null;
+                    })
+                    ->icon(function ($record) {
+                        if (!$record->deadline) return null;
+                        try {
+                            return $record->deadline->isPast() && $record->status !== 'done' ? 'heroicon-o-exclamation-triangle' : null;
+                        } catch (\Exception $e) {
+                            return null;
+                        }
+                    })
                     ->placeholder('No deadline'),
                 
                 Tables\Columns\TextColumn::make('title')
@@ -168,7 +240,9 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                     ->relationship('user', 'name')
                     ->searchable()
                     ->preload()
-                    ->visible(fn () => self::isManagementRole(auth()->user())),
+                    ->visible(function () {
+                        return self::isManagementRole(self::getAuthUser());
+                    }),
                 
                 Tables\Filters\SelectFilter::make('division')
                     ->label('Division')
@@ -178,14 +252,9 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                             ->pluck('division', 'division')
                             ->toArray();
                     })
-                    ->query(function (Builder $query, array $data) {
-                        if (!empty($data['value'])) {
-                            $query->whereHas('user', function ($q) use ($data) {
-                                $q->where('division', $data['value']);
-                            });
-                        }
-                    })
-                    ->visible(fn () => self::isManagementRole(auth()->user())),
+                    ->visible(function () {
+                        return self::isManagementRole(self::getAuthUser());
+                    }),
                 
                 Tables\Filters\Filter::make('week_start_date')
                     ->form([
@@ -243,4 +312,5 @@ class WeeklyTodoOverviewWidget extends BaseWidget
             ->emptyStateIcon('heroicon-o-clipboard-document-check');
     }
 }
+
 
