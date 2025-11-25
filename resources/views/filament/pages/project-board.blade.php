@@ -1,63 +1,104 @@
 <x-filament-panels::page>
-    
-    {{-- Project Selector --}}
-    <div class="mb-8" x-data="{ showProjectSelector: false }">
-        <!-- Toggle Button -->
-        <div class="mb-4">
-            <button 
-                @click="showProjectSelector = !showProjectSelector"
-                class="flex items-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 dark:text-white bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-                <svg class="w-4 h-4 transition-transform" :class="{ 'rotate-180': showProjectSelector }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                </svg>
-                <span>{{ $selectedProject ? $selectedProject->name : 'Select Project' }}</span>
-                @if($selectedProject)
-                    <span class="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">
-                        Selected
-                    </span>
-                @endif
-            </button>
-        </div>
-        
-        <!-- Project Selector (Collapsible) -->
-        <div 
-            x-show="showProjectSelector" 
-            x-transition:enter="transition ease-out duration-200"
-            x-transition:enter-start="opacity-0 transform -translate-y-2"
-            x-transition:enter-end="opacity-100 transform translate-y-0"
-            x-transition:leave="transition ease-in duration-150"
-            x-transition:leave-start="opacity-100 transform translate-y-0"
-            x-transition:leave-end="opacity-0 transform -translate-y-2"
-        >
-            <x-filament::section>
-                <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+
+    {{-- Project Selection --}}
+    @if (! $selectedProject)
+        <x-filament::section class="mb-8">
+            <div class="flex items-center justify-between mb-6">
+                <div>
                     <h2 class="text-lg font-medium text-gray-900 dark:text-white">
-                        Choose Project
+                        Choose a Project Board
                     </h2>
-                    
-                    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
-                        <div class="w-full sm:w-auto">
-                            <x-filament::input.wrapper>
-                                <x-filament::input.select
-                                    wire:model.live="selectedProjectId"
-                                    class="w-full"
-                                    @change="showProjectSelector = false"
-                                >
-                                    <option value="">Select Project</option>
-                                    @foreach($projects as $project)
-                                        <option value="{{ $project->id }}" {{ $selectedProjectId == $project->id ? 'selected' : '' }}>
-                                            {{ $project->name }}
-                                        </option>
-                                    @endforeach
-                                </x-filament::input.select>
-                            </x-filament::input.wrapper>
-                        </div>
-                    </div>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        Select one of your available projects below to open its kanban board.
+                    </p>
                 </div>
-            </x-filament::section>
-        </div>
-    </div>
+            </div>
+
+            @if ($projects->isEmpty())
+                <div class="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400 gap-4">
+                    <div class="flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 p-6">
+                        <x-heroicon-o-folder class="w-16 h-16 text-gray-400 dark:text-gray-500" />
+                    </div>
+                    <h3 class="text-xl font-medium text-gray-600 dark:text-gray-300">No projects available</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        You don't have access to any projects yet.
+                    </p>
+                </div>
+            @else
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    @foreach ($projects as $project)
+                        <button
+                            type="button"
+                            wire:click="selectProject({{ $project->id }})"
+                            class="group relative w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 transition-colors transition-shadow duration-150 hover:border-primary-500 hover:shadow-md dark:hover:border-primary-500"
+                        >
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="text-base font-semibold text-gray-900 dark:text-white truncate group-hover:text-primary-600 dark:group-hover:text-primary-400">
+                                        {{ $project->name }}
+                                    </h3>
+
+                                    @if ($project->description)
+                                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+                                            {{ \Illuminate\Support\Str::limit($project->description, 100) }}
+                                        </p>
+                                    @endif
+                                </div>
+
+                                <div class="ml-3 flex-shrink-0">
+                                    <x-heroicon-o-view-columns class="w-7 h-7 text-gray-300 dark:text-gray-600 group-hover:text-primary-500" />
+                                </div>
+                            </div>
+
+                            <div class="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+                                <div class="inline-flex items-center gap-1">
+                                    <x-heroicon-o-ticket class="w-4 h-4" />
+                                    <span>{{ $project->tickets_count ?? $project->tickets?->count() ?? 0 }} tickets</span>
+                                </div>
+
+                                @if ($project->end_date)
+                                    <div class="inline-flex items-center gap-1">
+                                        <x-heroicon-o-calendar class="w-4 h-4" />
+                                        <span>
+                                            @php
+                                                $daysLeft = $project->remaining_days ?? null;
+                                            @endphp
+                                            {{ $daysLeft === null ? 'No end date' : ($daysLeft === 0 ? 'Ends today' : $daysLeft.' days left') }}
+                                        </span>
+                                    </div>
+                                @endif
+                            </div>
+
+                            @php
+                                $progress = $project->progress_percentage ?? 0;
+                            @endphp
+
+                            @if ($progress > 0)
+                                <div class="mt-4">
+                                    <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                                        <span>Progress</span>
+                                        <span class="font-medium text-gray-700 dark:text-gray-300">
+                                            {{ number_format(min($progress, 100), 1) }}%
+                                        </span>
+                                    </div>
+                                    <div class="mt-1 h-1.5 w-full rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                                        <div
+                                            class="h-1.5 rounded-full bg-primary-500"
+                                            style="width: {{ min($progress, 100) }}%;"
+                                        ></div>
+                                    </div>
+                                </div>
+                            @endif
+
+                            <div class="pointer-events-none absolute inset-y-3 right-3 flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                <x-heroicon-m-arrow-right class="w-4 h-4 text-primary-500" />
+                            </div>
+                        </button>
+                    @endforeach
+                </div>
+            @endif
+        </x-filament::section>
+    @endif
 
     @if($selectedProject)
         <div
@@ -633,14 +674,5 @@
             </div>
         </div>
     @else
-        <div class="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400 gap-4">
-            <div class="flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 p-6">
-                <x-heroicon-o-view-columns class="w-16 h-16 text-gray-400 dark:text-gray-500" />
-            </div>
-            <h2 class="text-xl font-medium text-gray-600 dark:text-gray-300">Please select a project first</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-                Select a project from the dropdown above to view the board
-            </p>
-        </div>
     @endif
 </x-filament-panels::page>

@@ -244,13 +244,27 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                         return self::isManagementRole(self::getAuthUser());
                     }),
                 
-                Tables\Filters\SelectFilter::make('division')
+                Tables\Filters\Filter::make('division')
                     ->label('Division')
-                    ->options(function () {
-                        return User::whereNotNull('division')
-                            ->distinct()
-                            ->pluck('division', 'division')
-                            ->toArray();
+                    ->form([
+                        \Filament\Forms\Components\Select::make('division')
+                            ->label('Division')
+                            ->options(function () {
+                                return User::whereNotNull('division')
+                                    ->distinct()
+                                    ->pluck('division', 'division')
+                                    ->toArray();
+                            })
+                            ->searchable(),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (!isset($data['division']) || $data['division'] === null) {
+                            return $query;
+                        }
+                        
+                        return $query->whereHas('user', function (Builder $q) use ($data) {
+                            $q->where('division', $data['division']);
+                        });
                     })
                     ->visible(function () {
                         return self::isManagementRole(self::getAuthUser());

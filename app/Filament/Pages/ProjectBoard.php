@@ -70,9 +70,9 @@ class ProjectBoard extends Page
         }
 
         if ($user->hasRole(['super_admin'])) {
-            $this->projects = Project::all();
+            $this->projects = Project::withCount('tickets')->get();
         } else {
-            $this->projects = $user->projects;
+            $this->projects = $user->projects()->withCount('tickets')->get();
         }
 
         if ($project_id) {
