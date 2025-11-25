@@ -52,6 +52,7 @@ class AdminPanelProvider extends PanelProvider
                     ->group('Communication'),
             ])
             ->renderHook('panels::user-menu.before', fn () => view('filament.components.notification-dropdown-wrapper')->render())
+            ->renderHook('panels::global-search.after', fn () => view('filament.components.language-toggle')->render())
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
@@ -62,6 +63,7 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
+                \App\Http\Middleware\SetLocale::class,
             ])
             ->plugins([
                 FilamentShieldPlugin::make(),

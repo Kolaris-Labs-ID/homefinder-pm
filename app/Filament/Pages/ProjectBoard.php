@@ -14,6 +14,7 @@ use App\Filament\Actions\ExportTicketsAction;
 use App\Exports\TicketsExport;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Form;
@@ -49,12 +50,29 @@ class ProjectBoard extends Page
     
     public Collection $projectUsers;
 
+    /**
+     * Get the authenticated user
+     * 
+     * @return User|null
+     */
+    private function getUser(): ?User
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
+        return $user;
+    }
+
     public function mount($project_id = null): void
     {
-        if (auth()->user()->hasRole(['super_admin'])) {
+        $user = $this->getUser();
+        if (!$user) {
+            return;
+        }
+
+        if ($user->hasRole(['super_admin'])) {
             $this->projects = Project::all();
         } else {
-            $this->projects = auth()->user()->projects;
+            $this->projects = $user->projects;
         }
 
         if ($project_id) {
@@ -211,18 +229,28 @@ class ProjectBoard extends Page
                 return;
             }
 
-            $ticket->update([
-                'ticket_status_id' => $newStatusId,
-            ]);
+            try {
+                $ticket->update([
+                    'ticket_status_id' => $newStatusId,
+                ]);
 
-            $this->loadTicketStatuses();
+                $this->loadTicketStatuses();
 
-            $this->dispatch('ticket-updated');
+                $this->dispatch('ticket-updated');
 
-            Notification::make()
-                ->title('Ticket Updated')
-                ->success()
-                ->send();
+                Notification::make()
+                    ->title('Ticket Updated')
+                    ->success()
+                    ->send();
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Error moving ticket: ' . $e->getMessage());
+                
+                Notification::make()
+                    ->title('Error Updating Ticket')
+                    ->body('An error occurred while updating the ticket status. Please try again.')
+                    ->danger()
+                    ->send();
+            }
         }
     }
 
@@ -279,7 +307,7 @@ class ProjectBoard extends Page
             Action::make('new_ticket')
                 ->label('New Ticket')
                 ->icon('heroicon-m-plus')
-                ->visible(fn () => $this->selectedProject !== null && auth()->user()->can('create_ticket'))
+                ->visible(fn () => $this->selectedProject !== null && $this->getUser()?->can('create_ticket') ?? false)
                 ->url(fn (): string => TicketResource::getUrl('create', [
                     'project_id' => $this->selectedProject?->id,
                     'ticket_status_id' => $this->selectedProject?->ticketStatuses->first()?->id,
@@ -292,7 +320,7 @@ class ProjectBoard extends Page
                 ->action('refreshBoard')
                 ->color('warning'),
             ExportTicketsAction::make()
-                ->visible(fn () => $this->selectedProject !== null && auth()->user()->hasRole(['super_admin'])),
+                ->visible(fn () => $this->selectedProject !== null && $this->getUser()?->hasRole(['super_admin']) ?? false),
             
             Action::make('filter_users')
                 ->label('Filter by User')
@@ -339,13 +367,15 @@ class ProjectBoard extends Page
             return false;
         }
 
-        if (! auth()->user()->can('view_ticket')) {
+        $user = $this->getUser();
+        if (!$user || !$user->can('view_ticket')) {
             return false;
         }
 
-        return auth()->user()->hasRole(['super_admin'])
-            || $ticket->user_id === auth()->id()
-            || $ticket->assignees()->where('users.id', auth()->id())->exists();
+        $userId = $user->id;
+        return $user->hasRole(['super_admin'])
+            || $ticket->created_by === $userId
+            || $ticket->assignees()->where('users.id', $userId)->exists();
     }
 
     private function canEditTicket(?Ticket $ticket): bool
@@ -354,8 +384,9 @@ class ProjectBoard extends Page
             return false;
         }
 
+        $user = $this->getUser();
         // Check Filament Shield permission for updating tickets
-        if (! auth()->user()->can('update_ticket')) {
+        if (!$user || !$user->can('update_ticket')) {
             return false;
         }
 
@@ -363,9 +394,10 @@ class ProjectBoard extends Page
         // 1. Super admin (already covered by permission above)
         // 2. The ticket creator
         // 3. Assigned to the ticket
-        return auth()->user()->hasRole(['super_admin'])
-            || $ticket->user_id === auth()->id()
-            || $ticket->assignees()->where('users.id', auth()->id())->exists();
+        $userId = $user->id;
+        return $user->hasRole(['super_admin'])
+            || $ticket->created_by === $userId
+            || $ticket->assignees()->where('users.id', $userId)->exists();
     }
 
     private function canManageTicket(?Ticket $ticket): bool
@@ -374,8 +406,9 @@ class ProjectBoard extends Page
             return false;
         }
 
+        $user = $this->getUser();
         // Check Filament Shield permission for updating tickets (moving is updating)
-        if (! auth()->user()->can('update_ticket')) {
+        if (!$user || !$user->can('update_ticket')) {
             return false;
         }
 
@@ -383,9 +416,10 @@ class ProjectBoard extends Page
         // 1. Super admin (already covered by permission above)
         // 2. The ticket creator
         // 3. Assigned to the ticket
-        return auth()->user()->hasRole(['super_admin'])
-            || $ticket->user_id === auth()->id()
-            || $ticket->assignees()->where('users.id', auth()->id())->exists();
+        $userId = $user->id;
+        return $user->hasRole(['super_admin'])
+            || $ticket->created_by === $userId
+            || $ticket->assignees()->where('users.id', $userId)->exists();
     }
 
 
@@ -473,6 +507,7 @@ class ProjectBoard extends Page
     public function canMoveTickets(): bool
     {
         // Check Filament Shield permission for updating tickets
-        return auth()->user()->can('update_ticket');
+        $user = $this->getUser();
+        return $user ? $user->can('update_ticket') : false;
     }
 }

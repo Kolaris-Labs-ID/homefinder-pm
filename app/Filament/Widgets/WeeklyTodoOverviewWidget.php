@@ -178,6 +178,13 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                             ->pluck('division', 'division')
                             ->toArray();
                     })
+                    ->query(function (Builder $query, array $data) {
+                        if (!empty($data['value'])) {
+                            $query->whereHas('user', function ($q) use ($data) {
+                                $q->where('division', $data['value']);
+                            });
+                        }
+                    })
                     ->visible(fn () => self::isManagementRole(auth()->user())),
                 
                 Tables\Filters\Filter::make('week_start_date')

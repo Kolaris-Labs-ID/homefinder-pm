@@ -317,13 +317,10 @@
                                 const statusId = targetColumn.getAttribute('data-status-id');
                                 const ticketId = this.draggingTicket;
                                 
-                                const componentId = document.querySelector('[wire\\:id]').getAttribute('wire:id');
-                                if (componentId) {
-                                    Livewire.find(componentId).moveTicket(
-                                        parseInt(ticketId), 
-                                        parseInt(statusId)
-                                    );
-                                }
+                                this.$wire.moveTicket(
+                                    parseInt(ticketId), 
+                                    parseInt(statusId)
+                                );
                             }
                             
                             this.draggingTicket = null;
@@ -366,13 +363,10 @@
                                 const ticketId = this.draggingTicket;
                                 this.draggingTicket = null;
                                 
-                                const componentId = document.querySelector('[wire\\:id]').getAttribute('wire:id');
-                                if (componentId) {
-                                    Livewire.find(componentId).moveTicket(
-                                        parseInt(ticketId), 
-                                        parseInt(statusId)
-                                    );
-                                }
+                                this.$wire.moveTicket(
+                                    parseInt(ticketId), 
+                                    parseInt(statusId)
+                                );
                             }
                         });
                     });

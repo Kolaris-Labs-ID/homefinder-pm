@@ -33,6 +33,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/chat', function () {
         return view('chat');
     })->name('chat');
+
+    Route::post('/locale/switch', function (\Illuminate\Http\Request $request) {
+        $locale = $request->input('locale');
+        if (in_array($locale, ['en', 'id'])) {
+            session(['locale' => $locale]);
+        }
+        return redirect()->back();
+    })->name('locale.switch');
 });
 
 Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
