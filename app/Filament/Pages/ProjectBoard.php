@@ -70,9 +70,26 @@ class ProjectBoard extends Page
         }
 
         if ($user->hasRole(['super_admin'])) {
-            $this->projects = Project::withCount('tickets')->get();
+            $this->projects = Project::with([
+                    'users' => function ($query) {
+                        $query->orderBy('name')->limit(4);
+                    },
+                ])
+                ->withCount('tickets')
+                ->orderByDesc('pinned_date')
+                ->orderBy('name')
+                ->get();
         } else {
-            $this->projects = $user->projects()->withCount('tickets')->get();
+            $this->projects = $user->projects()
+                ->with([
+                    'users' => function ($query) {
+                        $query->orderBy('name')->limit(4);
+                    },
+                ])
+                ->withCount('tickets')
+                ->orderByDesc('pinned_date')
+                ->orderBy('name')
+                ->get();
         }
 
         if ($project_id) {

@@ -33,6 +33,7 @@ class User extends Authenticatable implements FilamentUser
         'email',
         'password',
         'google_id',
+        'avatar_url',
         'division',
         'is_division_head',
     ];
@@ -146,13 +147,12 @@ class User extends Authenticatable implements FilamentUser
 
     public function getAvatarUrlAttribute(): string
     {
-        if ($this->google_id) {
-            return sprintf(
-                'https://profiles.google.com/s2/photos/profile/%s',
-                $this->google_id
-            );
+        // If avatar_url is stored in database, use it
+        if (!empty($this->attributes['avatar_url'] ?? null)) {
+            return $this->attributes['avatar_url'];
         }
 
+        // Fallback to ui-avatars.com for all users (including Google users without stored avatar)
         $name = trim($this->name ?: ($this->email ?? 'User'));
         $background = 'E0E7FF';
         $color = '312E81';

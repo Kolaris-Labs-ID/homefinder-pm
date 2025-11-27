@@ -89,19 +89,24 @@ test('projects are loaded with ticket counts for super admin', function () {
     auth()->login($this->user);
     
     $component = Livewire::test(ProjectBoard::class);
+    $projects = $component->get('projects');
     
     // Check that projects are loaded with tickets_count
-    expect($component->get('projects'))->toBeInstanceOf(\Illuminate\Support\Collection::class);
-    expect($component->get('projects')->count())->toBeGreaterThanOrEqual(2);
+    expect($projects)->toBeInstanceOf(\Illuminate\Support\Collection::class);
+    expect($projects->count())->toBeGreaterThanOrEqual(2);
     
     // Find our test projects in the collection
-    $loadedProject1 = $component->get('projects')->firstWhere('id', $project1->id);
-    $loadedProject2 = $component->get('projects')->firstWhere('id', $project2->id);
+    $loadedProject1 = $projects->firstWhere('id', $project1->id);
+    $loadedProject2 = $projects->firstWhere('id', $project2->id);
     
     expect($loadedProject1)->not->toBeNull();
     expect($loadedProject2)->not->toBeNull();
     expect($loadedProject1->tickets_count)->toBe(3);
     expect($loadedProject2->tickets_count)->toBe(5);
+    
+    // Users relation for avatars should be eager loaded
+    expect($loadedProject1->relationLoaded('users'))->toBeTrue();
+    expect($loadedProject2->relationLoaded('users'))->toBeTrue();
 });
 
 test('regular user sees only their assigned projects', function () {

@@ -22,9 +22,16 @@ class GoogleController extends Controller
         try {
             $googleUser = Socialite::driver('google')->user();
             
+            // Get avatar URL from Google user
+            $avatarUrl = $googleUser->avatar ?? $googleUser->getAvatar();
+            
             $user = User::where('google_id', $googleUser->id)->first();
             
             if ($user) {
+                // Update avatar URL if it's missing or different
+                if (empty($user->avatar_url) || $user->avatar_url !== $avatarUrl) {
+                    $user->update(['avatar_url' => $avatarUrl]);
+                }
                 // Ensure user has at least one role
                 if (!$user->hasAnyRole(Role::all())) {
                     $this->assignDefaultRole($user);
@@ -37,7 +44,8 @@ class GoogleController extends Controller
             
             if ($existingUser) {
                 $existingUser->update([
-                    'google_id' => $googleUser->id
+                    'google_id' => $googleUser->id,
+                    'avatar_url' => $avatarUrl,
                 ]);
                 // Ensure user has at least one role
                 if (!$existingUser->hasAnyRole(Role::all())) {
@@ -51,6 +59,7 @@ class GoogleController extends Controller
                 'name' => $googleUser->name,
                 'email' => $googleUser->email,
                 'google_id' => $googleUser->id,
+                'avatar_url' => $avatarUrl,
                 'password' => null,
             ]);
             

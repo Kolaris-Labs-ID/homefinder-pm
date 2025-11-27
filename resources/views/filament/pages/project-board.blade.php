@@ -5,7 +5,7 @@
         <x-filament::section class="mb-8">
             <div class="flex items-center justify-between mb-6">
                 <div>
-                    <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
                         Choose a Project Board
                     </h2>
                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -27,70 +27,117 @@
             @else
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     @foreach ($projects as $project)
+                        @php
+                            $progress = $project->progress_percentage ?? 0;
+                            $displayDate = $project->start_date ?? $project->created_at;
+                        @endphp
+
                         <button
                             type="button"
                             wire:click="selectProject({{ $project->id }})"
-                            class="group relative w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 transition-colors transition-shadow duration-150 hover:border-primary-500 hover:shadow-md dark:hover:border-primary-500"
+                            class="group relative w-full text-left rounded-2xl border border-primary-100/70 dark:border-primary-900/40 bg-gradient-to-b from-primary-50/60 via-white to-white dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 p-6 shadow-sm hover:shadow-md hover:border-primary-400/90 dark:hover:border-primary-500 transition duration-150"
                         >
-                            <div class="flex items-start justify-between mb-3">
-                                <div class="flex-1 min-w-0">
-                                    <h3 class="text-base font-semibold text-gray-900 dark:text-white truncate group-hover:text-primary-600 dark:group-hover:text-primary-400">
-                                        {{ $project->name }}
-                                    </h3>
+                            {{-- Header --}}
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="flex items-start gap-3 min-w-0">
+                                    <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-primary-500 text-white shadow-sm">
+                                        <x-heroicon-o-view-columns class="w-5 h-5" />
+                                    </div>
+                                    <div class="min-w-0">
+                                        <h3 class="text-base font-semibold text-gray-900 dark:text-white truncate group-hover:text-primary-600 dark:group-hover:text-primary-400">
+                                            {{ $project->name }}
+                                        </h3>
+                                        @if ($displayDate)
+                                            <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                                                <x-heroicon-o-calendar class="w-3.5 h-3.5" />
+                                                <span>{{ $displayDate->format('M d Y') }}</span>
+                                            </p>
+                                        @endif
+                                    </div>
+                                </div>
 
-                                    @if ($project->description)
-                                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
-                                            {{ \Illuminate\Support\Str::limit($project->description, 100) }}
-                                        </p>
+                                <div class="flex flex-col items-end gap-1">
+                                    <span class="inline-flex items-center rounded-full bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 px-2 py-0.5 text-[11px] font-medium">
+                                        {{ $project->tickets_count ?? $project->tickets?->count() ?? 0 }} tickets
+                                    </span>
+                                    @if ($progress > 0)
+                                        <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                            {{ number_format(min($progress, 100), 0) }}%
+                                        </span>
+                                    @endif
+                                </div>
+                            </div>
+
+                            {{-- Meta row: avatars + days left --}}
+                            <div class="mt-4 flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    @if ($project->users && $project->users->isNotEmpty())
+                                        <div class="flex -space-x-2">
+                                            @foreach ($project->users->take(4) as $member)
+                                                <div class="h-7 w-7 rounded-full border-2 border-white dark:border-gray-900 bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center text-[10px] font-semibold text-primary-700 dark:text-primary-200">
+                                                    {{ $member->avatar_initials ?? \Illuminate\Support\Str::of($member->name)->explode(' ')->map(fn ($part) => mb_substr($part, 0, 1))->take(2)->implode('') }}
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                        @if ($project->users->count() > 4)
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                                +{{ $project->users->count() - 4 }}
+                                            </span>
+                                        @endif
+                                    @else
+                                        <span class="text-xs text-gray-400 dark:text-gray-500">
+                                            No members yet
+                                        </span>
                                     @endif
                                 </div>
 
-                                <div class="ml-3 flex-shrink-0">
-                                    <x-heroicon-o-view-columns class="w-7 h-7 text-gray-300 dark:text-gray-600 group-hover:text-primary-500" />
+                                @php
+                                    $daysLeft = $project->remaining_days ?? null;
+                                @endphp
+                                <div class="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                    <x-heroicon-o-clock class="w-4 h-4" />
+                                    @if ($daysLeft === null)
+                                        <span>No end date</span>
+                                    @elseif ($daysLeft === 0)
+                                        <span class="font-medium text-red-600 dark:text-red-400">Ends today</span>
+                                    @elseif ($daysLeft < 0)
+                                        <span class="font-medium text-red-600 dark:text-red-400">Past due</span>
+                                    @else
+                                        <span>{{ $daysLeft }} days left</span>
+                                    @endif
                                 </div>
                             </div>
 
-                            <div class="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
-                                <div class="inline-flex items-center gap-1">
-                                    <x-heroicon-o-ticket class="w-4 h-4" />
-                                    <span>{{ $project->tickets_count ?? $project->tickets?->count() ?? 0 }} tickets</span>
-                                </div>
-
-                                @if ($project->end_date)
-                                    <div class="inline-flex items-center gap-1">
-                                        <x-heroicon-o-calendar class="w-4 h-4" />
-                                        <span>
-                                            @php
-                                                $daysLeft = $project->remaining_days ?? null;
-                                            @endphp
-                                            {{ $daysLeft === null ? 'No end date' : ($daysLeft === 0 ? 'Ends today' : $daysLeft.' days left') }}
-                                        </span>
-                                    </div>
-                                @endif
-                            </div>
-
-                            @php
-                                $progress = $project->progress_percentage ?? 0;
-                            @endphp
-
-                            @if ($progress > 0)
-                                <div class="mt-4">
-                                    <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                                        <span>Progress</span>
-                                        <span class="font-medium text-gray-700 dark:text-gray-300">
-                                            {{ number_format(min($progress, 100), 1) }}%
-                                        </span>
-                                    </div>
-                                    <div class="mt-1 h-1.5 w-full rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-                                        <div
-                                            class="h-1.5 rounded-full bg-primary-500"
-                                            style="width: {{ min($progress, 100) }}%;"
-                                        ></div>
-                                    </div>
-                                </div>
+                            {{-- Description --}}
+                            @if ($project->description)
+                                <p class="mt-3 text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                                    {{ \Illuminate\Support\Str::limit(strip_tags($project->description), 90) }}
+                                </p>
                             @endif
 
-                            <div class="pointer-events-none absolute inset-y-3 right-3 flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                            {{-- Progress --}}
+                            <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                                <div class="flex items-center justify-between text-xs mb-1.5">
+                                    <span class="font-semibold text-primary-700 dark:text-primary-300 tracking-wide">Project Progress</span>
+                                    <span>
+                                        @if ($progress > 0)
+                                            <span class="font-semibold text-primary-700 dark:text-primary-300">
+                                                {{ number_format(min($progress, 100), 1) }}%
+                                            </span>
+                                        @else
+                                            <span class="text-gray-500 dark:text-gray-400">Not started</span>
+                                        @endif
+                                    </span>
+                                </div>
+                                <div class="h-2 w-full rounded-full bg-primary-100/80 dark:bg-primary-950 overflow-hidden">
+                                    <div
+                                        class="h-2 rounded-full bg-primary-500 dark:bg-primary-400 transition-all duration-300"
+                                        style="width: {{ $progress > 0 ? min($progress, 100) : 4 }}%;"
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <div class="pointer-events-none absolute right-4 bottom-4 flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                                 <x-heroicon-m-arrow-right class="w-4 h-4 text-primary-500" />
                             </div>
                         </button>
