@@ -72,5 +72,10 @@ class DepartmentResource extends Resource
             'edit' => Pages\EditDepartment::route('/{record}/edit'),
         ];
     }
+
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->can('create', Department::class) ?? false;
+    }
 }
 

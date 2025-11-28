@@ -280,11 +280,9 @@ class WeeklyTodoResource extends Resource
                 Tables\Filters\Filter::make('week_start_date')
                     ->form([
                         Forms\Components\DatePicker::make('week_from')
-                            ->label('From Week Start')
-                            ->default(fn () => self::getStartOfWeek()),
+                            ->label('From Week Start'),
                         Forms\Components\DatePicker::make('week_until')
-                            ->label('Until Week Start')
-                            ->default(fn () => self::getStartOfWeek()),
+                            ->label('Until Week Start'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query

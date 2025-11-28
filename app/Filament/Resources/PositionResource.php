@@ -72,5 +72,10 @@ class PositionResource extends Resource
             'edit' => Pages\EditPosition::route('/{record}/edit'),
         ];
     }
+
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->can('create', Position::class) ?? false;
+    }
 }
 

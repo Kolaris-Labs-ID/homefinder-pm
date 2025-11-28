@@ -1,5 +1,9 @@
 <?php
 
+/**
+ * @var \Tests\TestCase $this
+ */
+
 use App\Models\Ticket;
 use App\Models\Project;
 use App\Models\TicketStatus;
@@ -11,6 +15,7 @@ use App\Models\Epic;
 use Carbon\Carbon;
 
 beforeEach(function () {
+    /** @var \Tests\TestCase $this */
     $this->project = Project::factory()->create();
     $this->status = TicketStatus::factory()->create(['project_id' => $this->project->id]);
     $this->priority = TicketPriority::factory()->create();
