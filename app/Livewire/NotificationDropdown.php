@@ -12,20 +12,13 @@ use Livewire\Component;
 
 class NotificationDropdown extends Component
 {
-    public bool $open = false;
-
     public string $activeTab = 'all';
 
-    public int $limit = 8;
+    public int $limit = 10;
 
     protected $listeners = [
         'refresh-notifications' => '$refresh',
     ];
-
-    public function toggle(): void
-    {
-        $this->open = ! $this->open;
-    }
 
     public function switchTab(string $tab): void
     {

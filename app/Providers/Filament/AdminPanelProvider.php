@@ -53,6 +53,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->renderHook('panels::user-menu.before', fn () => view('filament.components.notification-dropdown-wrapper')->render())
             ->renderHook('panels::global-search.after', fn () => view('filament.components.language-toggle')->render())
+            ->renderHook('panels::scripts.after', fn () => view('filament.components.confetti')->render())
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

@@ -58,8 +58,10 @@ class Employee extends Model
     public function primaryPosition(): HasOne
     {
         return $this->hasOne(EmployeePosition::class)
-            ->where('is_primary', true)
-            ->latestOfMany('start_date');
+            ->ofMany(
+                ['start_date' => 'max'],
+                fn ($query) => $query->where('is_primary', true)
+            );
     }
 
     public function documents(): HasMany
