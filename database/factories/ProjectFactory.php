@@ -46,5 +46,38 @@ class ProjectFactory extends Factory
             'end_date' => null,
         ]);
     }
+
+    /**
+     * Indicate that the project is archived.
+     */
+    public function archived(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'archived_at' => now(),
+            'archived_by' => \App\Models\User::factory(),
+        ]);
+    }
+
+    /**
+     * Indicate that the project is marked as done.
+     */
+    public function done(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'done_at' => now(),
+            'is_auto_done' => false,
+        ]);
+    }
+
+    /**
+     * Indicate that the project is auto-done.
+     */
+    public function autoDone(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'done_at' => now(),
+            'is_auto_done' => true,
+        ]);
+    }
 }
 

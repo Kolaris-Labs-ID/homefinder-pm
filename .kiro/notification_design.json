@@ -1,0 +1,123 @@
+{
+    "design_system": {
+        "project_name": "Project Management Dashboard - Notification Center",
+        "visual_style": "Clean, Modern, Enterprise SaaS",
+        "color_palette": {
+            "primary": "#1A56DB",
+            "primary_hover": "#1E429F",
+            "background_main": "#F3F4F6",
+            "background_paper": "#FFFFFF",
+            "text_primary": "#111827",
+            "text_secondary": "#6B7280",
+            "border_subtle": "#E5E7EB",
+            "semantic": {
+                "success_bg": "#ECFDF5",
+                "success_text": "#047857",
+                "warning_bg": "#FFFBEB",
+                "warning_text": "#B45309",
+                "info_bg": "#EFF6FF",
+                "info_text": "#1D4ED8",
+                "urgent_tag": "#FEF2F2",
+                "urgent_text": "#B91C1C"
+            }
+        },
+        "typography": {
+            "font_family": "Inter, system-ui, sans-serif",
+            "hierarchy": {
+                "h1": "text-2xl font-semibold (Detail View Title)",
+                "h2": "text-lg font-medium (Section Headers)",
+                "body": "text-sm text-gray-600 leading-relaxed",
+                "caption": "text-xs text-gray-400"
+            }
+        },
+        "ui_elements": {
+            "border_radius": "rounded-lg",
+            "shadow": "shadow-sm",
+            "spacing": "comfortable (p-4 to p-6)"
+        }
+    },
+    "layout_structure": {
+        "type": "Three-Column Layout",
+        "columns": [
+            {
+                "name": "Sidebar Navigation",
+                "width": "260px (Fixed)",
+                "background": "#F9FAFB"
+            },
+            {
+                "name": "Notification List (Master)",
+                "width": "400px (Fixed)",
+                "background": "#FFFFFF",
+                "border_right": "1px solid #E5E7EB"
+            },
+            {
+                "name": "Notification Detail (Detail)",
+                "width": "flex-1 (Fluid)",
+                "background": "#FFFFFF"
+            }
+        ]
+    },
+    "components": {
+        "sidebar": {
+            "brand": "Logo 'MatricMint' at top left",
+            "search": "Global search input with icon",
+            "menu_items": [
+                "Dashboard",
+                "Data Management",
+                "Analytics",
+                "Reports",
+                "Notifications (Active State: Blue bg + Blue text)",
+                "Benchmarking",
+                "Audit Trail"
+            ],
+            "footer_menu": ["Settings", "FAQ", "Documentation"]
+        },
+        "notification_list": {
+            "header": {
+                "elements": [
+                    "Search Input",
+                    "Filter Tabs (View all, Projects, Tasks, Feedback)"
+                ]
+            },
+            "card_item": {
+                "state_default": "bg-white hover:bg-gray-50",
+                "state_active": "border-l-4 border-blue-600 bg-blue-50/30",
+                "elements": [
+                    "Status Icon (Color coded based on type)",
+                    "Title (font-medium)",
+                    "Timestamp (top right, text-xs)",
+                    "Description Snippet (truncate 2 lines)",
+                    "Tag/Badge (e.g., 'Project: Marketing Campaign', 'Urgent')"
+                ]
+            }
+        },
+        "notification_detail": {
+            "header": {
+                "breadcrumb": "Date • Context (e.g., 'May 7, 2023 • Marketing Campaign')",
+                "actions": ["Delete Icon", "Archive Icon", "More Options Icon"]
+            },
+            "content_body": {
+                "title": "Large bold header",
+                "status_banner": {
+                    "style": "Blue/Info background rounded container",
+                    "icon": "Flag",
+                    "text": "Milestone Achievement summary"
+                },
+                "details_section": {
+                    "structure": "Text paragraphs followed by bullet points",
+                    "key_accomplishments": "Bulleted list"
+                },
+                "next_steps": {
+                    "style": "Vertical timeline or numbered list with due dates aligned right (Red text for dates)"
+                },
+                "project_team": {
+                    "elements": "Row of user avatars with names"
+                }
+            },
+            "footer_actions": {
+                "primary_button": "Blue background, White text (e.g., 'Approve Milestone')",
+                "secondary_button": "White background, Border, Gray text (e.g., 'Add Comment')"
+            }
+        }
+    }
+}

@@ -20,18 +20,43 @@ class Project extends Model
         'start_date',
         'end_date',
         'pinned_date',
+        'archived_at',
+        'archived_by',
+        'done_at',
+        'is_auto_done',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
         'pinned_date' => 'datetime',
+        'archived_at' => 'datetime',
+        'done_at' => 'datetime',
+        'is_auto_done' => 'boolean',
     ];
 
     // Helper method to check if project is pinned
     public function getIsPinnedAttribute(): bool
     {
         return !is_null($this->pinned_date);
+    }
+
+    // Helper method to check if project is archived
+    public function getIsArchivedAttribute(): bool
+    {
+        return !is_null($this->archived_at);
+    }
+
+    // Helper method to check if project is done
+    public function getIsDoneAttribute(): bool
+    {
+        return !is_null($this->done_at);
+    }
+
+    // Relationship to the user who archived the project
+    public function archivedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'archived_by');
     }
 
     // Helper method to pin project
@@ -44,6 +69,48 @@ class Project extends Model
     public function unpin(): void
     {
         $this->update(['pinned_date' => null]);
+    }
+
+    // Scope to filter active (non-archived) projects
+    public function scopeActive(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    // Scope to filter archived projects
+    public function scopeArchived(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->whereNotNull('archived_at');
+    }
+
+    // Check if all tickets in the project are completed
+    public function allTicketsCompleted(): bool
+    {
+        $totalTickets = $this->tickets()->count();
+
+        if ($totalTickets === 0) {
+            return false; // Empty projects don't auto-complete
+        }
+
+        $incompleteTickets = $this->tickets()
+            ->whereHas('status', function ($query) {
+                $query->where('is_completed', false);
+            })
+            ->count();
+
+        return $incompleteTickets === 0;
+    }
+
+    // Check if project has active epics (epics with incomplete tickets)
+    public function hasActiveEpics(): bool
+    {
+        return $this->epics()
+            ->whereHas('tickets', function ($query) {
+                $query->whereHas('status', function ($statusQuery) {
+                    $statusQuery->where('is_completed', false);
+                });
+            })
+            ->exists();
     }
 
     public function ticketStatuses(): HasMany
@@ -94,33 +161,33 @@ class Project extends Model
 
         return (int) $today->diffInDays($endDate);
     }
-    
+
     public function getProgressPercentageAttribute(): float
     {
         $totalTickets = $this->tickets()->count();
-        
+
         if ($totalTickets === 0) {
             return 0.0;
         }
-        
+
         $completedTickets = $this->tickets()
             ->whereHas('status', function ($query) {
                 $query->where('is_completed', true);
             })
             ->count();
-        
+
         return round(($completedTickets / $totalTickets) * 100, 1);
     }
-    
+
     public function externalAccess(): HasOne
     {
         return $this->hasOne(ExternalAccess::class);
     }
-    
+
     public function generateExternalAccess()
     {
         $this->externalAccess()?->delete();
-    
+
         return ExternalAccess::generateForProject($this->id);
     }
 }

@@ -8,6 +8,7 @@ use App\Filament\Resources\ProjectResource\RelationManagers;
 use App\Models\Project;
 use App\Models\User;
 use App\Helpers\RoleHelper;
+use App\Services\ProjectArchiveService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -54,7 +55,7 @@ class ProjectResource extends Resource
                     ->default(true)
                     ->dehydrated(false)
                     ->visible(fn ($livewire) => $livewire instanceof Pages\CreateProject),
-                
+
                 Forms\Components\Select::make('members')
                     ->label('Project Members')
                     ->helperText('Select users to add as project members. You can also add members later.')
@@ -81,7 +82,7 @@ class ProjectResource extends Resource
                     ->hidden(fn ($livewire) => !($livewire instanceof Pages\CreateProject))
                     ->dehydrated(fn ($livewire) => $livewire instanceof Pages\CreateProject)
                     ->disabled(fn ($livewire) => !($livewire instanceof Pages\CreateProject)),
-                
+
                 Forms\Components\Toggle::make('is_pinned')
                     ->label('Pin Project')
                     ->helperText('Pinned projects will appear in the dashboard timeline')
@@ -111,7 +112,27 @@ class ProjectResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
-                    ->searchable(),
+                    ->searchable()
+                    ->description(fn (Project $record): ?string =>
+                        $record->is_done
+                            ? ($record->is_auto_done ? '✓ Auto-completed' : '✓ Manually completed')
+                            : null
+                    ),
+                // Done status badge - Requirements: 2.2
+                Tables\Columns\TextColumn::make('done_status')
+                    ->label('Status')
+                    ->getStateUsing(fn (Project $record): ?string =>
+                        $record->is_done
+                            ? ($record->is_auto_done ? 'Auto Done' : 'Done')
+                            : null
+                    )
+                    ->badge()
+                    ->color(fn (Project $record): ?string =>
+                        $record->is_done
+                            ? ($record->is_auto_done ? 'info' : 'success')
+                            : null
+                    )
+                    ->placeholder('-'),
                 Tables\Columns\TextColumn::make('ticket_prefix')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('progress_percentage')
@@ -120,7 +141,7 @@ class ProjectResource extends Resource
                         return $record->progress_percentage . '%';
                     })
                     ->badge()
-                    ->color(fn (Project $record): string => 
+                    ->color(fn (Project $record): string =>
                         $record->progress_percentage >= 100 ? 'success' :
                         ($record->progress_percentage >= 75 ? 'info' :
                         ($record->progress_percentage >= 50 ? 'warning' :
@@ -139,13 +160,13 @@ class ProjectResource extends Resource
                         if (!$record->end_date) {
                             return null;
                         }
-                        
+
                         return $record->remaining_days . ' days';
                     })
                     ->badge()
-                    ->color(fn (Project $record): string => 
+                    ->color(fn (Project $record): string =>
                         !$record->end_date ? 'gray' :
-                        ($record->remaining_days <= 0 ? 'danger' : 
+                        ($record->remaining_days <= 0 ? 'danger' :
                         ($record->remaining_days <= 7 ? 'warning' : 'success'))
                     ),
                 Tables\Columns\ToggleColumn::make('is_pinned')
@@ -173,10 +194,91 @@ class ProjectResource extends Resource
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                // Archive date column - visible in archived tab
+                // Requirements: 5.2
+                Tables\Columns\TextColumn::make('archived_at')
+                    ->label('Archived Date')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                // Archived by user column - visible in archived tab
+                // Requirements: 5.2
+                Tables\Columns\TextColumn::make('archivedBy.name')
+                    ->label('Archived By')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make()
+                Tables\Actions\EditAction::make(),
+                // Archive action - visible for active (non-archived) projects
+                // Requirements: 1.1, 6.3
+                Tables\Actions\Action::make('archive')
+                    ->label('Archive')
+                    ->icon('heroicon-o-archive-box')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Archive Project')
+                    ->modalDescription('Are you sure you want to archive this project? It will be moved to the Archived tab.')
+                    ->modalSubmitActionLabel('Yes, archive it')
+                    ->visible(fn (Project $record): bool => !$record->is_archived && auth()->user()->can('archive', $record))
+                    ->action(function (Project $record): void {
+                        $service = new ProjectArchiveService();
+                        $service->archive($record, auth()->user());
+
+                        Notification::make()
+                            ->title('Project archived')
+                            ->body("Project '{$record->name}' has been archived successfully.")
+                            ->success()
+                            ->send();
+                    }),
+                // Restore action - visible for archived projects
+                // Requirements: 4.1, 6.3
+                Tables\Actions\Action::make('restore')
+                    ->label('Restore')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Restore Project')
+                    ->modalDescription('Are you sure you want to restore this project? It will be moved back to the Active tab.')
+                    ->modalSubmitActionLabel('Yes, restore it')
+                    ->visible(fn (Project $record): bool => $record->is_archived && auth()->user()->can('restoreArchived', $record))
+                    ->action(function (Project $record): void {
+                        $service = new ProjectArchiveService();
+                        $service->restore($record);
+
+                        Notification::make()
+                            ->title('Project restored')
+                            ->body("Project '{$record->name}' has been restored successfully.")
+                            ->success()
+                            ->send();
+                    }),
+                // Mark as Done / Unmark Done toggle action
+                // Requirements: 2.1, 2.3
+                Tables\Actions\Action::make('toggleDone')
+                    ->label(fn (Project $record): string => $record->is_done ? 'Unmark Done' : 'Mark as Done')
+                    ->icon(fn (Project $record): string => $record->is_done ? 'heroicon-o-x-circle' : 'heroicon-o-check-circle')
+                    ->color(fn (Project $record): string => $record->is_done ? 'gray' : 'success')
+                    ->visible(fn (Project $record): bool => !$record->is_archived)
+                    ->action(function (Project $record): void {
+                        $service = new ProjectArchiveService();
+
+                        if ($record->is_done) {
+                            $service->unmarkDone($record);
+                            Notification::make()
+                                ->title('Done status removed')
+                                ->body("Project '{$record->name}' is no longer marked as done.")
+                                ->success()
+                                ->send();
+                        } else {
+                            $service->markAsDone($record, false);
+                            Notification::make()
+                                ->title('Project marked as done')
+                                ->body("Project '{$record->name}' has been marked as done.")
+                                ->success()
+                                ->send();
+                        }
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -223,5 +325,15 @@ class ProjectResource extends Resource
         }
 
         return $query;
+    }
+
+    /**
+     * Get the navigation badge count.
+     * Shows only active (non-archived) projects count.
+     * Requirements: 5.4
+     */
+    public static function getNavigationBadge(): ?string
+    {
+        return static::getEloquentQuery()->active()->count();
     }
 }
