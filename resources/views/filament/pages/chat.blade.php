@@ -33,7 +33,7 @@
             {{-- Direct Messages Tab --}}
             <div x-show="activeTab === 'direct'" x-cloak class="h-full">
                 <div class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900 h-full overflow-hidden">
-                    @include('vendor.chatify.pages.app', [
+                    @include('vendor.Chatify.pages.app', [
                         'id' => 0,
                         'messengerColor' => Auth::user()->messenger_color ?: \Chatify\Facades\ChatifyMessenger::getFallbackColor(),
                         'dark_mode' => Auth::user()->dark_mode < 1 ? 'light' : 'dark'
