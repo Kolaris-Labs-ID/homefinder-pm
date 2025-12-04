@@ -54,50 +54,50 @@ class CreateTicket extends CreateRecord
 
         if (!empty($data['assignees']) && !empty($data['project_id'])) {
             $project = Project::find($data['project_id']);
-            
+
             if ($project) {
                 $validAssignees = [];
                 $invalidAssignees = [];
-                
+
                 // First check project membership
                 foreach ($data['assignees'] as $userId) {
                     $isMember = $project->members()->where('users.id', $userId)->exists();
-                    
+
                     if ($isMember) {
                         $validAssignees[] = $userId;
                     } else {
                         $invalidAssignees[] = $userId;
                     }
                 }
-                
+
                 // Then validate role-based assignment restrictions
                 $validation = RoleHelper::validateAssignments($validAssignees);
                 $validAssignees = $validation['allowed'];
                 $invalidAssignees = array_merge($invalidAssignees, $validation['disallowed']);
-                
+
                 if (!empty($validAssignees)) {
                     $ticket->assignees()->sync($validAssignees);
                 }
-                
+
                 if (!empty($invalidAssignees)) {
                     $reasons = [];
                     if (count($invalidAssignees) > 0) {
                         $reasons[] = 'Some selected users are not members of this project or do not meet role requirements.';
                     }
-                    
+
                     Notification::make()
                         ->warning()
                         ->title('Some assignees removed')
                         ->body(implode(' ', $reasons) ?: 'Some selected users have been removed from assignees.')
                         ->send();
                 }
-                
+
                 if (empty($validAssignees)) {
                     $currentUserIsMember = $project->members()->where('users.id', auth()->id())->exists();
-                    
+
                     if ($currentUserIsMember) {
                         $ticket->assignees()->sync([auth()->id()]);
-                        
+
                         Notification::make()
                             ->info()
                             ->title('Auto-assigned')
@@ -110,7 +110,7 @@ class CreateTicket extends CreateRecord
             if (!empty($data['project_id'])) {
                 $project = Project::find($data['project_id']);
                 $currentUserIsMember = $project?->members()->where('users.id', auth()->id())->exists();
-                
+
                 if ($currentUserIsMember) {
                     $ticket->assignees()->sync([auth()->id()]);
                 }
@@ -133,9 +133,18 @@ class CreateTicket extends CreateRecord
 
     protected function getCreatedNotification(): ?Notification
     {
+        $record = $this->record;
+
         return Notification::make()
             ->success()
             ->title('Ticket created')
-            ->body('The ticket has been created successfully.');
+            ->body("Ticket '{$record->name}' has been created successfully.")
+            ->actions([
+                \Filament\Notifications\Actions\Action::make('view')
+                    ->label('View Ticket')
+                    ->url(TicketResource::getUrl('view', ['record' => $record->id]))
+                    ->close(),
+            ])
+            ->duration(5000);
     }
 }

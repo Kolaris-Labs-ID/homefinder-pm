@@ -16,6 +16,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
+use Filament\Notifications\Actions\Action as NotificationAction;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -25,8 +26,27 @@ class ProjectResource extends Resource
     protected static ?string $model = Project::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static ?string $navigationGroup = 'Project Management';
     protected static ?int $navigationSort = 1;
+
+    public static function getNavigationGroup(): ?string
+    {
+        return __('Project Management');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('Project');
+    }
+
+    public static function getPluralLabel(): ?string
+    {
+        return __('Projects');
+    }
+
+    public static function getLabel(): ?string
+    {
+        return __('Project');
+    }
 
     public static function form(Form $form): Form
     {
@@ -230,6 +250,18 @@ class ProjectResource extends Resource
                             ->title('Project archived')
                             ->body("Project '{$record->name}' has been archived successfully.")
                             ->success()
+                            ->actions([
+                                NotificationAction::make('undo')
+                                    ->label('Undo')
+                                    ->color('gray')
+                                    ->dispatch('restoreProject', ['projectId' => $record->id])
+                                    ->close(),
+                                NotificationAction::make('view')
+                                    ->label('View Archived')
+                                    ->url(static::getUrl('index', ['activeTab' => 'archived']))
+                                    ->close(),
+                            ])
+                            ->persistent()
                             ->send();
                     }),
                 // Restore action - visible for archived projects
@@ -251,6 +283,13 @@ class ProjectResource extends Resource
                             ->title('Project restored')
                             ->body("Project '{$record->name}' has been restored successfully.")
                             ->success()
+                            ->actions([
+                                NotificationAction::make('view')
+                                    ->label('View Project')
+                                    ->url(static::getUrl('view', ['record' => $record->id]))
+                                    ->close(),
+                            ])
+                            ->duration(5000)
                             ->send();
                     }),
                 // Mark as Done / Unmark Done toggle action

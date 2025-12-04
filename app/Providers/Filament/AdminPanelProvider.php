@@ -3,12 +3,13 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Pages\Auth\Login;
+use App\Filament\Pages\Chat;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
+use CraftForge\FilamentLanguageSwitcher\FilamentLanguageSwitcherPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Navigation\NavigationItem;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -20,13 +21,13 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use Monzer\FilamentChatifyIntegration\ChatifyPlugin;
 
 class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
         return $panel
-            ->spa()
             ->databaseTransactions()
             ->default()
             ->id('admin')
@@ -43,16 +44,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([])
-            ->navigationItems([
-                NavigationItem::make('chat')
-                    ->label('Chat')
-                    ->icon('heroicon-o-chat-bubble-left-right')
-                    ->url('/chat')
-                    ->sort(10)
-                    ->group('Communication'),
-            ])
-            ->renderHook('panels::user-menu.before', fn () => view('filament.components.notification-dropdown-wrapper')->render())
-            ->renderHook('panels::global-search.after', fn () => view('filament.components.language-toggle')->render())
+            ->renderHook('panels::global-search.before', fn () => view('filament.components.notification-dropdown-wrapper')->render())
             ->renderHook('panels::scripts.after', fn () => view('filament.components.confetti')->render())
             ->middleware([
                 EncryptCookies::class,
@@ -64,10 +56,17 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
-                \App\Http\Middleware\SetLocale::class,
+                \CraftForge\FilamentLanguageSwitcher\Http\Middleware\SetLocale::class,
             ])
             ->plugins([
                 FilamentShieldPlugin::make(),
+                FilamentLanguageSwitcherPlugin::make()
+                    ->locales([
+                        ['code' => 'en', 'name' => 'English', 'flag' => 'gb'],
+                        ['code' => 'id', 'name' => 'Indonesia', 'flag' => 'id'],
+                    ]),
+                ChatifyPlugin::make()
+                    ->customPage(Chat::class),
             ])
             ->authMiddleware([
                 Authenticate::class,

@@ -43,16 +43,16 @@ class ProjectBoard extends Page
     public ?Ticket $selectedTicket = null;
 
     public ?int $selectedProjectId = null;
-    
+
     public array $sortOrders = [];
-    
+
     public array $selectedUserIds = [];
-    
+
     public Collection $projectUsers;
 
     /**
      * Get the authenticated user
-     * 
+     *
      * @return User|null
      */
     private function getUser(): ?User
@@ -137,10 +137,10 @@ class ProjectBoard extends Page
     {
         if (! $this->selectedProject) {
             $this->ticketStatuses = collect();
-    
+
             return;
         }
-    
+
         $this->ticketStatuses = $this->selectedProject->ticketStatuses()
             ->with([
                 'tickets' => function ($query) {
@@ -162,21 +162,21 @@ class ProjectBoard extends Page
             ->select('id', 'project_id', 'name', 'color', 'sort_order', 'is_completed')
             ->orderBy('sort_order')
             ->get();
-            
+
         $this->ticketStatuses->each(function ($status) {
             $sortOrder = $this->sortOrders[$status->id] ?? 'date_created_newest';
             $status->tickets = $this->applySorting($status->tickets, $sortOrder);
         });
-    
+
     }
-    
+
     public function loadProjectUsers(): void
     {
         if (! $this->selectedProject) {
             $this->projectUsers = collect();
             return;
         }
-        
+
         // Get only users who are assigned to tickets in this project
         $ticketAssigneeIds = $this->selectedProject->tickets()
             ->with('assignees')
@@ -186,29 +186,29 @@ class ProjectBoard extends Page
             })
             ->unique()
             ->filter();
-            
+
         $this->projectUsers = User::whereIn('id', $ticketAssigneeIds)
             ->orderBy('name')
             ->get();
     }
-    
+
     public function updatedSelectedUserIds(): void
     {
         $this->loadTicketStatuses();
     }
-    
+
     public function clearUserFilter(): void
     {
         $this->selectedUserIds = [];
         $this->loadTicketStatuses();
     }
-    
+
     public function setSortOrder($statusId, $sortOrder)
     {
         $this->sortOrders[$statusId] = $sortOrder;
         $this->loadTicketStatuses();
     }
-    
+
     private function applySorting($tickets, $sortOrder)
     {
         switch ($sortOrder) {
@@ -257,11 +257,13 @@ class ProjectBoard extends Page
 
                 Notification::make()
                     ->title('Ticket Updated')
+                    ->body("Ticket '{$ticket->name}' has been moved successfully.")
                     ->success()
+                    ->duration(3000)
                     ->send();
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::error('Error moving ticket: ' . $e->getMessage());
-                
+
                 Notification::make()
                     ->title('Error Updating Ticket')
                     ->body('An error occurred while updating the ticket status. Please try again.')
@@ -291,7 +293,7 @@ class ProjectBoard extends Page
             return;
         }
 
-        
+
         $url = TicketResource::getUrl('view', ['record' => $ticketId]);
         $this->js("window.open('{$url}', '_blank')");
     }
@@ -330,7 +332,7 @@ class ProjectBoard extends Page
                     'ticket_status_id' => $this->selectedProject?->ticketStatuses->first()?->id,
                 ]))
                 ->openUrlInNewTab(),
-    
+
             Action::make('refresh_board')
                 ->label('Refresh Board')
                 ->icon('heroicon-m-arrow-path')
@@ -338,7 +340,7 @@ class ProjectBoard extends Page
                 ->color('warning'),
             ExportTicketsAction::make()
                 ->visible(fn () => $this->selectedProject !== null && $this->getUser()?->hasRole(['super_admin']) ?? false),
-            
+
             Action::make('filter_users')
                 ->label('Filter by User')
                 ->icon('heroicon-m-user-group')
@@ -354,7 +356,7 @@ class ProjectBoard extends Page
                 ->action(function (array $data) {
                     $this->selectedUserIds = $data['selectedUserIds'] ?? [];
                     $this->loadTicketStatuses();
-                    
+
                     $userCount = count($this->selectedUserIds);
                     if ($userCount > 0) {
                         Notification::make()
@@ -452,7 +454,7 @@ class ProjectBoard extends Page
         }
 
         $tickets = collect();
-        
+
         if ($this->selectedProject) {
             $tickets = $this->selectedProject->tickets()
                 ->with(['assignees', 'status', 'project', 'epic'])
@@ -462,7 +464,7 @@ class ProjectBoard extends Page
             $ticketIds = $this->ticketStatuses->flatMap(function ($status) {
                 return $status->tickets->pluck('id');
             });
-            
+
             $tickets = Ticket::whereIn('id', $ticketIds)
                 ->with(['assignees', 'status', 'project', 'epic'])
                 ->orderBy('created_at', 'asc')
@@ -499,13 +501,13 @@ class ProjectBoard extends Page
                         document.body.removeChild(a);
                     });
             ");
-            
+
             Notification::make()
                 ->title('Export Successful')
                 ->body('Your Excel file is being downloaded.')
                 ->success()
                 ->send();
-            
+
         } catch (\Exception $e) {
             Notification::make()
                 ->title('Export Failed')
@@ -518,7 +520,7 @@ class ProjectBoard extends Page
     /**
      * Check if current user can move tickets on the board
      * Uses Filament Shield permissions to determine access
-     * 
+     *
      * @return bool
      */
     public function canMoveTickets(): bool

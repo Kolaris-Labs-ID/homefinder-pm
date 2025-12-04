@@ -31,8 +31,7 @@
         x-transition:leave="transition ease-in duration-100"
         x-transition:leave-start="opacity-100 scale-100"
         x-transition:leave-end="opacity-0 scale-95"
-        class="absolute right-0 top-full z-50 mt-2 w-[420px] origin-top-right overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
-        style="max-width: calc(100vw - 24px); transform: translateX(calc(-100% + 36px));"
+        class="absolute left-0 top-full z-50 mt-2 w-[480px] origin-top-left overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
     >
         {{-- Header --}}
         <div class="border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
@@ -95,7 +94,7 @@
         </div>
 
         {{-- Notification List --}}
-        <div class="max-h-[500px] divide-y divide-gray-100 overflow-y-auto dark:divide-gray-800">
+        <div class="max-h-[600px] divide-y divide-gray-100 overflow-y-auto dark:divide-gray-800">
             @forelse ($this->notifications as $notification)
                 @php
                     $typeColors = match($notification->type) {

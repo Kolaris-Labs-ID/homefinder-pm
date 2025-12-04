@@ -26,37 +26,37 @@ class EditTicket extends EditRecord
         // Handle assignees validation before saving
         if (!empty($data['assignees']) && !empty($data['project_id'])) {
             $project = Project::find($data['project_id']);
-            
+
             if ($project) {
                 $validAssignees = [];
                 $invalidAssignees = [];
-                
+
                 // First check project membership
                 foreach ($data['assignees'] as $userId) {
                     $isMember = $project->members()->where('users.id', $userId)->exists();
-                    
+
                     if ($isMember) {
                         $validAssignees[] = $userId;
                     } else {
                         $invalidAssignees[] = $userId;
                     }
                 }
-                
+
                 // Then validate role-based assignment restrictions
                 $validation = RoleHelper::validateAssignments($validAssignees);
                 $validAssignees = $validation['allowed'];
                 $invalidAssignees = array_merge($invalidAssignees, $validation['disallowed']);
-                
+
                 // Update data with only valid assignees
                 $data['assignees'] = $validAssignees;
-                
+
                 // Show warning if some users were invalid
                 if (!empty($invalidAssignees)) {
                     $reasons = [];
                     if (count($invalidAssignees) > 0) {
                         $reasons[] = 'Some selected users are not members of this project or do not meet role requirements.';
                     }
-                    
+
                     Notification::make()
                         ->warning()
                         ->title('Some assignees removed')
@@ -79,9 +79,18 @@ class EditTicket extends EditRecord
 
     protected function getSavedNotification(): ?Notification
     {
+        $record = $this->record;
+
         return Notification::make()
             ->success()
             ->title('Ticket updated')
-            ->body('The ticket has been updated successfully.');
+            ->body("Ticket '{$record->name}' has been updated successfully.")
+            ->actions([
+                \Filament\Notifications\Actions\Action::make('view')
+                    ->label('View Ticket')
+                    ->url(TicketResource::getUrl('view', ['record' => $record->id]))
+                    ->close(),
+            ])
+            ->duration(5000);
     }
 }
