@@ -47,7 +47,7 @@
             x-on:group-message-sent.window="$nextTick(() => scrollToBottom())"
             wire:poll.5s
         >
-            @forelse ($this->messages as $message)
+            @forelse ($this->groupMessages as $message)
                 @php
                     $isOwnMessage = $message->user_id === auth()->id();
                 @endphp

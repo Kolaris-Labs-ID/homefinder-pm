@@ -111,7 +111,7 @@ class GroupChatConversation extends Component
     }
 
     #[Computed]
-    public function messages(): Collection
+    public function groupMessages(): Collection
     {
         $userId = Auth::id();
         if (!$userId || !$this->groupId) {
