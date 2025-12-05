@@ -172,22 +172,30 @@
                     </div>
 
                     {{-- Footer --}}
-                    <div class="border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/50">
+                    <div class="border-t border-gray-200 px-6 py-4 dark:border-gray-700" style="background-color: #f9fafb;">
                         <div class="flex justify-end gap-3">
                             <button
                                 type="button"
                                 wire:click="closeModal"
-                                class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                                class="rounded-lg px-4 py-2.5 text-sm font-medium shadow-sm transition focus:outline-none focus:ring-2"
+                                style="background-color: #ffffff; color: #374151; border: 1px solid #d1d5db;"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+                                class="rounded-lg text-sm font-semibold shadow-sm transition focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                style="background-color: #4f46e5; color: #ffffff; padding: 12px 24px;"
                                 wire:loading.attr="disabled"
                             >
                                 <span wire:loading.remove wire:target="createGroup">Create Group</span>
-                                <span wire:loading wire:target="createGroup">Creating...</span>
+                                <span wire:loading wire:target="createGroup" class="flex items-center gap-2">
+                                    <svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Creating...
+                                </span>
                             </button>
                         </div>
                     </div>

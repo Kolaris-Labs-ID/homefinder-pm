@@ -18,8 +18,8 @@
                     </div>
                 @endif
                 <div>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ $this->group->name }}</h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                    <h3 class="text-sm font-semibold" style="color: #111827;">{{ $this->group->name }}</h3>
+                    <p class="text-xs" style="color: #6b7280;">
                         {{ $this->group->member_count }} {{ Str::plural('member', $this->group->member_count) }}
                     </p>
                 </div>
@@ -41,7 +41,7 @@
 
         {{-- Messages --}}
         <div
-            class="flex-1 overflow-y-auto p-4 space-y-4"
+            class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-950"
             x-data="{ scrollToBottom() { this.$el.scrollTop = this.$el.scrollHeight } }"
             x-init="scrollToBottom()"
             x-on:group-message-sent.window="$nextTick(() => scrollToBottom())"
@@ -59,23 +59,26 @@
                                 <img
                                     src="{{ $message->sender->avatar_url }}"
                                     alt="{{ $message->sender->name }}"
-                                    class="h-8 w-8 rounded-full object-cover"
+                                    class="h-8 w-8 rounded-full object-cover ring-2 ring-white dark:ring-gray-800"
                                 />
                             </div>
                         @endunless
                         <div>
                             @unless ($isOwnMessage)
                                 {{-- Sender Name --}}
-                                <p class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+                                <p class="mb-1 text-xs font-semibold" style="color: #374151;">
                                     {{ $message->sender->name }}
                                 </p>
                             @endunless
                             {{-- Message Bubble --}}
-                            <div class="{{ $isOwnMessage ? 'bg-indigo-600 text-white rounded-2xl rounded-br-md' : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white rounded-2xl rounded-bl-md' }} px-4 py-2">
-                                <p class="text-sm whitespace-pre-wrap break-words">{{ $message->body }}</p>
+                            <div
+                                class="px-4 py-2.5 rounded-2xl shadow-md {{ $isOwnMessage ? 'rounded-br-sm' : 'rounded-bl-sm' }}"
+                                style="{{ $isOwnMessage ? 'background-color: #4f46e5; color: #ffffff;' : 'background-color: #ffffff; color: #111827; border: 1px solid #e5e7eb;' }}"
+                            >
+                                <p class="text-sm whitespace-pre-wrap break-words leading-relaxed">{{ $message->body }}</p>
                             </div>
                             {{-- Timestamp --}}
-                            <p class="{{ $isOwnMessage ? 'text-right' : '' }} mt-1 text-[10px] text-gray-400 dark:text-gray-500">
+                            <p class="{{ $isOwnMessage ? 'text-right' : '' }} mt-1.5 text-[11px]" style="color: #6b7280;">
                                 {{ $message->created_at->format('M j, g:i A') }}
                             </p>
                         </div>
@@ -83,26 +86,26 @@
                 </div>
             @empty
                 <div class="flex h-full flex-col items-center justify-center text-center">
-                    <div class="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
-                        <svg class="h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <div class="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30">
+                        <svg class="h-10 w-10 text-indigo-500 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
                         </svg>
                     </div>
-                    <p class="mt-4 text-sm font-medium text-gray-900 dark:text-white">No messages yet</p>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Start the conversation!</p>
+                    <p class="mt-4 text-base font-semibold text-gray-900 dark:text-white">No messages yet</p>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Be the first to start the conversation!</p>
                 </div>
             @endforelse
         </div>
 
         {{-- Message Input --}}
         <div class="border-t border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-            <form wire:submit="sendMessage" class="flex items-end gap-2">
+            <form wire:submit="sendMessage" class="flex items-end gap-3">
                 <div class="flex-1">
                     <textarea
                         wire:model="messageBody"
                         placeholder="Type a message..."
                         rows="1"
-                        class="block w-full resize-none rounded-xl border-gray-300 bg-gray-50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-500 focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400"
+                        class="block w-full resize-none rounded-2xl border-gray-200 bg-gray-100 px-4 py-3 text-sm text-gray-900 placeholder-gray-500 shadow-sm transition focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400 dark:focus:bg-gray-700"
                         x-data
                         x-on:keydown.enter.prevent="if (!$event.shiftKey) { $wire.sendMessage() }"
                         x-on:input="$el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'"
@@ -113,25 +116,26 @@
                 </div>
                 <button
                     type="submit"
-                    class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                    class="flex flex-shrink-0 items-center justify-center rounded-full transition focus:outline-none disabled:opacity-50"
+                    style="background-color: #4f46e5; color: #ffffff; width: 44px; height: 44px; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);"
                     wire:loading.attr="disabled"
                 >
-                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
                     </svg>
                 </button>
             </form>
         </div>
     @else
         {{-- No Group Selected --}}
-        <div class="flex h-full flex-col items-center justify-center text-center p-8">
-            <div class="flex h-20 w-20 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
-                <svg class="h-10 w-10 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <div class="flex h-full flex-col items-center justify-center text-center p-8" style="background-color: #f9fafb;">
+            <div class="flex h-24 w-24 items-center justify-center rounded-full" style="background: linear-gradient(to bottom right, #e0e7ff, #f3e8ff);">
+                <svg class="h-12 w-12" style="color: #6366f1;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
                 </svg>
             </div>
-            <p class="mt-4 text-base font-medium text-gray-900 dark:text-white">Select a group chat</p>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Choose a group from the list to start chatting</p>
+            <p class="mt-6 text-lg font-semibold" style="color: #111827;">Select a group chat</p>
+            <p class="mt-2 max-w-xs text-sm" style="color: #6b7280;">Choose a group from the list to start chatting with your team</p>
         </div>
     @endif
 </div>
