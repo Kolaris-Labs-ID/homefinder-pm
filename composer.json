@@ -10,6 +10,7 @@
         "bezhansalleh/filament-shield": "^3.3",
         "craft-forge/filament-language-switcher": "^1.0",
         "filament/filament": "^3.2",
+        "intervention/image": "^3.11",
         "laravel/framework": "^12.0",
         "laravel/octane": "^2.9",
         "laravel/sanctum": "^4.0",

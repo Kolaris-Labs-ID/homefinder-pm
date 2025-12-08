@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Department;
 use App\Models\Hris\Employee;
 use App\Models\Hris\LeaveRequest;
 use App\Models\Hris\LeaveType;
 use App\Models\Hris\Position;
+use App\Policies\Hris\AttendanceLogPolicy;
 use App\Policies\Hris\DepartmentPolicy;
 use App\Policies\Hris\EmployeePolicy;
 use App\Policies\Hris\LeaveRequestPolicy;
@@ -23,6 +25,7 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
+        AttendanceLog::class => AttendanceLogPolicy::class,
         Department::class => DepartmentPolicy::class,
         Employee::class => EmployeePolicy::class,
         LeaveRequest::class => LeaveRequestPolicy::class,

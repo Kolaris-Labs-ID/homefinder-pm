@@ -16,17 +16,25 @@ class WeeklyTodoOverviewWidget extends BaseWidget
     use HasWidgetShield;
 
     protected static ?string $heading = 'Weekly To-Do List Overview';
-    
+
     protected int | string | array $columnSpan = [
         'default' => 'full',
         'md' => 'full',
         'lg' => 'full',
         'xl' => 'full',
     ];
-    
+
     protected static ?int $sort = 1;
 
     protected static bool $isLazy = false;
+
+    /**
+     * Status filter property for filtering todos by status.
+     * Reactive for Livewire updates via wire:model.live
+     *
+     * @var string
+     */
+    public string $statusFilter = 'all';
 
     /**
      * Check if user is in full management role (can view all todos)
@@ -36,7 +44,7 @@ class WeeklyTodoOverviewWidget extends BaseWidget
         if (!$user) {
             return false;
         }
-        
+
         return $user->hasRole(['super_admin', 'admin', 'CEO', 'COO', 'CTO', 'HR']);
     }
 
@@ -48,7 +56,7 @@ class WeeklyTodoOverviewWidget extends BaseWidget
         if (!$user) {
             return false;
         }
-        
+
         return $user->is_division_head && $user->division;
     }
 
@@ -71,7 +79,7 @@ class WeeklyTodoOverviewWidget extends BaseWidget
 
     /**
      * Get the authenticated user
-     * 
+     *
      * @return User|null
      */
     private static function getAuthUser(): ?User
@@ -90,7 +98,7 @@ class WeeklyTodoOverviewWidget extends BaseWidget
     public function table(Table $table): Table
     {
         $user = self::getAuthUser();
-        
+
         return $table
             ->query(
                 WeeklyTodo::query()
@@ -112,6 +120,10 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                             $query->where('user_id', $userId);
                         }
                     })
+                    ->when($this->statusFilter !== 'all', function ($query) {
+                        // Apply status filter when not 'all'
+                        $query->where('status', $this->statusFilter);
+                    })
                     ->latest('week_start_date')
                     ->latest('created_at')
             )
@@ -121,7 +133,7 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                     ->sortable()
                     ->searchable()
                     ->weight('medium'),
-                
+
                 Tables\Columns\TextColumn::make('user.division')
                     ->label('Division')
                     ->badge()
@@ -131,14 +143,14 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                     ->visible(function () {
                         return self::isManagementRole(self::getAuthUser());
                     }),
-                
+
                 Tables\Columns\TextColumn::make('week_start_date')
                     ->label('Week Start Date')
                     ->date('d/m/Y')
                     ->sortable()
                     ->searchable()
                     ->description(fn ($record) => $record->week_start_date ? 'Week of ' . $record->week_start_date->format('M d') . ' - ' . $record->week_start_date->copy()->addDays(6)->format('M d, Y') : null),
-                
+
                 Tables\Columns\TextColumn::make('deadline')
                     ->label('Deadline')
                     ->formatStateUsing(function ($state) {
@@ -159,36 +171,36 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                         if (!$record->deadline) {
                             return null;
                         }
-                        
+
                         try {
                             if ($record->deadline->isPast() && $record->status !== 'done') {
                                 return 'Overdue';
                             }
-                            
+
                             if ($record->deadline->isToday()) {
                                 return 'Deadline';
                             }
                         } catch (\Exception $e) {
                             return null;
                         }
-                        
+
                         return null;
                     })
                     ->color(function ($record) {
                         if (!$record->deadline) {
                             return null;
                         }
-                        
+
                         try {
                             // Badge color when badge is shown
                             if ($record->deadline->isPast() && $record->status !== 'done') {
                                 return 'danger';
                             }
-                            
+
                             if ($record->deadline->isToday()) {
                                 return 'warning';
                             }
-                            
+
                             // Text color for dates without badges
                             $now = today();
                             if ($record->deadline->isPast()) return 'danger';
@@ -197,7 +209,7 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                         } catch (\Exception $e) {
                             return null;
                         }
-                        
+
                         return null;
                     })
                     ->icon(function ($record) {
@@ -209,13 +221,13 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                         }
                     })
                     ->placeholder('No deadline'),
-                
+
                 Tables\Columns\TextColumn::make('title')
                     ->label('Title')
                     ->searchable()
                     ->limit(50)
                     ->weight('medium'),
-                
+
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
@@ -243,7 +255,7 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                     ->visible(function () {
                         return self::isManagementRole(self::getAuthUser());
                     }),
-                
+
                 Tables\Filters\Filter::make('division')
                     ->label('Division')
                     ->form([
@@ -261,7 +273,7 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                         if (!isset($data['division']) || $data['division'] === null) {
                             return $query;
                         }
-                        
+
                         return $query->whereHas('user', function (Builder $q) use ($data) {
                             $q->where('division', $data['division']);
                         });
@@ -269,7 +281,7 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                     ->visible(function () {
                         return self::isManagementRole(self::getAuthUser());
                     }),
-                
+
                 Tables\Filters\Filter::make('week_start_date')
                     ->form([
                         \Filament\Forms\Components\DatePicker::make('week_from')
@@ -290,12 +302,12 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                                 fn (Builder $query, $date): Builder => $query->whereDate('week_start_date', '<=', self::getStartOfWeek(Carbon::parse($date))),
                             );
                     }),
-                
+
                 Tables\Filters\Filter::make('this_week')
                     ->label('This Week')
                     ->query(fn (Builder $query): Builder => $query->whereDate('week_start_date', self::getStartOfWeek()))
                     ->toggle(),
-                
+
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
                     ->options([
@@ -310,12 +322,12 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                     ->icon('heroicon-o-eye')
                     ->size('sm')
                     ->tooltip('View Weekly To-Do')
-                    ->url(fn (WeeklyTodo $record): string => 
+                    ->url(fn (WeeklyTodo $record): string =>
                         route('filament.admin.resources.weekly-todos.view', $record)
                     )
                     ->openUrlInNewTab(),
             ])
-            ->recordUrl(fn (WeeklyTodo $record) => 
+            ->recordUrl(fn (WeeklyTodo $record) =>
                 route('filament.admin.resources.weekly-todos.view', $record)
             )
             ->paginated([10, 25, 50])

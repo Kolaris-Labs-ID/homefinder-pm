@@ -40,4 +40,16 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('APP_URL') . '/auth/google/callback',
     ],
+
+    'geocoding' => [
+        'provider' => env('GEOCODING_PROVIDER', 'opencage'),
+        'opencage_api_key' => env('OPENCAGE_API_KEY'),
+        'google_api_key' => env('GOOGLE_MAPS_API_KEY'),
+    ],
+
+    'supabase' => [
+        'url' => env('SUPABASE_URL'),
+        'key' => env('SUPABASE_SERVICE_KEY'),
+        'attendance_bucket' => env('SUPABASE_ATTENDANCE_BUCKET', 'attendance-photos'),
+    ],
 ];

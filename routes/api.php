@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Hris\AttendanceController;
 use App\Http\Controllers\Api\Hris\LeaveBalanceController;
 use App\Http\Controllers\Api\Hris\LeaveRequestController;
 use App\Http\Controllers\Api\Hris\ProfileController;
@@ -17,5 +18,14 @@ Route::middleware(['auth:sanctum'])
         Route::get('/leave-requests', [LeaveRequestController::class, 'index']);
         Route::post('/leave-requests', [LeaveRequestController::class, 'store']);
         Route::put('/leave-requests/{leaveRequest}/cancel', [LeaveRequestController::class, 'cancel']);
+
+        // Attendance endpoints
+        Route::prefix('attendance')->group(function () {
+            Route::post('/check-in', [AttendanceController::class, 'checkIn']);
+            Route::post('/check-out', [AttendanceController::class, 'checkOut']);
+            Route::get('/daily', [AttendanceController::class, 'daily']);
+            Route::get('/history', [AttendanceController::class, 'history']);
+            Route::get('/wfh-quota', [AttendanceController::class, 'wfhQuota']);
+        });
     });
 

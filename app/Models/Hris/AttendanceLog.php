@@ -1,0 +1,164 @@
+<?php
+
+namespace App\Models\Hris;
+
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class AttendanceLog extends Model
+{
+    use HasFactory;
+
+    // Status constants
+    const STATUS_PRESENT = 'present';
+    const STATUS_LATE = 'late';
+    const STATUS_HALF_DAY = 'half_day';
+    const STATUS_ABSENT = 'absent';
+    const STATUS_LEAVE = 'leave';
+    const STATUS_HOLIDAY = 'holiday';
+
+    // Mode constants
+    const MODE_OFFICE = 'office';
+    const MODE_WFH = 'wfh';
+
+    // Source constants
+    const SOURCE_WEB = 'web';
+    const SOURCE_MOBILE = 'mobile';
+    const SOURCE_BIOMETRIC = 'biometric';
+    const SOURCE_IMPORT = 'import';
+
+    protected $fillable = [
+        'employee_id',
+        'date',
+        'mode',
+        'check_in_time',
+        'check_in_latitude',
+        'check_in_longitude',
+        'check_in_address',
+        'check_in_photo_path',
+        'check_out_time',
+        'check_out_latitude',
+        'check_out_longitude',
+        'check_out_address',
+        'check_out_photo_path',
+        'source',
+        'status',
+        'metadata',
+    ];
+
+    protected $casts = [
+        'date' => 'date',
+        'check_in_time' => 'datetime',
+        'check_out_time' => 'datetime',
+        'check_in_latitude' => 'decimal:8',
+        'check_in_longitude' => 'decimal:8',
+        'check_out_latitude' => 'decimal:8',
+        'check_out_longitude' => 'decimal:8',
+        'metadata' => 'array',
+    ];
+
+    /**
+     * Get all available statuses.
+     */
+    public static function getStatuses(): array
+    {
+        return [
+            self::STATUS_PRESENT,
+            self::STATUS_LATE,
+            self::STATUS_HALF_DAY,
+            self::STATUS_ABSENT,
+            self::STATUS_LEAVE,
+            self::STATUS_HOLIDAY,
+        ];
+    }
+
+    /**
+     * Get all available modes.
+     */
+    public static function getModes(): array
+    {
+        return [
+            self::MODE_OFFICE,
+            self::MODE_WFH,
+        ];
+    }
+
+    /**
+     * Get all available sources.
+     */
+    public static function getSources(): array
+    {
+        return [
+            self::SOURCE_WEB,
+            self::SOURCE_MOBILE,
+            self::SOURCE_BIOMETRIC,
+            self::SOURCE_IMPORT,
+        ];
+    }
+
+    /**
+     * Get the employee that owns the attendance log.
+     */
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
+    }
+
+    /**
+     * Scope a query to filter by date.
+     */
+    public function scopeForDate(Builder $query, $date): Builder
+    {
+        return $query->whereDate('date', $date);
+    }
+
+    /**
+     * Scope a query to filter by employee.
+     */
+    public function scopeForEmployee(Builder $query, $employeeId): Builder
+    {
+        return $query->where('employee_id', $employeeId);
+    }
+
+    /**
+     * Scope a query to filter by status.
+     */
+    public function scopeForStatus(Builder $query, string $status): Builder
+    {
+        return $query->where('status', $status);
+    }
+
+    /**
+     * Scope a query to filter by mode.
+     */
+    public function scopeForMode(Builder $query, string $mode): Builder
+    {
+        return $query->where('mode', $mode);
+    }
+
+    /**
+     * Scope a query to filter by date range.
+     */
+    public function scopeForDateRange(Builder $query, $from, $to): Builder
+    {
+        return $query->whereBetween('date', [$from, $to]);
+    }
+
+    /**
+     * Check if the employee has checked in.
+     */
+    public function hasCheckedIn(): bool
+    {
+        return $this->check_in_time !== null;
+    }
+
+    /**
+     * Check if the employee has checked out.
+     */
+    public function hasCheckedOut(): bool
+    {
+        return $this->check_out_time !== null;
+    }
+}
