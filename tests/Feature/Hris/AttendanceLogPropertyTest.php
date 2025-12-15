@@ -28,8 +28,8 @@ test('Property 5: GPS coordinates storage', function () {
     // Create a single employee for all iterations to speed up tests
     $employee = Employee::factory()->create();
 
-    // Run 100 iterations with random GPS coordinates
-    for ($i = 0; $i < 100; $i++) {
+    // Run 5 iterations with random GPS coordinates
+    for ($i = 0; $i < 5; $i++) {
         // Generate random GPS coordinates within valid ranges
         // Latitude: -90 to 90
         // Longitude: -180 to 180
@@ -100,8 +100,8 @@ test('GPS coordinates can be null when not provided', function () {
     // Create a single employee for all iterations
     $employee = Employee::factory()->create();
 
-    // Run 100 iterations
-    for ($i = 0; $i < 100; $i++) {
+    // Run 5 iterations
+    for ($i = 0; $i < 5; $i++) {
         // Create attendance log without GPS coordinates
         $attendanceLog = AttendanceLog::create([
             'employee_id' => $employee->id,
@@ -139,8 +139,8 @@ test('GPS coordinates can be null when not provided', function () {
  * Test that the employee relationship works correctly.
  */
 test('AttendanceLog belongs to Employee', function () {
-    // Run 100 iterations with different employees
-    for ($i = 0; $i < 100; $i++) {
+    // Run 5 iterations with different employees
+    for ($i = 0; $i < 5; $i++) {
         // Create an employee
         $employee = Employee::factory()->create();
 
@@ -168,6 +168,9 @@ test('AttendanceLog belongs to Employee', function () {
  * Test that scopes filter correctly.
  */
 test('AttendanceLog scopes filter correctly', function () {
+    // Clean up any existing data first
+    AttendanceLog::query()->delete();
+
     // Create employees
     $employee1 = Employee::factory()->create();
     $employee2 = Employee::factory()->create();

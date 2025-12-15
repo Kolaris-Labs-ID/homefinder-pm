@@ -229,7 +229,7 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                     ->weight('medium'),
 
                 Tables\Columns\TextColumn::make('status')
-                    ->label('Status')
+                    ->label(new \Illuminate\Support\HtmlString(view('filament.widgets.status-filter-dropdown')->render()))
                     ->badge()
                     ->color(fn (string $state): string => match($state) {
                         'pending' => 'gray',
@@ -307,14 +307,6 @@ class WeeklyTodoOverviewWidget extends BaseWidget
                     ->label('This Week')
                     ->query(fn (Builder $query): Builder => $query->whereDate('week_start_date', self::getStartOfWeek()))
                     ->toggle(),
-
-                Tables\Filters\SelectFilter::make('status')
-                    ->label('Status')
-                    ->options([
-                        'pending' => 'Pending',
-                        'in_progress' => 'In Progress',
-                        'done' => 'Done',
-                    ]),
             ])
             ->actions([
                 Tables\Actions\Action::make('view')

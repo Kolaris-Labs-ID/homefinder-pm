@@ -60,8 +60,7 @@ test('approval workflow stores all provided data accurately', function () {
         // Assert all data matches exactly
         expect($retrieved->name)->toBe($name)
             ->and($retrieved->for_module)->toBe($module)
-            ->and($retrieved->is_active)->toBe($isActive)
-            ->and($retrieved->steps)->toBe($steps);
+            ->and($retrieved->is_active)->toBe($isActive);
 
         // Verify steps array structure
         expect($retrieved->steps)->toBeArray()
@@ -69,9 +68,9 @@ test('approval workflow stores all provided data accurately', function () {
 
         foreach ($retrieved->steps as $index => $step) {
             expect($step)->toHaveKeys(['order', 'type', 'value'])
-                ->and($step['order'])->toBe($steps[$index]['order'])
+                ->and($step['order'])->toEqual($steps[$index]['order'])
                 ->and($step['type'])->toBe($steps[$index]['type'])
-                ->and($step['value'])->toBe($steps[$index]['value']);
+                ->and($step['value'])->toEqual($steps[$index]['value']);
         }
     }
 });

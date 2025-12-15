@@ -2,58 +2,119 @@
 
 namespace App\Policies\Hris;
 
-use App\Models\Hris\Employee;
 use App\Models\User;
+use App\Models\Hris\Employee;
+use Illuminate\Auth\Access\HandlesAuthorization;
 
 class EmployeePolicy
 {
+    use HandlesAuthorization;
+
+    /**
+     * Determine whether the user can view any models.
+     */
     public function viewAny(User $user): bool
     {
-        return $this->isHr($user);
+        return $user->can('view_any_employee');
     }
 
+    /**
+     * Determine whether the user can view the model.
+     */
     public function view(User $user, Employee $employee): bool
     {
-        if ($user->id === $employee->user_id) {
+        // Allow if user has permission
+        if ($user->can('view_employee')) {
             return true;
         }
 
-        if ($this->isHr($user)) {
-            return true;
-        }
-
-        $manager = optional($employee->primaryPosition)->manager;
-
-        return $manager && $manager->user_id === $user->id;
+        // Allow employees to view their own profile
+        return $user->id === $employee->user_id;
     }
 
+    /**
+     * Determine whether the user can create models.
+     */
     public function create(User $user): bool
     {
-        return $this->isHr($user);
+        return $user->can('create_employee');
     }
 
+    /**
+     * Determine whether the user can update the model.
+     */
     public function update(User $user, Employee $employee): bool
     {
-        if ($user->id === $employee->user_id) {
+        // Allow if user has permission
+        if ($user->can('update_employee')) {
             return true;
         }
 
-        return $this->isHr($user);
+        // Allow employees to update their own profile
+        return $user->id === $employee->user_id;
     }
 
+    /**
+     * Determine whether the user can delete the model.
+     */
     public function delete(User $user, Employee $employee): bool
     {
-        return $this->isHr($user);
+        return $user->can('delete_employee');
     }
 
-    public function viewSensitive(User $user): bool
+    /**
+     * Determine whether the user can bulk delete.
+     */
+    public function deleteAny(User $user): bool
     {
-        return $this->isHr($user);
+        return $user->can('delete_any_employee');
     }
 
-    protected function isHr(User $user): bool
+    /**
+     * Determine whether the user can permanently delete.
+     */
+    public function forceDelete(User $user, Employee $employee): bool
     {
-        return $user->hasAnyRole(['hr-admin', 'hr-staff', 'super_admin']);
+        return $user->can('force_delete_employee');
+    }
+
+    /**
+     * Determine whether the user can permanently bulk delete.
+     */
+    public function forceDeleteAny(User $user): bool
+    {
+        return $user->can('force_delete_any_employee');
+    }
+
+    /**
+     * Determine whether the user can restore.
+     */
+    public function restore(User $user, Employee $employee): bool
+    {
+        return $user->can('restore_employee');
+    }
+
+    /**
+     * Determine whether the user can bulk restore.
+     */
+    public function restoreAny(User $user): bool
+    {
+        return $user->can('restore_any_employee');
+    }
+
+    /**
+     * Determine whether the user can replicate.
+     */
+    public function replicate(User $user, Employee $employee): bool
+    {
+        return $user->can('replicate_employee');
+    }
+
+    /**
+     * Determine whether the user can reorder.
+     */
+    public function reorder(User $user): bool
+    {
+        return $user->can('reorder_employee');
     }
 }
-

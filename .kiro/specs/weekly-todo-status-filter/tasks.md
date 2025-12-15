@@ -16,21 +16,21 @@
 
 - [ ]    2. Implement dropdown in Status column header
 
-     - [ ] 2.1 Replace static Status label with dropdown select
-          - Create inline select component in column header
-          - Wire to statusFilter property with wire:model.live
-          - Include options: All, Pending, In Progress, Done
-          - _Requirements: 1.1, 1.2, 1.5, 3.1, 3.2_
-     - [ ] 2.2 Write property test for all filter behavior
-          - **Property 2: All filter returns todos of every status**
-          - **Validates: Requirements 1.4**
+                                                                                                - [x] 2.1 Replace static Status label with dropdown select
+                                                                                                     - Create inline select component in column header
+                                                                                                     - Wire to statusFilter property with wire:model.live
+                                                                                                     - Include options: All, Pending, In Progress, Done
+                                                                                                     - _Requirements: 1.1, 1.2, 1.5, 3.1, 3.2_
+                                                                                                - [x] 2.2 Write property test for all filter behavior
+                                                                                                     - **Property 2: All filter returns todos of every status**
+                                                                                                     - **Validates: Requirements 1.4**
 
-- [ ]    3. Remove redundant status filter from filters panel
+- [x]    3. Remove redundant status filter from filters panel
 
-     - [ ] 3.1 Remove SelectFilter for status from table filters
-          - The dropdown in column header replaces this functionality
-          - Keep other filters (user, division, week date, this week)
-          - _Requirements: 1.1_
+           - [x] 3.1 Remove SelectFilter for status from table filters
+                - The dropdown in column header replaces this functionality
+                - Keep other filters (user, division, week date, this week)
+                - _Requirements: 1.1_
 
-- [ ]    4. Checkpoint - Ensure all tests pass
-     - Ensure all tests pass, ask the user if questions arise.
+- [x]    4. Checkpoint - Ensure all tests pass
+           - Ensure all tests pass, ask the user if questions arise.

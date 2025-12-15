@@ -50,6 +50,10 @@ class AttendanceController extends Controller
         try {
             $attendanceLog = $this->attendanceService->checkIn($employee, $data);
 
+            // Compute status for the attendance log
+            $status = $this->attendanceService->computeStatus($attendanceLog);
+            $attendanceLog->status = $status;
+
             return response()->json([
                 'message' => 'Check-in recorded successfully.',
                 'data' => $this->formatAttendanceLog($attendanceLog),
@@ -171,6 +175,10 @@ class AttendanceController extends Controller
 
         try {
             $attendanceLog = $this->attendanceService->checkOut($employee, $data);
+
+            // Compute status for the attendance log
+            $status = $this->attendanceService->computeStatus($attendanceLog);
+            $attendanceLog->status = $status;
 
             return response()->json([
                 'message' => 'Check-out recorded successfully.',

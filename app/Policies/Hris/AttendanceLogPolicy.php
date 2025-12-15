@@ -2,132 +2,107 @@
 
 namespace App\Policies\Hris;
 
-use App\Models\Hris\AttendanceLog;
-use App\Models\Hris\Employee;
 use App\Models\User;
+use App\Models\Hris\AttendanceLog;
+use Illuminate\Auth\Access\HandlesAuthorization;
 
 class AttendanceLogPolicy
 {
+    use HandlesAuthorization;
+
     /**
-     * Determine whether the user can view any attendance logs.
-     *
-     * HR admin can view all, managers can view team attendance.
+     * Determine whether the user can view any models.
      */
     public function viewAny(User $user): bool
     {
-        // HR admin can view all
-        if ($this->isHr($user)) {
-            return true;
-        }
-
-        // Managers can view team attendance
-        if ($this->isManager($user)) {
-            return true;
-        }
-
-        // Employees can view their own (will be filtered in view method)
-        return (bool) $user->employee;
+        return $user->can('view_any_attendance::log');
     }
 
     /**
-     * Determine whether the user can view the attendance log.
-     *
-     * HR admin can view all, employee can view own, manager can view team.
+     * Determine whether the user can view the model.
      */
     public function view(User $user, AttendanceLog $attendanceLog): bool
     {
-        // HR admin can view all
-        if ($this->isHr($user)) {
-            return true;
-        }
-
-        // Employee can view their own attendance
-        if ($user->employee && $attendanceLog->employee_id === $user->employee->id) {
-            return true;
-        }
-
-        // Manager can view team attendance
-        return $this->isManagerOf($user, $attendanceLog->employee);
+        return $user->can('view_attendance::log');
     }
 
     /**
-     * Determine whether the user can create attendance logs.
-     *
-     * Only HR admin can manually create attendance logs.
-     * Employees check-in/out through the API.
+     * Determine whether the user can create models.
      */
     public function create(User $user): bool
     {
-        return $this->isHr($user);
+        return $user->can('create_attendance::log');
     }
 
     /**
-     * Determine whether the user can update the attendance log.
-     *
-     * Only HR admin can update attendance logs.
+     * Determine whether the user can update the model.
      */
     public function update(User $user, AttendanceLog $attendanceLog): bool
     {
-        return $this->isHr($user);
+        return $user->can('update_attendance::log');
     }
 
     /**
-     * Determine whether the user can delete the attendance log.
-     *
-     * Only HR admin can delete attendance logs.
+     * Determine whether the user can delete the model.
      */
     public function delete(User $user, AttendanceLog $attendanceLog): bool
     {
-        return $this->isHr($user);
+        return $user->can('delete_attendance::log');
     }
 
     /**
-     * Determine whether the user can export attendance logs.
-     *
-     * Only HR admin can export attendance data.
+     * Determine whether the user can bulk delete.
      */
-    public function export(User $user): bool
+    public function deleteAny(User $user): bool
     {
-        return $this->isHr($user);
+        return $user->can('delete_any_attendance::log');
     }
 
     /**
-     * Determine whether the user can view team attendance.
-     *
-     * Managers can view their direct reports' attendance.
+     * Determine whether the user can permanently delete.
      */
-    public function viewTeam(User $user): bool
+    public function forceDelete(User $user, AttendanceLog $attendanceLog): bool
     {
-        if ($this->isHr($user)) {
-            return true;
-        }
-
-        return $this->isManager($user);
+        return $user->can('force_delete_attendance::log');
     }
 
     /**
-     * Check if user is HR admin or staff.
+     * Determine whether the user can permanently bulk delete.
      */
-    protected function isHr(User $user): bool
+    public function forceDeleteAny(User $user): bool
     {
-        return $user->hasAnyRole(['hr-admin', 'hr-staff', 'super_admin']);
+        return $user->can('force_delete_any_attendance::log');
     }
 
     /**
-     * Check if user is a manager.
+     * Determine whether the user can restore.
      */
-    protected function isManager(User $user): bool
+    public function restore(User $user, AttendanceLog $attendanceLog): bool
     {
-        return $user->hasAnyRole(['manager', 'head-division']);
+        return $user->can('restore_attendance::log');
     }
 
     /**
-     * Check if user is the manager of the given employee.
+     * Determine whether the user can bulk restore.
      */
-    protected function isManagerOf(User $user, Employee $employee): bool
+    public function restoreAny(User $user): bool
     {
-        $manager = optional($employee->primaryPosition)->manager;
+        return $user->can('restore_any_attendance::log');
+    }
 
-        return $manager && $manager->user_id === $user->id;
+    /**
+     * Determine whether the user can replicate.
+     */
+    public function replicate(User $user, AttendanceLog $attendanceLog): bool
+    {
+        return $user->can('replicate_attendance::log');
+    }
+
+    /**
+     * Determine whether the user can reorder.
+     */
+    public function reorder(User $user): bool
+    {
+        return $user->can('reorder_attendance::log');
     }
 }

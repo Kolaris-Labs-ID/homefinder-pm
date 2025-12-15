@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Filament\Resources\SalaryStructureResource\Pages;
+
+use App\Filament\Resources\SalaryStructureResource;
+use Filament\Resources\Pages\CreateRecord;
+
+class CreateSalaryStructure extends CreateRecord
+{
+    protected static string $resource = SalaryStructureResource::class;
+
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        // Validate 75:25 rule before saving
+        $basicSalary = (float) ($data['basic_salary'] ?? 0);
+        $fixedAllowances = collect($data['allowances_fixed'] ?? [])->sum('amount');
+        $basicPlusFixed = $basicSalary + $fixedAllowances;
+
+        if ($basicPlusFixed > 0 && ($basicSalary / $basicPlusFixed) < 0.75) {
+            throw new \Exception(
+                'Basic salary must be at least 75% of (basic salary + fixed allowances). ' .
+                'Current ratio: ' . number_format(($basicSalary / $basicPlusFixed) * 100, 1) . '%'
+            );
+        }
+
+        return $data;
+    }
+}

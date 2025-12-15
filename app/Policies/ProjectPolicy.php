@@ -107,11 +107,19 @@ class ProjectPolicy
     }
 
     /**
-     * Determine whether the user can archive the project.
+     * Determine whether the user can archive the model.
      */
     public function archive(User $user, Project $project): bool
     {
         return $user->can('archive_project');
+    }
+
+    /**
+     * Determine whether the user can unarchive the model.
+     */
+    public function unarchive(User $user, Project $project): bool
+    {
+        return $user->can('restore_project');
     }
 
     /**

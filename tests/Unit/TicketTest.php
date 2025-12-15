@@ -61,7 +61,7 @@ test('ticket can have many assignees', function () {
 
 test('ticket can assign user', function () {
     $ticket = Ticket::factory()->create();
-    
+
     $ticket->assignUser($this->user);
 
     expect($ticket->assignees()->where('user_id', $this->user->id)->exists())->toBeTrue();
@@ -88,7 +88,7 @@ test('ticket can assign multiple users', function () {
 
 test('ticket can check if assigned to user', function () {
     $ticket = Ticket::factory()->create();
-    
+
     expect($ticket->isAssignedTo($this->user))->toBeFalse();
 
     $ticket->assignUser($this->user);
@@ -132,7 +132,7 @@ test('ticket creates history when status changes', function () {
 
 test('ticket can have many histories', function () {
     $ticket = Ticket::factory()->create();
-    
+
     TicketHistory::factory()->count(3)->create(['ticket_id' => $ticket->id]);
 
     expect($ticket->histories)->toHaveCount(3);
@@ -140,7 +140,7 @@ test('ticket can have many histories', function () {
 
 test('ticket can have many comments', function () {
     $ticket = Ticket::factory()->create();
-    
+
     TicketComment::factory()->count(2)->create(['ticket_id' => $ticket->id]);
 
     expect($ticket->comments)->toHaveCount(2);
@@ -209,18 +209,25 @@ test('ticket scope can get overdue tickets', function () {
         'is_completed' => true,
     ]);
 
+    // Create overdue ticket with incomplete status (should be found)
     Ticket::factory()->overdue()->create([
+        'project_id' => $this->project->id,
         'ticket_status_id' => $this->status->id,
     ]);
+    // Create overdue ticket with completed status (should NOT be found)
     Ticket::factory()->overdue()->create([
+        'project_id' => $this->project->id,
         'ticket_status_id' => $completedStatus->id,
     ]);
+    // Create non-overdue ticket (should NOT be found)
     Ticket::factory()->create([
+        'project_id' => $this->project->id,
         'due_date' => Carbon::today()->addDays(5),
         'ticket_status_id' => $this->status->id,
     ]);
 
-    $overdueTickets = Ticket::overdue()->get();
+    // Scope to this project to avoid interference from other tests
+    $overdueTickets = Ticket::where('project_id', $this->project->id)->overdue()->get();
 
     expect($overdueTickets)->toHaveCount(1);
 });

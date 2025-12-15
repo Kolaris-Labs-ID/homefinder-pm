@@ -2,49 +2,107 @@
 
 namespace App\Policies\Hris;
 
-use App\Models\Hris\Department;
 use App\Models\User;
+use App\Models\Hris\Department;
+use Illuminate\Auth\Access\HandlesAuthorization;
 
 class DepartmentPolicy
 {
+    use HandlesAuthorization;
+
+    /**
+     * Determine whether the user can view any models.
+     */
     public function viewAny(User $user): bool
     {
-        return $this->isHrOrExecutive($user);
+        return $user->can('view_any_department');
     }
 
+    /**
+     * Determine whether the user can view the model.
+     */
     public function view(User $user, Department $department): bool
     {
-        return $this->isHrOrExecutive($user);
+        return $user->can('view_department');
     }
 
+    /**
+     * Determine whether the user can create models.
+     */
     public function create(User $user): bool
     {
-        return $this->isHrOrExecutive($user);
+        return $user->can('create_department');
     }
 
+    /**
+     * Determine whether the user can update the model.
+     */
     public function update(User $user, Department $department): bool
     {
-        return $this->isHrOrExecutive($user);
+        return $user->can('update_department');
     }
 
+    /**
+     * Determine whether the user can delete the model.
+     */
     public function delete(User $user, Department $department): bool
     {
-        return $this->isHrOrExecutive($user);
+        return $user->can('delete_department');
     }
 
-    protected function isHrOrExecutive(User $user): bool
+    /**
+     * Determine whether the user can bulk delete.
+     */
+    public function deleteAny(User $user): bool
     {
-        return $this->isHr($user) || $this->isExecutive($user);
+        return $user->can('delete_any_department');
     }
 
-    protected function isHr(User $user): bool
+    /**
+     * Determine whether the user can permanently delete.
+     */
+    public function forceDelete(User $user, Department $department): bool
     {
-        return $user->hasAnyRole(['hr-admin', 'hr-staff', 'super_admin']);
+        return $user->can('force_delete_department');
     }
 
-    protected function isExecutive(User $user): bool
+    /**
+     * Determine whether the user can permanently bulk delete.
+     */
+    public function forceDeleteAny(User $user): bool
     {
-        return $user->hasAnyRole(['CEO', 'COO']);
+        return $user->can('force_delete_any_department');
+    }
+
+    /**
+     * Determine whether the user can restore.
+     */
+    public function restore(User $user, Department $department): bool
+    {
+        return $user->can('restore_department');
+    }
+
+    /**
+     * Determine whether the user can bulk restore.
+     */
+    public function restoreAny(User $user): bool
+    {
+        return $user->can('restore_any_department');
+    }
+
+    /**
+     * Determine whether the user can replicate.
+     */
+    public function replicate(User $user, Department $department): bool
+    {
+        return $user->can('replicate_department');
+    }
+
+    /**
+     * Determine whether the user can reorder.
+     */
+    public function reorder(User $user): bool
+    {
+        return $user->can('reorder_department');
     }
 }
-

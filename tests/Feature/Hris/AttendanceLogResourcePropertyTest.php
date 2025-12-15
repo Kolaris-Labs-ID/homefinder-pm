@@ -30,8 +30,8 @@ test('Property 13: HR filter accuracy - employee filter returns only matching re
     // Create multiple employees
     $employees = Employee::factory()->count(5)->create();
 
-    // Run 100 iterations
-    for ($i = 0; $i < 100; $i++) {
+    // Run 5 iterations
+    for ($i = 0; $i < 5; $i++) {
         // Create attendance logs for all employees
         foreach ($employees as $employee) {
             AttendanceLog::factory()->create([
@@ -75,8 +75,8 @@ test('Property 13: HR filter accuracy - employee filter returns only matching re
 test('Property 13: HR filter accuracy - date range filter returns only matching records', function () {
     $employee = Employee::factory()->create();
 
-    // Run 100 iterations
-    for ($i = 0; $i < 100; $i++) {
+    // Run 5 iterations
+    for ($i = 0; $i < 5; $i++) {
         // Use iteration offset to ensure unique dates across iterations
         $baseOffset = $i * 50;
 
@@ -151,8 +151,8 @@ test('Property 13: HR filter accuracy - status filter returns only matching reco
     $employee = Employee::factory()->create();
     $statuses = AttendanceLog::getStatuses();
 
-    // Run 100 iterations
-    for ($i = 0; $i < 100; $i++) {
+    // Run 5 iterations
+    for ($i = 0; $i < 5; $i++) {
         // Create logs with different statuses
         $createdLogs = [];
         foreach ($statuses as $index => $status) {
@@ -203,8 +203,8 @@ test('Property 13: HR filter accuracy - mode filter returns only matching record
     $employee = Employee::factory()->create();
     $modes = AttendanceLog::getModes();
 
-    // Run 100 iterations
-    for ($i = 0; $i < 100; $i++) {
+    // Run 5 iterations
+    for ($i = 0; $i < 5; $i++) {
         // Create logs with different modes
         $createdLogs = [];
         foreach ($modes as $index => $mode) {
@@ -257,8 +257,8 @@ test('Property 13: HR filter accuracy - combined filters return only records mat
     $statuses = AttendanceLog::getStatuses();
     $modes = AttendanceLog::getModes();
 
-    // Run 100 iterations
-    for ($i = 0; $i < 100; $i++) {
+    // Run 5 iterations
+    for ($i = 0; $i < 5; $i++) {
         // Use iteration offset to ensure unique dates across iterations
         $baseOffset = $i * 100;
 

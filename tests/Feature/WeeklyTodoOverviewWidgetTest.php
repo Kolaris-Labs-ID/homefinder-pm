@@ -223,25 +223,11 @@ test('division filter is not visible for regular users', function () {
     expect(WeeklyTodoOverviewWidget::canView())->toBeFalse();
 });
 
-test('status filter works correctly', function () {
+test('status filter is not in filters panel', function () {
     $this->actingAs($this->superAdmin);
 
-    // Create todos with different statuses
-    $pendingTodo = WeeklyTodo::factory()->create([
-        'user_id' => $this->regularUser->id,
-        'status' => 'pending',
-    ]);
-
-    $inProgressTodo = WeeklyTodo::factory()->create([
-        'user_id' => $this->regularUser->id,
-        'status' => 'in_progress',
-    ]);
-
-    $doneTodo = WeeklyTodo::factory()->create([
-        'user_id' => $this->regularUser->id,
-        'status' => 'done',
-    ]);
-
+    // The status filter has been moved to the column header dropdown
+    // and should no longer exist in the filters panel
     $widget = new WeeklyTodoOverviewWidget();
     $table = $widget->table(\Filament\Tables\Table::make($widget));
 
@@ -252,23 +238,8 @@ test('status filter works correctly', function () {
     // Clean up table reference to avoid memory issues
     unset($table, $widget, $filters, $statusFilter);
 
-    expect($filterExists)->toBeTrue();
-
-    // Test filtering by pending status
-    $query = WeeklyTodo::query()->with('user');
-    $filterCallback = function ($query, array $data) {
-        if (!empty($data['value'])) {
-            $query->where('status', $data['value']);
-        }
-        return $query;
-    };
-
-    $filteredQuery = $filterCallback(clone $query, ['value' => 'pending']);
-    $results = $filteredQuery->get();
-
-    expect($results->pluck('id')->toArray())->toContain($pendingTodo->id);
-    expect($results->pluck('id')->toArray())->not->toContain($inProgressTodo->id);
-    expect($results->pluck('id')->toArray())->not->toContain($doneTodo->id);
+    // Status filter should NOT exist in the filters panel anymore
+    expect($filterExists)->toBeFalse();
 });
 
 test('week start date filter works correctly', function () {
@@ -319,7 +290,7 @@ test('week start date filter works correctly', function () {
     expect($results->pluck('id')->toArray())->not->toContain($nextWeekTodo->id);
 });
 
-test('combination of division and status filters works', function () {
+test('combination of division filter and status property works', function () {
     $this->actingAs($this->superAdmin);
 
     // Create todos with different divisions and statuses
@@ -338,32 +309,21 @@ test('combination of division and status filters works', function () {
         'status' => 'pending',
     ]);
 
-    // Apply both filters
-    $query = WeeklyTodo::query()->with('user');
+    // Test with statusFilter property set to 'pending'
+    $widget = new WeeklyTodoOverviewWidget();
+    $widget->statusFilter = 'pending';
+    $table = $widget->table(\Filament\Tables\Table::make($widget));
+    $query = $table->getQuery();
 
-    // Division filter
-    $divisionFilter = function ($query, array $data) {
-        if (!empty($data['value'])) {
-            $query->whereHas('user', function ($q) use ($data) {
-                $q->where('division', $data['value']);
-            });
-        }
-        return $query;
-    };
+    // Apply division filter manually to the query
+    $query->whereHas('user', function ($q) {
+        $q->where('division', 'Engineering');
+    });
 
-    // Status filter
-    $statusFilter = function ($query, array $data) {
-        if (!empty($data['value'])) {
-            $query->where('status', $data['value']);
-        }
-        return $query;
-    };
+    $results = $query->get();
 
-    // Apply both filters
-    $filteredQuery = $divisionFilter(clone $query, ['value' => 'Engineering']);
-    $filteredQuery = $statusFilter($filteredQuery, ['value' => 'pending']);
-
-    $results = $filteredQuery->get();
+    // Clean up table reference to avoid memory issues
+    unset($table, $widget);
 
     expect($results->pluck('id')->toArray())->toContain($engineeringPending->id);
     expect($results->pluck('id')->toArray())->not->toContain($engineeringDone->id);

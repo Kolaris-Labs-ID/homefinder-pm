@@ -33,7 +33,7 @@ class AttendanceLogFactory extends Factory
             'check_out_longitude' => $baseLng + $this->faker->randomFloat(6, -0.05, 0.05),
             'check_out_address' => $this->faker->address,
             'check_out_photo_path' => null,
-            'source' => $this->faker->randomElement(AttendanceLog::getSources()),
+            'source' => $this->faker->randomElement([AttendanceLog::SOURCE_WEB, AttendanceLog::SOURCE_MOBILE, AttendanceLog::SOURCE_BIOMETRIC]),
             'status' => AttendanceLog::STATUS_PRESENT,
             'metadata' => null,
         ];

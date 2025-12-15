@@ -2,15 +2,19 @@
 
 namespace App\Filament\Resources;
 
+use App\Exports\HeadcountExport;
+use App\Exports\TurnoverExport;
 use App\Filament\Resources\EmployeeResource\Pages;
 use App\Filament\Resources\EmployeeResource\RelationManagers;
 use App\Models\Hris\Employee;
+use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Facades\Excel;
 
 class EmployeeResource extends Resource
 {
@@ -175,6 +179,40 @@ class EmployeeResource extends Resource
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
+            ])
+            ->headerActions([
+                Tables\Actions\Action::make('exportHeadcount')
+                    ->label('Export Headcount')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('success')
+                    ->action(function () {
+                        return Excel::download(
+                            new HeadcountExport(),
+                            'headcount-report-' . now()->format('Y-m-d') . '.xlsx'
+                        );
+                    }),
+                Tables\Actions\Action::make('exportTurnover')
+                    ->label('Export Turnover')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('danger')
+                    ->form([
+                        Forms\Components\DatePicker::make('start_date')
+                            ->label('Start Date')
+                            ->default(now()->startOfYear())
+                            ->required(),
+                        Forms\Components\DatePicker::make('end_date')
+                            ->label('End Date')
+                            ->default(now())
+                            ->required(),
+                    ])
+                    ->action(function (array $data) {
+                        $start = Carbon::parse($data['start_date']);
+                        $end = Carbon::parse($data['end_date']);
+                        return Excel::download(
+                            new TurnoverExport($start, $end),
+                            'turnover-report-' . now()->format('Y-m-d') . '.xlsx'
+                        );
+                    }),
             ])
             ->defaultSort('hire_date', 'desc');
     }

@@ -29,7 +29,7 @@ return new class extends Migration
             $table->string('check_out_photo_path')->nullable();
 
             // Source and status
-            $table->enum('source', ['web', 'mobile', 'biometric'])->default('web');
+            $table->enum('source', ['web', 'mobile', 'biometric', 'import'])->default('web');
             $table->enum('status', ['present', 'late', 'half_day', 'absent', 'leave', 'holiday'])->default('present');
 
             // Additional data

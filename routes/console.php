@@ -14,3 +14,10 @@ Schedule::command('tickets:check-overdue')
     ->at('09:00')
     ->timezone('Asia/Jakarta')
     ->description('Check for overdue and nearing overdue tickets and projects');
+
+// Schedule daily check for expiring certifications (HRIS)
+Schedule::command('hris:check-expiring-certifications')
+    ->daily()
+    ->at('08:00')
+    ->timezone('Asia/Jakarta')
+    ->description('Check for certifications expiring within 30 days and notify employees and HR');
