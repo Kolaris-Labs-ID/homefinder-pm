@@ -49,6 +49,7 @@ class EmployeeResource extends Resource
                         Forms\Components\Select::make('employment_status')
                             ->options([
                                 'permanent' => 'Permanent',
+                                'probation' => 'Probation',
                                 'contract' => 'Contract',
                                 'intern' => 'Intern',
                                 'freelance' => 'Freelance',
@@ -140,6 +141,7 @@ class EmployeeResource extends Resource
                     ->badge()
                     ->colors([
                         'success' => 'permanent',
+                        'primary' => 'probation',
                         'warning' => fn ($state) => in_array($state, ['contract', 'freelance']),
                         'info' => 'intern',
                     ])
@@ -159,6 +161,7 @@ class EmployeeResource extends Resource
                 Tables\Filters\SelectFilter::make('employment_status')
                     ->options([
                         'permanent' => 'Permanent',
+                        'probation' => 'Probation',
                         'contract' => 'Contract',
                         'intern' => 'Intern',
                         'freelance' => 'Freelance',
