@@ -6,6 +6,7 @@ use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Chat;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use CraftForge\FilamentLanguageSwitcher\FilamentLanguageSwitcherPlugin;
+use Ffhs\Approvals\ApprovalsPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -67,6 +68,7 @@ class AdminPanelProvider extends PanelProvider
                     ]),
                 ChatifyPlugin::make()
                     ->customPage(Chat::class),
+                ApprovalsPlugin::make(),
             ])
             ->authMiddleware([
                 Authenticate::class,

@@ -2,16 +2,18 @@
 
 namespace App\Models\Hris;
 
+use App\Contracts\Hris\ApprovableContract;
 use App\Models\User;
+use App\Traits\Hris\Approvable;
 use Carbon\CarbonPeriod;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
 
-class LeaveRequest extends Model
+class LeaveRequest extends Model implements ApprovableContract
 {
     use HasFactory;
+    use Approvable;
 
     public const STATUS_DRAFT = 'draft';
     public const STATUS_PENDING = 'pending';
@@ -62,30 +64,11 @@ class LeaveRequest extends Model
     }
 
     /**
-     * Get the approval steps for this leave request.
-     * This is a polymorphic relationship to ApprovalStep.
+     * Get the module type for this approvable.
      */
-    public function approvalSteps(): MorphMany
+    public function getApprovalModule(): string
     {
-        return $this->morphMany(ApprovalStep::class, 'approvable')->orderBy('step_order');
-    }
-
-    /**
-     * Get the current pending approval step.
-     */
-    public function currentApprovalStep(): ?ApprovalStep
-    {
-        return $this->approvalSteps()
-            ->where('status', ApprovalStep::STATUS_PENDING)
-            ->first();
-    }
-
-    /**
-     * Check if this leave request has approval workflow steps.
-     */
-    public function hasApprovalWorkflow(): bool
-    {
-        return $this->approvalSteps()->exists();
+        return ApprovalWorkflow::MODULE_LEAVE;
     }
 
     public function scopePending($query)
@@ -96,31 +79,6 @@ class LeaveRequest extends Model
     public function requestedPeriod(): CarbonPeriod
     {
         return CarbonPeriod::create($this->start_date, $this->end_date);
-    }
-
-    /**
-     * Mark the leave request as approved.
-     * Called by ApprovalWorkflowService when final step is approved.
-     */
-    public function markAsApproved(): void
-    {
-        $this->update([
-            'status' => self::STATUS_APPROVED,
-            'approved_at' => now(),
-        ]);
-    }
-
-    /**
-     * Mark the leave request as rejected.
-     * Called by ApprovalWorkflowService when a step is rejected.
-     */
-    public function markAsRejected(string $reason): void
-    {
-        $this->update([
-            'status' => self::STATUS_REJECTED,
-            'rejected_at' => now(),
-            'rejection_reason' => $reason,
-        ]);
     }
 }
 

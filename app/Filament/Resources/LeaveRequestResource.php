@@ -2,11 +2,15 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Actions\ApproveAction;
+use App\Filament\Actions\RejectAction;
 use App\Filament\Resources\LeaveRequestResource\Pages;
 use App\Models\Hris\LeaveRequest;
+use App\Services\Hris\ApprovalWorkflowService;
 use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -137,17 +141,54 @@ class LeaveRequestResource extends Resource
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make()
                     ->visible(fn (LeaveRequest $record): bool => Gate::allows('update', $record)),
+                // Workflow-based approval action
+                Tables\Actions\Action::make('workflow_approve')
+                    ->label(__('Approve'))
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->modalHeading(__('Approve Leave Request'))
+                    ->modalDescription(__('Are you sure you want to approve this leave request?'))
+                    ->modalSubmitActionLabel(__('Approve'))
+                    ->form([
+                        Forms\Components\Textarea::make('notes')
+                            ->label(__('Notes (Optional)'))
+                            ->placeholder(__('Add any notes or comments...'))
+                            ->rows(3)
+                            ->maxLength(1000),
+                    ])
+                    ->visible(fn (LeaveRequest $record): bool => static::canApproveWithWorkflow($record))
+                    ->action(fn (LeaveRequest $record, array $data) => static::handleWorkflowApprove($record, $data)),
+                // Workflow-based rejection action
+                Tables\Actions\Action::make('workflow_reject')
+                    ->label(__('Reject'))
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->modalHeading(__('Reject Leave Request'))
+                    ->modalDescription(__('Please provide a reason for rejecting this request.'))
+                    ->modalSubmitActionLabel(__('Reject'))
+                    ->form([
+                        Forms\Components\Textarea::make('reason')
+                            ->label(__('Rejection Reason'))
+                            ->placeholder(__('Please explain why this request is being rejected...'))
+                            ->required()
+                            ->rows(3)
+                            ->maxLength(1000),
+                    ])
+                    ->visible(fn (LeaveRequest $record): bool => static::canApproveWithWorkflow($record))
+                    ->action(fn (LeaveRequest $record, array $data) => static::handleWorkflowReject($record, $data)),
+                // Legacy approval action (for records without workflow)
                 Tables\Actions\Action::make('approve')
                     ->icon('heroicon-o-check')
                     ->requiresConfirmation()
                     ->color('success')
-                    ->visible(fn (LeaveRequest $record): bool => Gate::allows('approve', $record))
+                    ->visible(fn (LeaveRequest $record): bool => static::canApproveLegacy($record))
                     ->action(fn (LeaveRequest $record) => Pages\LeaveRequestActionHandler::approve($record)),
+                // Legacy rejection action (for records without workflow)
                 Tables\Actions\Action::make('reject')
                     ->icon('heroicon-o-x-mark')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->visible(fn (LeaveRequest $record): bool => Gate::allows('approve', $record))
+                    ->visible(fn (LeaveRequest $record): bool => static::canApproveLegacy($record))
                     ->form([
                         Forms\Components\Textarea::make('rejection_reason')
                             ->required()
@@ -174,6 +215,7 @@ class LeaveRequestResource extends Resource
         return [
             'index' => Pages\ListLeaveRequests::route('/'),
             'create' => Pages\CreateLeaveRequest::route('/create'),
+            'view' => Pages\ViewLeaveRequest::route('/{record}'),
             'edit' => Pages\EditLeaveRequest::route('/{record}/edit'),
         ];
     }
@@ -215,6 +257,107 @@ class LeaveRequestResource extends Resource
         $endDate = Carbon::parse($end);
 
         $set('total_days', $startDate->diffInDays($endDate) + 1);
+    }
+
+    /**
+     * Check if the current user can approve the record using workflow.
+     */
+    protected static function canApproveWithWorkflow(LeaveRequest $record): bool
+    {
+        // Only show workflow actions for pending records with approval workflow
+        if (!$record->isPending() || !$record->hasApprovalWorkflow()) {
+            return false;
+        }
+
+        $user = auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        return $record->canBeApprovedBy($user);
+    }
+
+    /**
+     * Check if the current user can approve the record using legacy method.
+     */
+    protected static function canApproveLegacy(LeaveRequest $record): bool
+    {
+        // Only show legacy actions for pending records without approval workflow
+        if (!$record->isPending() || $record->hasApprovalWorkflow()) {
+            return false;
+        }
+
+        return Gate::allows('approve', $record);
+    }
+
+    /**
+     * Handle workflow-based approval.
+     */
+    protected static function handleWorkflowApprove(LeaveRequest $record, array $data): void
+    {
+        $user = auth()->user();
+        $currentStep = $record->currentApprovalStep();
+
+        if (!$currentStep) {
+            Notification::make()
+                ->title(__('Error'))
+                ->body(__('No pending approval step found.'))
+                ->danger()
+                ->send();
+            return;
+        }
+
+        try {
+            $service = app(ApprovalWorkflowService::class);
+            $service->approve($currentStep, $user, $data['notes'] ?? null);
+
+            Notification::make()
+                ->title(__('Leave Request Approved'))
+                ->body(__('The leave request has been approved successfully.'))
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title(__('Approval Failed'))
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    /**
+     * Handle workflow-based rejection.
+     */
+    protected static function handleWorkflowReject(LeaveRequest $record, array $data): void
+    {
+        $user = auth()->user();
+        $currentStep = $record->currentApprovalStep();
+
+        if (!$currentStep) {
+            Notification::make()
+                ->title(__('Error'))
+                ->body(__('No pending approval step found.'))
+                ->danger()
+                ->send();
+            return;
+        }
+
+        try {
+            $service = app(ApprovalWorkflowService::class);
+            $service->reject($currentStep, $user, $data['reason']);
+
+            Notification::make()
+                ->title(__('Leave Request Rejected'))
+                ->body(__('The leave request has been rejected.'))
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title(__('Rejection Failed'))
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 }
 

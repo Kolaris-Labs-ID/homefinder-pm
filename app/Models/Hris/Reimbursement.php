@@ -2,17 +2,18 @@
 
 namespace App\Models\Hris;
 
-use App\Models\ApprovalStep;
+use App\Contracts\Hris\ApprovableContract;
 use App\Models\User;
+use App\Traits\Hris\Approvable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
 
-class Reimbursement extends Model
+class Reimbursement extends Model implements ApprovableContract
 {
     use HasFactory;
+    use Approvable;
 
     // Type constants
     const TYPE_MEDICAL = 'medical';
@@ -34,6 +35,8 @@ class Reimbursement extends Model
         'receipt_file_path',
         'status',
         'rejection_reason',
+        'approved_at',
+        'rejected_at',
         'paid_at',
         'paid_by',
         'metadata',
@@ -41,6 +44,8 @@ class Reimbursement extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
         'paid_at' => 'datetime',
         'metadata' => 'array',
     ];
@@ -114,11 +119,11 @@ class Reimbursement extends Model
     }
 
     /**
-     * Get the approval steps for this reimbursement.
+     * Get the module type for this approvable.
      */
-    public function approvalSteps(): MorphMany
+    public function getApprovalModule(): string
     {
-        return $this->morphMany(ApprovalStep::class, 'approvable');
+        return ApprovalWorkflow::MODULE_REIMBURSEMENT;
     }
 
     /**

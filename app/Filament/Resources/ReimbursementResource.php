@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ReimbursementResource\Pages;
 use App\Models\Hris\Employee;
 use App\Models\Hris\Reimbursement;
+use App\Services\Hris\ApprovalWorkflowService;
 use App\Services\Hris\ReimbursementService;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -87,21 +88,58 @@ class ReimbursementResource extends Resource
                     ->options(Reimbursement::getTypeLabels()),
             ])
             ->actions([
+                // Workflow-based approval action
+                Tables\Actions\Action::make('workflow_approve')
+                    ->label(__('Approve'))
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->modalHeading(__('Approve Reimbursement'))
+                    ->modalDescription(__('Are you sure you want to approve this reimbursement?'))
+                    ->modalSubmitActionLabel(__('Approve'))
+                    ->form([
+                        Forms\Components\Textarea::make('notes')
+                            ->label(__('Notes (Optional)'))
+                            ->placeholder(__('Add any notes or comments...'))
+                            ->rows(3)
+                            ->maxLength(1000),
+                    ])
+                    ->visible(fn (Reimbursement $record): bool => static::canApproveWithWorkflow($record))
+                    ->action(fn (Reimbursement $record, array $data) => static::handleWorkflowApprove($record, $data)),
+                // Workflow-based rejection action
+                Tables\Actions\Action::make('workflow_reject')
+                    ->label(__('Reject'))
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->modalHeading(__('Reject Reimbursement'))
+                    ->modalDescription(__('Please provide a reason for rejecting this reimbursement.'))
+                    ->modalSubmitActionLabel(__('Reject'))
+                    ->form([
+                        Forms\Components\Textarea::make('reason')
+                            ->label(__('Rejection Reason'))
+                            ->placeholder(__('Please explain why this reimbursement is being rejected...'))
+                            ->required()
+                            ->rows(3)
+                            ->maxLength(1000),
+                    ])
+                    ->visible(fn (Reimbursement $record): bool => static::canApproveWithWorkflow($record))
+                    ->action(fn (Reimbursement $record, array $data) => static::handleWorkflowReject($record, $data)),
+                // Legacy approval action (for records without workflow)
                 Tables\Actions\Action::make('approve')
                     ->label('Approve')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (Reimbursement $record) => $record->canApprove())
+                    ->visible(fn (Reimbursement $record) => static::canApproveLegacy($record))
                     ->requiresConfirmation()
                     ->action(function (Reimbursement $record) {
                         app(ReimbursementService::class)->approve($record);
                         Notification::make()->title('Reimbursement Approved')->success()->send();
                     }),
+                // Legacy rejection action (for records without workflow)
                 Tables\Actions\Action::make('reject')
                     ->label('Reject')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn (Reimbursement $record) => $record->canReject())
+                    ->visible(fn (Reimbursement $record) => static::canApproveLegacy($record))
                     ->form([
                         Forms\Components\Textarea::make('rejection_reason')
                             ->required()
@@ -145,5 +183,106 @@ class ReimbursementResource extends Resource
             'view' => Pages\ViewReimbursement::route('/{record}'),
             'edit' => Pages\EditReimbursement::route('/{record}/edit'),
         ];
+    }
+
+    /**
+     * Check if the current user can approve the record using workflow.
+     */
+    protected static function canApproveWithWorkflow(Reimbursement $record): bool
+    {
+        // Only show workflow actions for pending records with approval workflow
+        if (!$record->isPending() || !$record->hasApprovalWorkflow()) {
+            return false;
+        }
+
+        $user = auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        return $record->canBeApprovedBy($user);
+    }
+
+    /**
+     * Check if the current user can approve the record using legacy method.
+     */
+    protected static function canApproveLegacy(Reimbursement $record): bool
+    {
+        // Only show legacy actions for pending records without approval workflow
+        if (!$record->canApprove() || $record->hasApprovalWorkflow()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Handle workflow-based approval.
+     */
+    protected static function handleWorkflowApprove(Reimbursement $record, array $data): void
+    {
+        $user = auth()->user();
+        $currentStep = $record->currentApprovalStep();
+
+        if (!$currentStep) {
+            Notification::make()
+                ->title(__('Error'))
+                ->body(__('No pending approval step found.'))
+                ->danger()
+                ->send();
+            return;
+        }
+
+        try {
+            $service = app(ApprovalWorkflowService::class);
+            $service->approve($currentStep, $user, $data['notes'] ?? null);
+
+            Notification::make()
+                ->title(__('Reimbursement Approved'))
+                ->body(__('The reimbursement has been approved successfully.'))
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title(__('Approval Failed'))
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    /**
+     * Handle workflow-based rejection.
+     */
+    protected static function handleWorkflowReject(Reimbursement $record, array $data): void
+    {
+        $user = auth()->user();
+        $currentStep = $record->currentApprovalStep();
+
+        if (!$currentStep) {
+            Notification::make()
+                ->title(__('Error'))
+                ->body(__('No pending approval step found.'))
+                ->danger()
+                ->send();
+            return;
+        }
+
+        try {
+            $service = app(ApprovalWorkflowService::class);
+            $service->reject($currentStep, $user, $data['reason']);
+
+            Notification::make()
+                ->title(__('Reimbursement Rejected'))
+                ->body(__('The reimbursement has been rejected.'))
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title(__('Rejection Failed'))
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 }

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e816caa31aa75dbd25a39ba714490a72",
+    "content-hash": "4b15856ff6709ae9298406896f653fa7",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -1348,6 +1348,85 @@
                 "source": "https://github.com/ezyang/htmlpurifier/tree/v4.18.0"
             },
             "time": "2024-11-01T03:51:45+00:00"
+        },
+        {
+            "name": "ffhs/filament-package_ffhs_approvals",
+            "version": "1.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/ffhs/filament-package_ffhs_approvals.git",
+                "reference": "712475522b63bf45a9e63a649d391cfe22132818"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/ffhs/filament-package_ffhs_approvals/zipball/712475522b63bf45a9e63a649d391cfe22132818",
+                "reference": "712475522b63bf45a9e63a649d391cfe22132818",
+                "shasum": ""
+            },
+            "require": {
+                "filament/filament": "^3.0",
+                "php": "^8.2",
+                "spatie/laravel-package-tools": "^1.15.0"
+            },
+            "require-dev": {
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.0",
+                "nunomaduro/collision": "^8.0",
+                "orchestra/testbench": "^9.9",
+                "pestphp/pest": "^3.7",
+                "pestphp/pest-plugin-arch": "^3.0",
+                "pestphp/pest-plugin-laravel": "^3.0",
+                "phpstan/extension-installer": "^1.1",
+                "phpstan/phpstan-deprecation-rules": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "spatie/laravel-ray": "^1.26"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "aliases": {
+                        "Approvals": "Ffhs\\Approvals\\Facades\\Approvals"
+                    },
+                    "providers": [
+                        "Ffhs\\Approvals\\ApprovalsServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Ffhs\\Approvals\\": "src/",
+                    "Ffhs\\Approvals\\Database\\Factories\\": "database/factories/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Kromer Luc",
+                    "email": "luc.kromer@ffhs.ch",
+                    "role": "Developer"
+                },
+                {
+                    "name": "Matthew Ballou",
+                    "email": "mballou@kirschbaumdevelopment.com",
+                    "role": "Developer"
+                }
+            ],
+            "description": "This is my package filament-package_ffhs_approvals",
+            "homepage": "https://github.com/ffhs/filament-package_ffhs_approvals",
+            "keywords": [
+                "ffhs",
+                "filament-package_ffhs_approvals",
+                "kirschbaum-development",
+                "laravel"
+            ],
+            "support": {
+                "issues": "https://github.com/ffhs/filament-package_ffhs_approvals/issues",
+                "source": "https://github.com/ffhs/filament-package_ffhs_approvals"
+            },
+            "time": "2025-07-24T14:32:41+00:00"
         },
         {
             "name": "filament/actions",

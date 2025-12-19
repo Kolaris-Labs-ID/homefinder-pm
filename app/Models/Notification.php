@@ -14,7 +14,7 @@ class Notification extends Model
     protected $fillable = [
         'user_id',
         'type',
-        'title', 
+        'title',
         'message',
         'data',
         'read_at'
@@ -114,6 +114,8 @@ class Notification extends Model
         $ticketName = $this->data['ticket_name'] ?? $this->ticket_name;
         $projectName = $this->data['project_name'] ?? $this->project_name;
         $actor = $this->actor['name'] ?? 'Someone';
+        $requestorName = $this->data['requestor_name'] ?? null;
+        $approvableType = isset($this->data['approvable_type']) ? class_basename($this->data['approvable_type']) : 'Request';
 
         return match ($this->type) {
             'comment_added' => "{$actor} replied on {$ticketName}",
@@ -124,6 +126,11 @@ class Notification extends Model
             'ticket_nearing_overdue' => "{$ticketName} is due soon",
             'project_overdue' => "{$projectName} is overdue",
             'project_nearing_overdue' => "{$projectName} is due soon",
+            'approval_pending' => $requestorName
+                ? "{$approvableType} from {$requestorName} requires your approval"
+                : "{$approvableType} requires your approval",
+            'approval_approved' => "Your {$approvableType} has been approved",
+            'approval_rejected' => "Your {$approvableType} has been rejected",
             default => $this->message ?? '',
         };
     }
@@ -152,6 +159,13 @@ class Notification extends Model
             ],
             'ticket_overdue', 'ticket_nearing_overdue' => [
                 $this->makeAction('View Ticket', 'primary', $this->ticketUrl()),
+            ],
+            'approval_pending' => [
+                $this->makeAction('Review', 'primary', $this->approvableUrl()),
+                $this->makeAction('Dashboard', 'gray', $this->approvalDashboardUrl()),
+            ],
+            'approval_approved', 'approval_rejected' => [
+                $this->makeAction('View Details', 'primary', $this->approvableUrl()),
             ],
             default => [],
         };
@@ -194,5 +208,41 @@ class Notification extends Model
         }
 
         return route('filament.admin.resources.projects.view', ['record' => $projectId]);
+    }
+
+    protected function approvableUrl(): ?string
+    {
+        // First check if URL is directly provided in data
+        if (isset($this->data['approvable_url']) && $this->data['approvable_url']) {
+            return $this->data['approvable_url'];
+        }
+
+        // Fallback to generating URL from approvable type and id
+        $approvableType = $this->data['approvable_type'] ?? null;
+        $approvableId = $this->data['approvable_id'] ?? null;
+
+        if (! $approvableType || ! $approvableId) {
+            return null;
+        }
+
+        try {
+            return match ($approvableType) {
+                \App\Models\Hris\LeaveRequest::class => route('filament.admin.resources.leave-requests.edit', ['record' => $approvableId]),
+                \App\Models\Hris\Reimbursement::class => route('filament.admin.resources.reimbursements.edit', ['record' => $approvableId]),
+                \App\Models\Hris\PayrollRecord::class => route('filament.admin.resources.payrun-batches.index'),
+                default => null,
+            };
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    protected function approvalDashboardUrl(): ?string
+    {
+        try {
+            return route('filament.admin.pages.approval-dashboard');
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 }
