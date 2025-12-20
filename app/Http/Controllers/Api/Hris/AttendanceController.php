@@ -30,24 +30,24 @@ class AttendanceController extends Controller
      */
     public function checkIn(Request $request): JsonResponse
     {
-        $employee = $this->resolveEmployee($request);
-
-        $data = $request->validate([
-            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'source' => ['nullable', Rule::in([
-                AttendanceLog::SOURCE_WEB,
-                AttendanceLog::SOURCE_MOBILE,
-                AttendanceLog::SOURCE_BIOMETRIC,
-            ])],
-            'mode' => ['nullable', Rule::in([
-                AttendanceLog::MODE_OFFICE,
-                AttendanceLog::MODE_WFH,
-            ])],
-            'photo' => ['nullable', 'image', 'max:5120'], // Max 5MB
-        ]);
-
         try {
+            $employee = $this->resolveEmployee($request);
+
+            $data = $request->validate([
+                'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+                'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+                'source' => ['nullable', Rule::in([
+                    AttendanceLog::SOURCE_WEB,
+                    AttendanceLog::SOURCE_MOBILE,
+                    AttendanceLog::SOURCE_BIOMETRIC,
+                ])],
+                'mode' => ['nullable', Rule::in([
+                    AttendanceLog::MODE_OFFICE,
+                    AttendanceLog::MODE_WFH,
+                ])],
+                'photo' => ['nullable', 'image', 'max:5120'], // Max 5MB
+            ]);
+
             $attendanceLog = $this->attendanceService->checkIn($employee, $data);
 
             // Compute status for the attendance log
@@ -58,7 +58,18 @@ class AttendanceController extends Controller
                 'message' => 'Check-in recorded successfully.',
                 'data' => $this->formatAttendanceLog($attendanceLog),
             ], 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
         } catch (\Exception $e) {
+            \Log::error('Attendance check-in failed', [
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'message' => $e->getMessage(),
             ], 422);
@@ -196,12 +207,21 @@ class AttendanceController extends Controller
      *
      * @param Request $request
      * @return Employee
+     * @throws \Illuminate\Http\Exceptions\HttpResponseException
      */
     protected function resolveEmployee(Request $request): Employee
     {
-        $employee = optional($request->user())->employee;
+        $user = $request->user();
 
-        abort_if(!$employee, 404, 'Employee profile not found.');
+        if (!$user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        $employee = $user->employee;
+
+        if (!$employee) {
+            abort(404, 'Employee profile not found. Please contact HR to set up your employee record.');
+        }
 
         return $employee;
     }
