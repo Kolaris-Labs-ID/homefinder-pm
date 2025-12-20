@@ -4,6 +4,7 @@ use App\Models\Hris\Employee;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 
 use function Pest\Laravel\getJson;
@@ -345,5 +346,217 @@ describe('Auth flow integration', function () {
 
         // User should have 2 tokens
         expect($user->tokens()->count())->toBe(2);
+    });
+});
+
+describe('Google Sign-In endpoint', function () {
+    it('logs in user with valid Google ID token and employee record', function () {
+        // Create user with employee
+        $employee = Employee::factory()->create([
+            'nik' => 'EMP001',
+        ]);
+        $user = $employee->user;
+        $user->update([
+            'email' => 'test@example.com',
+            'google_id' => '123456789',
+        ]);
+
+        // Mock Google token verification
+        Http::fake([
+            'oauth2.googleapis.com/tokeninfo*' => Http::response([
+                'sub' => '123456789',
+                'email' => 'test@example.com',
+                'email_verified' => 'true',
+                'name' => 'Test User',
+                'picture' => 'https://example.com/photo.jpg',
+            ], 200),
+        ]);
+
+        $response = postJson('/api/auth/google', [
+            'id_token' => 'valid-google-token',
+            'device_name' => 'mobile-app',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'message',
+                'token',
+                'user' => [
+                    'id',
+                    'name',
+                    'email',
+                    'division',
+                    'is_division_head',
+                    'avatar_url',
+                ],
+                'employee' => [
+                    'id',
+                    'nik',
+                    'hire_date',
+                    'employment_status',
+                    'is_active',
+                ],
+            ])
+            ->assertJsonPath('message', 'Login successful.')
+            ->assertJsonPath('user.email', 'test@example.com')
+            ->assertJsonPath('employee.nik', 'EMP001');
+
+        expect($response->json('token'))->not->toBeNull();
+    });
+
+    it('returns 404 when user has no employee record', function () {
+        // Create user without employee
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+            'google_id' => '123456789',
+        ]);
+
+        // Mock Google token verification
+        Http::fake([
+            'oauth2.googleapis.com/tokeninfo*' => Http::response([
+                'sub' => '123456789',
+                'email' => 'test@example.com',
+                'email_verified' => 'true',
+                'name' => 'Test User',
+            ], 200),
+        ]);
+
+        $response = postJson('/api/auth/google', [
+            'id_token' => 'valid-google-token',
+        ]);
+
+        $response->assertNotFound()
+            ->assertJsonPath('message', 'No employee account found for this Google account.');
+    });
+
+    it('returns 404 when Google account not found in system', function () {
+        // Mock Google token verification for unknown user
+        Http::fake([
+            'oauth2.googleapis.com/tokeninfo*' => Http::response([
+                'sub' => '999999999',
+                'email' => 'unknown@example.com',
+                'email_verified' => 'true',
+                'name' => 'Unknown User',
+            ], 200),
+        ]);
+
+        $response = postJson('/api/auth/google', [
+            'id_token' => 'valid-google-token',
+        ]);
+
+        $response->assertNotFound()
+            ->assertJsonPath('message', 'No employee account found for this Google account.');
+    });
+
+    it('returns 401 when Google token is invalid', function () {
+        // Mock Google token verification failure
+        Http::fake([
+            'oauth2.googleapis.com/tokeninfo*' => Http::response([
+                'error' => 'invalid_token',
+            ], 400),
+        ]);
+
+        $response = postJson('/api/auth/google', [
+            'id_token' => 'invalid-google-token',
+        ]);
+
+        $response->assertUnauthorized()
+            ->assertJsonPath('message', 'Invalid or expired Google token.');
+    });
+
+    it('links Google ID to existing user by email', function () {
+        // Create user with employee but no google_id
+        $employee = Employee::factory()->create();
+        $user = $employee->user;
+        $user->update([
+            'email' => 'test@example.com',
+            'google_id' => null,
+        ]);
+
+        // Mock Google token verification
+        Http::fake([
+            'oauth2.googleapis.com/tokeninfo*' => Http::response([
+                'sub' => '123456789',
+                'email' => 'test@example.com',
+                'email_verified' => 'true',
+                'name' => 'Test User',
+                'picture' => 'https://example.com/photo.jpg',
+            ], 200),
+        ]);
+
+        $response = postJson('/api/auth/google', [
+            'id_token' => 'valid-google-token',
+        ]);
+
+        $response->assertOk();
+
+        // Verify google_id was linked
+        $user->refresh();
+        expect($user->google_id)->toBe('123456789');
+        expect($user->avatar_url)->toBe('https://example.com/photo.jpg');
+    });
+
+    it('validates required id_token field', function () {
+        $response = postJson('/api/auth/google', []);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['id_token']);
+    });
+
+    it('accepts custom device name', function () {
+        $employee = Employee::factory()->create();
+        $user = $employee->user;
+        $user->update([
+            'email' => 'test@example.com',
+            'google_id' => '123456789',
+        ]);
+
+        Http::fake([
+            'oauth2.googleapis.com/tokeninfo*' => Http::response([
+                'sub' => '123456789',
+                'email' => 'test@example.com',
+                'email_verified' => 'true',
+                'name' => 'Test User',
+            ], 200),
+        ]);
+
+        $response = postJson('/api/auth/google', [
+            'id_token' => 'valid-google-token',
+            'device_name' => 'iPhone 15 Pro',
+        ]);
+
+        $response->assertOk();
+
+        // Verify token was created with custom device name
+        $token = $user->tokens()->latest()->first();
+        expect($token->name)->toBe('iPhone 15 Pro');
+    });
+
+    it('uses default device name when not provided', function () {
+        $employee = Employee::factory()->create();
+        $user = $employee->user;
+        $user->update([
+            'email' => 'test@example.com',
+            'google_id' => '123456789',
+        ]);
+
+        Http::fake([
+            'oauth2.googleapis.com/tokeninfo*' => Http::response([
+                'sub' => '123456789',
+                'email' => 'test@example.com',
+                'email_verified' => 'true',
+                'name' => 'Test User',
+            ], 200),
+        ]);
+
+        $response = postJson('/api/auth/google', [
+            'id_token' => 'valid-google-token',
+        ]);
+
+        $response->assertOk();
+
+        // Verify token was created with default device name
+        $token = $user->tokens()->latest()->first();
+        expect($token->name)->toBe('mobile-app');
     });
 });

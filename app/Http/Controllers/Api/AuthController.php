@@ -106,19 +106,23 @@ class AuthController extends Controller
     }
 
     /**
-     * Login with Google OAuth (for mobile apps).
+     * Login with Google OAuth (for HRIS mobile app).
      *
      * POST /api/auth/google
      *
-     * The mobile app should:
-     * 1. Use Google Sign-In SDK to authenticate the user
-     * 2. Get the ID token from Google
-     * 3. Send the ID token to this endpoint
+     * Request:
+     * {
+     *   "id_token": "Google ID token (JWT)",
+     *   "device_name": "mobile-app"
+     * }
      *
-     * This endpoint will:
-     * 1. Verify the ID token with Google
-     * 2. Find or create the user
-     * 3. Issue a Sanctum token
+     * This endpoint:
+     * 1. Verifies the ID token with Google's tokeninfo endpoint
+     * 2. Extracts user's email and Google ID from the token
+     * 3. Finds matching user/employee by email or google_id
+     * 4. If found, creates Sanctum token and returns user/employee data
+     * 5. If not found, returns 404 with "No employee account found"
+     * 6. If token invalid, returns 401 with "Invalid or expired Google token"
      */
     public function googleLogin(Request $request): JsonResponse
     {
@@ -131,49 +135,39 @@ class AuthController extends Controller
         $googleUser = $this->verifyGoogleIdToken($request->id_token);
 
         if (!$googleUser) {
-            throw ValidationException::withMessages([
-                'id_token' => ['Invalid Google ID token.'],
-            ]);
+            return response()->json([
+                'message' => 'Invalid or expired Google token.',
+            ], 401);
         }
 
         // Find user by Google ID or email
-        $user = User::where('google_id', $googleUser['sub'])->first();
+        $user = User::where('google_id', $googleUser['sub'])
+            ->orWhere('email', $googleUser['email'])
+            ->first();
 
         if (!$user) {
-            // Check if user exists with this email
-            $user = User::where('email', $googleUser['email'])->first();
+            return response()->json([
+                'message' => 'No employee account found for this Google account.',
+            ], 404);
+        }
 
-            if ($user) {
-                // Link existing user to Google account
-                $user->update([
-                    'google_id' => $googleUser['sub'],
-                    'avatar_url' => $googleUser['picture'] ?? null,
-                ]);
-            } else {
-                // Create new user
-                $user = User::create([
-                    'name' => $googleUser['name'],
-                    'email' => $googleUser['email'],
-                    'google_id' => $googleUser['sub'],
-                    'avatar_url' => $googleUser['picture'] ?? null,
-                    'password' => null,
-                ]);
-
-                // Assign default role
-                $defaultRole = Role::where('name', 'panel_user')->first();
-                if ($defaultRole) {
-                    $user->assignRole($defaultRole);
-                }
-            }
-        } else {
-            // Update avatar if changed
-            if (isset($googleUser['picture']) && $user->avatar_url !== $googleUser['picture']) {
-                $user->update(['avatar_url' => $googleUser['picture']]);
-            }
+        // Update Google ID if not set
+        if (!$user->google_id) {
+            $user->update([
+                'google_id' => $googleUser['sub'],
+                'avatar_url' => $googleUser['picture'] ?? $user->avatar_url,
+            ]);
         }
 
         // Load employee relationship
         $user->load('employee');
+
+        // Check if user has employee record (required for HRIS mobile app)
+        if (!$user->employee) {
+            return response()->json([
+                'message' => 'No employee account found for this Google account.',
+            ], 404);
+        }
 
         // Create Sanctum token
         $deviceName = $request->device_name ?? 'mobile-app';
@@ -190,14 +184,14 @@ class AuthController extends Controller
                 'is_division_head' => $user->is_division_head,
                 'avatar_url' => $user->avatar_url,
             ],
-            'employee' => $user->employee ? [
+            'employee' => [
                 'id' => $user->employee->id,
                 'nik' => $user->employee->nik,
-                'hire_date' => $user->employee->hire_date,
+                'hire_date' => $user->employee->hire_date?->format('Y-m-d'),
                 'employment_status' => $user->employee->employment_status,
                 'is_active' => $user->employee->is_active,
-            ] : null,
-        ]);
+            ],
+        ], 200);
     }
 
     /**
