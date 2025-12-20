@@ -36,5 +36,18 @@
     "Position": "Posisi",
     "Positions": "Posisi",
     "Pelindung": "Pelindung",
-    "Peran": "Peran"
+    "Peran": "Peran",
+    "Profile Information": "Informasi Profil",
+    "Update Password": "Ubah Password",
+    "Ensure your account is using a long, random password to stay secure.": "Pastikan akun Anda menggunakan password yang panjang dan acak untuk keamanan.",
+    "Mobile App Password": "Password Aplikasi Mobile",
+    "You signed in with Google. Set a password below to enable login from the mobile app.": "Anda masuk dengan Google. Atur password di bawah untuk mengaktifkan login dari aplikasi mobile.",
+    "Set or update your password for mobile app login.": "Atur atau perbarui password Anda untuk login aplikasi mobile.",
+    "New Password": "Password Baru",
+    "Confirm Password": "Konfirmasi Password",
+    "Minimum 8 characters. This password will be used for mobile app login.": "Minimal 8 karakter. Password ini akan digunakan untuk login aplikasi mobile.",
+    "Set Mobile Password": "Atur Password Mobile",
+    "Update Mobile Password": "Perbarui Password Mobile",
+    "Mobile password set successfully": "Password mobile berhasil diatur",
+    "You can now login to the mobile app using your email and this password.": "Anda sekarang dapat login ke aplikasi mobile menggunakan email dan password ini."
 }

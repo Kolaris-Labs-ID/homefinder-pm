@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Chat;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
@@ -75,6 +76,6 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->passwordReset()
             ->emailVerification()
-            ->profile();
+            ->profile(EditProfile::class);
     }
 }
