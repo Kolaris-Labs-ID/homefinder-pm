@@ -58,6 +58,30 @@ class AttendanceService
     }
 
     /**
+     * Safely reverse geocode coordinates with error handling.
+     *
+     * @param float $latitude
+     * @param float $longitude
+     * @param int|null $employeeId For logging purposes
+     * @return string
+     */
+    protected function safeReverseGeocode(float $latitude, float $longitude, ?int $employeeId = null): string
+    {
+        try {
+            return $this->geocodingService->reverseGeocode($latitude, $longitude);
+        } catch (\Exception $e) {
+            \Log::warning('Geocoding failed', [
+                'employee_id' => $employeeId,
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'error' => $e->getMessage(),
+            ]);
+            // Return fallback address format
+            return sprintf('Location (%.6f, %.6f)', $latitude, $longitude);
+        }
+    }
+
+    /**
      * Get the remaining WFH quota for an employee in the current week.
      *
      * The week is calculated from Monday to Sunday.
@@ -123,7 +147,7 @@ class AttendanceService
         $longitude = $data['longitude'] ?? null;
 
         if ($latitude !== null && $longitude !== null && $address === null) {
-            $address = $this->geocodingService->reverseGeocode((float) $latitude, (float) $longitude);
+            $address = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $employee->id);
         }
 
         // Process photo with timestamp overlay
@@ -133,13 +157,22 @@ class AttendanceService
 
         if ($photo instanceof UploadedFile && $photoPath === null) {
             $photoAddress = $address ?? 'Unknown Location';
-            $photoPath = $this->photoService->processAttendancePhoto(
-                $photo,
-                'in',
-                $checkInTime,
-                $photoAddress,
-                $employee->id
-            );
+            try {
+                $photoPath = $this->photoService->processAttendancePhoto(
+                    $photo,
+                    'in',
+                    $checkInTime,
+                    $photoAddress,
+                    $employee->id
+                );
+            } catch (\Exception $e) {
+                \Log::warning('Photo processing failed during check-in', [
+                    'employee_id' => $employee->id,
+                    'error' => $e->getMessage(),
+                ]);
+                // Continue without photo
+                $photoPath = null;
+            }
         }
 
         return DB::transaction(function () use ($employee, $data, $today, $mode, $latitude, $longitude, $address, $photoPath, $checkInTime) {
@@ -190,7 +223,7 @@ class AttendanceService
         $longitude = $data['longitude'] ?? null;
 
         if ($latitude !== null && $longitude !== null && $address === null) {
-            $address = $this->geocodingService->reverseGeocode((float) $latitude, (float) $longitude);
+            $address = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $employee->id);
         }
 
         // Process photo with timestamp overlay
@@ -200,13 +233,22 @@ class AttendanceService
 
         if ($photo instanceof UploadedFile && $photoPath === null) {
             $photoAddress = $address ?? 'Unknown Location';
-            $photoPath = $this->photoService->processAttendancePhoto(
-                $photo,
-                'out',
-                $checkOutTime,
-                $photoAddress,
-                $attendanceLog->employee_id
-            );
+            try {
+                $photoPath = $this->photoService->processAttendancePhoto(
+                    $photo,
+                    'out',
+                    $checkOutTime,
+                    $photoAddress,
+                    $attendanceLog->employee_id
+                );
+            } catch (\Exception $e) {
+                \Log::warning('Photo processing failed during check-out', [
+                    'employee_id' => $attendanceLog->employee_id,
+                    'error' => $e->getMessage(),
+                ]);
+                // Continue without photo
+                $photoPath = null;
+            }
         }
 
         return DB::transaction(function () use ($attendanceLog, $latitude, $longitude, $address, $photoPath, $checkOutTime) {
