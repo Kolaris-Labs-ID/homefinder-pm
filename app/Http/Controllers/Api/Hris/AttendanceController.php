@@ -30,9 +30,9 @@ class AttendanceController extends Controller
      */
     public function checkIn(Request $request): JsonResponse
     {
-        try {
-            $employee = $this->resolveEmployee($request);
+        $employee = $this->resolveEmployee($request);
 
+        try {
             $data = $request->validate([
                 'latitude' => ['nullable', 'numeric', 'between:-90,90'],
                 'longitude' => ['nullable', 'numeric', 'between:-180,180'],
@@ -66,13 +66,14 @@ class AttendanceController extends Controller
         } catch (\Exception $e) {
             \Log::error('Attendance check-in failed', [
                 'user_id' => $request->user()?->id,
+                'employee_id' => $employee->id ?? null,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'message' => $e->getMessage(),
-            ], 422);
+            ], 500);
         }
     }
 
@@ -86,29 +87,43 @@ class AttendanceController extends Controller
      */
     public function daily(Request $request): JsonResponse
     {
-        $employee = $this->resolveEmployee($request);
+        try {
+            $employee = $this->resolveEmployee($request);
 
-        $data = $request->validate([
-            'date' => ['nullable', 'date_format:Y-m-d'],
-        ]);
-
-        $date = isset($data['date']) ? Carbon::parse($data['date']) : Carbon::today();
-        $attendanceLog = $this->attendanceService->getTodayAttendance($employee, $date);
-
-        if (!$attendanceLog) {
-            return response()->json([
-                'message' => 'No attendance record found for the specified date.',
-                'data' => null,
+            $data = $request->validate([
+                'date' => ['nullable', 'date_format:Y-m-d'],
             ]);
+
+            $date = isset($data['date']) ? Carbon::parse($data['date']) : Carbon::today();
+            $attendanceLog = $this->attendanceService->getTodayAttendance($employee, $date);
+
+            if (!$attendanceLog) {
+                return response()->json([
+                    'message' => 'No attendance record found for the specified date.',
+                    'data' => null,
+                ]);
+            }
+
+            // Compute status for the attendance log
+            $status = $this->attendanceService->computeStatus($attendanceLog);
+            $attendanceLog->status = $status;
+
+            return response()->json([
+                'data' => $this->formatAttendanceLog($attendanceLog),
+            ]);
+        } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            \Log::error('Attendance daily fetch failed', [
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to fetch daily attendance: ' . $e->getMessage(),
+            ], 500);
         }
-
-        // Compute status for the attendance log
-        $status = $this->attendanceService->computeStatus($attendanceLog);
-        $attendanceLog->status = $status;
-
-        return response()->json([
-            'data' => $this->formatAttendanceLog($attendanceLog),
-        ]);
     }
 
     /**
@@ -121,16 +136,30 @@ class AttendanceController extends Controller
      */
     public function wfhQuota(Request $request): JsonResponse
     {
-        $employee = $this->resolveEmployee($request);
+        try {
+            $employee = $this->resolveEmployee($request);
 
-        $remainingQuota = $this->attendanceService->getRemainingWfhQuota($employee);
+            $remainingQuota = $this->attendanceService->getRemainingWfhQuota($employee);
 
-        return response()->json([
-            'data' => [
-                'remaining_quota' => $remainingQuota,
-                'max_quota_per_week' => AttendanceService::WFH_QUOTA_PER_WEEK,
-            ],
-        ]);
+            return response()->json([
+                'data' => [
+                    'remaining_quota' => $remainingQuota,
+                    'max_quota_per_week' => AttendanceService::WFH_QUOTA_PER_WEEK,
+                ],
+            ]);
+        } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            \Log::error('WFH quota fetch failed', [
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to fetch WFH quota: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -143,27 +172,46 @@ class AttendanceController extends Controller
      */
     public function history(Request $request): JsonResponse
     {
-        $employee = $this->resolveEmployee($request);
+        try {
+            $employee = $this->resolveEmployee($request);
 
-        $data = $request->validate([
-            'from' => ['required', 'date_format:Y-m-d'],
-            'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
-        ]);
+            $data = $request->validate([
+                'from' => ['required', 'date_format:Y-m-d'],
+                'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
+            ]);
 
-        $from = Carbon::parse($data['from']);
-        $to = Carbon::parse($data['to']);
+            $from = Carbon::parse($data['from']);
+            $to = Carbon::parse($data['to']);
 
-        $attendanceLogs = $this->attendanceService->getHistory($employee, $from, $to);
+            $attendanceLogs = $this->attendanceService->getHistory($employee, $from, $to);
 
-        // Compute status for each attendance log
-        $formattedLogs = $attendanceLogs->map(function (AttendanceLog $log) {
-            $log->status = $this->attendanceService->computeStatus($log);
-            return $this->formatAttendanceLog($log);
-        });
+            // Compute status for each attendance log
+            $formattedLogs = $attendanceLogs->map(function (AttendanceLog $log) {
+                $log->status = $this->attendanceService->computeStatus($log);
+                return $this->formatAttendanceLog($log);
+            });
 
-        return response()->json([
-            'data' => $formattedLogs,
-        ]);
+            return response()->json([
+                'data' => $formattedLogs,
+            ]);
+        } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+            throw $e;
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Attendance history fetch failed', [
+                'user_id' => $request->user()?->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to fetch attendance history: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -178,13 +226,13 @@ class AttendanceController extends Controller
     {
         $employee = $this->resolveEmployee($request);
 
-        $data = $request->validate([
-            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'photo' => ['nullable', 'image', 'max:5120'], // Max 5MB
-        ]);
-
         try {
+            $data = $request->validate([
+                'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+                'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+                'photo' => ['nullable', 'image', 'max:5120'], // Max 5MB
+            ]);
+
             $attendanceLog = $this->attendanceService->checkOut($employee, $data);
 
             // Compute status for the attendance log
@@ -195,10 +243,22 @@ class AttendanceController extends Controller
                 'message' => 'Check-out recorded successfully.',
                 'data' => $this->formatAttendanceLog($attendanceLog),
             ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
         } catch (\Exception $e) {
+            \Log::error('Attendance check-out failed', [
+                'user_id' => $request->user()?->id,
+                'employee_id' => $employee->id ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'message' => $e->getMessage(),
-            ], 422);
+            ], 500);
         }
     }
 
@@ -214,13 +274,21 @@ class AttendanceController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            abort(401, 'Unauthenticated.');
+            throw new \Illuminate\Http\Exceptions\HttpResponseException(
+                response()->json([
+                    'message' => 'Unauthenticated.',
+                ], 401)
+            );
         }
 
         $employee = $user->employee;
 
         if (!$employee) {
-            abort(404, 'Employee profile not found. Please contact HR to set up your employee record.');
+            throw new \Illuminate\Http\Exceptions\HttpResponseException(
+                response()->json([
+                    'message' => 'Employee profile not found. Please contact HR to set up your employee record.',
+                ], 404)
+            );
         }
 
         return $employee;
