@@ -6,7 +6,6 @@ use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 class PhotoService
 {
@@ -24,16 +23,6 @@ class PhotoService
      * Supabase storage bucket name.
      */
     protected string $bucketName;
-
-    /**
-     * Local storage disk for fallback/testing.
-     */
-    const LOCAL_STORAGE_DISK = 'local';
-
-    /**
-     * Local storage path for attendance photos.
-     */
-    const LOCAL_STORAGE_PATH = 'hris/attendance';
 
     public function __construct()
     {
@@ -55,7 +44,7 @@ class PhotoService
      * @param string $address The readable address to display
      * @param int|null $employeeId Optional employee ID for organizing files
      * @return string The public URL of the stored photo
-     * @throws \Exception If photo processing fails
+     * @throws \Exception If Supabase is not configured or photo processing fails
      */
     public function processAttendancePhoto(
         UploadedFile $photo,
@@ -64,8 +53,13 @@ class PhotoService
         string $address,
         ?int $employeeId = null
     ): string {
-        // Validate clock type first (before try-catch to preserve exception type)
+        // Validate clock type first
         $this->validateClockType($clockType);
+
+        // Check Supabase configuration - required for photo storage
+        if (!$this->isSupabaseConfigured()) {
+            throw new \Exception('Supabase storage is not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY in .env');
+        }
 
         try {
             // Format the overlay text
@@ -79,13 +73,8 @@ class PhotoService
             // Generate unique filename with optional employee folder
             $filename = $this->generateFilename($clockType, $time, $employeeId);
 
-            // Try to upload to Supabase, fallback to local storage
-            if ($this->isSupabaseConfigured()) {
-                return $this->uploadToSupabase($processedImage, $filename);
-            }
-
-            // Fallback to local storage
-            return $this->storeLocally($processedImage, $filename);
+            // Upload to Supabase and return the public URL
+            return $this->uploadToSupabase($processedImage, $filename);
         } catch (\Exception $e) {
             Log::error('Photo processing failed', [
                 'clock_type' => $clockType,
@@ -139,21 +128,6 @@ class PhotoService
 
         // Return the public URL
         return "{$this->supabaseUrl}/storage/v1/object/public/{$this->bucketName}/{$filename}";
-    }
-
-    /**
-     * Store processed image locally (fallback).
-     *
-     * @param string $imageData The processed image binary data
-     * @param string $filename The filename to use
-     * @return string The local storage path
-     */
-    protected function storeLocally(string $imageData, string $filename): string
-    {
-        $storagePath = self::LOCAL_STORAGE_PATH . '/' . $filename;
-        Storage::disk(self::LOCAL_STORAGE_DISK)->put($storagePath, $imageData);
-
-        return $storagePath;
     }
 
     /**
@@ -257,35 +231,19 @@ class PhotoService
     }
 
     /**
-     * Delete an attendance photo from storage.
+     * Delete an attendance photo from Supabase storage.
      *
-     * @param string $pathOrUrl The file path or URL
+     * @param string $url The public URL of the photo
      * @return bool True if deleted, false otherwise
      */
-    public function deletePhoto(string $pathOrUrl): bool
-    {
-        // Check if it's a Supabase URL
-        if (str_contains($pathOrUrl, '/storage/v1/object/public/')) {
-            return $this->deleteFromSupabase($pathOrUrl);
-        }
-
-        // Local storage deletion
-        if (Storage::disk(self::LOCAL_STORAGE_DISK)->exists($pathOrUrl)) {
-            return Storage::disk(self::LOCAL_STORAGE_DISK)->delete($pathOrUrl);
-        }
-
-        return false;
-    }
-
-    /**
-     * Delete a photo from Supabase Storage.
-     *
-     * @param string $url The public URL of the file
-     * @return bool
-     */
-    protected function deleteFromSupabase(string $url): bool
+    public function deletePhoto(string $url): bool
     {
         if (!$this->isSupabaseConfigured()) {
+            return false;
+        }
+
+        // Check if it's a Supabase URL
+        if (!str_contains($url, '/storage/v1/object/public/')) {
             return false;
         }
 
@@ -306,22 +264,19 @@ class PhotoService
     }
 
     /**
-     * Check if a photo exists.
+     * Check if a photo exists in Supabase.
      *
-     * @param string $pathOrUrl
+     * @param string $url The public URL of the photo
      * @return bool
      */
-    public function photoExists(string $pathOrUrl): bool
+    public function photoExists(string $url): bool
     {
-        // Check if it's a Supabase URL
-        if (str_contains($pathOrUrl, '/storage/v1/object/public/')) {
-            // For Supabase, we can do a HEAD request to check existence
-            $response = Http::head($pathOrUrl);
-            return $response->successful();
+        if (!str_contains($url, '/storage/v1/object/public/')) {
+            return false;
         }
 
-        // Local storage check
-        return Storage::disk(self::LOCAL_STORAGE_DISK)->exists($pathOrUrl);
+        $response = Http::head($url);
+        return $response->successful();
     }
 
     /**
@@ -363,7 +318,7 @@ class PhotoService
     }
 
     /**
-     * Clear Supabase configuration (useful for testing local storage).
+     * Clear Supabase configuration (useful for testing).
      *
      * @return self
      */

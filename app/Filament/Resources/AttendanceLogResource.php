@@ -7,6 +7,8 @@ use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Employee;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -81,11 +83,6 @@ class AttendanceLogResource extends Resource
                         Forms\Components\TextInput::make('check_in_longitude')
                             ->label('Longitude')
                             ->disabled(),
-                        Forms\Components\FileUpload::make('check_in_photo_path')
-                            ->label('Check-In Photo')
-                            ->image()
-                            ->disabled()
-                            ->columnSpanFull(),
                     ]),
 
                 Forms\Components\Section::make('Check-Out Details')
@@ -103,11 +100,148 @@ class AttendanceLogResource extends Resource
                         Forms\Components\TextInput::make('check_out_longitude')
                             ->label('Longitude')
                             ->disabled(),
-                        Forms\Components\FileUpload::make('check_out_photo_path')
+                    ]),
+            ]);
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\Section::make('Employee & Attendance')
+                    ->columns(3)
+                    ->schema([
+                        Infolists\Components\TextEntry::make('employee.user.name')
+                            ->label('Employee'),
+                        Infolists\Components\TextEntry::make('date')
+                            ->date(),
+                        Infolists\Components\TextEntry::make('mode')
+                            ->badge()
+                            ->color(fn (string $state): string => match ($state) {
+                                AttendanceLog::MODE_OFFICE => 'primary',
+                                AttendanceLog::MODE_WFH => 'success',
+                                default => 'gray',
+                            })
+                            ->formatStateUsing(fn (string $state): string => match ($state) {
+                                AttendanceLog::MODE_OFFICE => 'Office',
+                                AttendanceLog::MODE_WFH => 'Work From Home',
+                                default => $state,
+                            }),
+                        Infolists\Components\TextEntry::make('status')
+                            ->badge()
+                            ->color(fn (?string $state): string => match ($state) {
+                                AttendanceLog::STATUS_PRESENT => 'success',
+                                AttendanceLog::STATUS_LATE => 'warning',
+                                AttendanceLog::STATUS_HALF_DAY => 'info',
+                                AttendanceLog::STATUS_ABSENT => 'danger',
+                                AttendanceLog::STATUS_LEAVE => 'gray',
+                                AttendanceLog::STATUS_HOLIDAY => 'primary',
+                                default => 'gray',
+                            })
+                            ->formatStateUsing(fn (?string $state): string => match ($state) {
+                                AttendanceLog::STATUS_PRESENT => 'Present',
+                                AttendanceLog::STATUS_LATE => 'Late',
+                                AttendanceLog::STATUS_HALF_DAY => 'Half Day',
+                                AttendanceLog::STATUS_ABSENT => 'Absent',
+                                AttendanceLog::STATUS_LEAVE => 'Leave',
+                                AttendanceLog::STATUS_HOLIDAY => 'Holiday',
+                                default => $state ?? '-',
+                            }),
+                        Infolists\Components\TextEntry::make('source')
+                            ->badge()
+                            ->color(fn (?string $state): string => match ($state) {
+                                AttendanceLog::SOURCE_WEB => 'primary',
+                                AttendanceLog::SOURCE_MOBILE => 'success',
+                                AttendanceLog::SOURCE_BIOMETRIC => 'warning',
+                                default => 'gray',
+                            })
+                            ->formatStateUsing(fn (?string $state): string => match ($state) {
+                                AttendanceLog::SOURCE_WEB => 'Web',
+                                AttendanceLog::SOURCE_MOBILE => 'Mobile',
+                                AttendanceLog::SOURCE_BIOMETRIC => 'Biometric',
+                                default => $state ?? '-',
+                            }),
+                    ]),
+
+                Infolists\Components\Section::make('Check-In Details')
+                    ->columns(2)
+                    ->schema([
+                        Infolists\Components\Group::make([
+                            Infolists\Components\TextEntry::make('check_in_time')
+                                ->label('Time')
+                                ->dateTime('d M Y, H:i:s'),
+                            Infolists\Components\TextEntry::make('check_in_address')
+                                ->label('Address')
+                                ->placeholder('No address recorded'),
+                            Infolists\Components\TextEntry::make('check_in_coordinates')
+                                ->label('Coordinates')
+                                ->state(function (AttendanceLog $record): ?string {
+                                    if ($record->check_in_latitude && $record->check_in_longitude) {
+                                        return "{$record->check_in_latitude}, {$record->check_in_longitude}";
+                                    }
+                                    return null;
+                                })
+                                ->placeholder('No coordinates')
+                                ->url(fn (AttendanceLog $record): ?string =>
+                                    $record->check_in_latitude && $record->check_in_longitude
+                                        ? "https://www.google.com/maps?q={$record->check_in_latitude},{$record->check_in_longitude}"
+                                        : null
+                                )
+                                ->openUrlInNewTab(),
+                        ]),
+                        Infolists\Components\ImageEntry::make('check_in_photo_path')
+                            ->label('Check-In Photo')
+                            ->height(200)
+                            ->extraImgAttributes(['class' => 'rounded-lg shadow-md'])
+                            ->placeholder('No photo')
+                            ->openUrlInNewTab()
+                            ->url(fn (AttendanceLog $record): ?string => $record->check_in_photo_path),
+                    ]),
+
+                Infolists\Components\Section::make('Check-Out Details')
+                    ->columns(2)
+                    ->schema([
+                        Infolists\Components\Group::make([
+                            Infolists\Components\TextEntry::make('check_out_time')
+                                ->label('Time')
+                                ->dateTime('d M Y, H:i:s')
+                                ->placeholder('Not checked out yet'),
+                            Infolists\Components\TextEntry::make('check_out_address')
+                                ->label('Address')
+                                ->placeholder('No address recorded'),
+                            Infolists\Components\TextEntry::make('check_out_coordinates')
+                                ->label('Coordinates')
+                                ->state(function (AttendanceLog $record): ?string {
+                                    if ($record->check_out_latitude && $record->check_out_longitude) {
+                                        return "{$record->check_out_latitude}, {$record->check_out_longitude}";
+                                    }
+                                    return null;
+                                })
+                                ->placeholder('No coordinates')
+                                ->url(fn (AttendanceLog $record): ?string =>
+                                    $record->check_out_latitude && $record->check_out_longitude
+                                        ? "https://www.google.com/maps?q={$record->check_out_latitude},{$record->check_out_longitude}"
+                                        : null
+                                )
+                                ->openUrlInNewTab(),
+                            Infolists\Components\TextEntry::make('working_hours')
+                                ->label('Working Hours')
+                                ->state(function (AttendanceLog $record): ?string {
+                                    if (!$record->check_in_time || !$record->check_out_time) {
+                                        return null;
+                                    }
+                                    $diff = $record->check_in_time->diff($record->check_out_time);
+                                    return sprintf('%02d:%02d:%02d', $diff->h, $diff->i, $diff->s);
+                                })
+                                ->placeholder('N/A'),
+                        ]),
+                        Infolists\Components\ImageEntry::make('check_out_photo_path')
                             ->label('Check-Out Photo')
-                            ->image()
-                            ->disabled()
-                            ->columnSpanFull(),
+                            ->height(200)
+                            ->extraImgAttributes(['class' => 'rounded-lg shadow-md'])
+                            ->placeholder('No photo')
+                            ->openUrlInNewTab()
+                            ->url(fn (AttendanceLog $record): ?string => $record->check_out_photo_path),
                     ]),
             ]);
     }
@@ -137,10 +271,20 @@ class AttendanceLogResource extends Resource
                     ->label('Check-In')
                     ->dateTime('H:i')
                     ->sortable(),
+                Tables\Columns\ImageColumn::make('check_in_photo_path')
+                    ->label('In Photo')
+                    ->circular()
+                    ->size(40)
+                    ->defaultImageUrl(fn () => null),
                 Tables\Columns\TextColumn::make('check_out_time')
                     ->label('Check-Out')
                     ->dateTime('H:i')
                     ->sortable(),
+                Tables\Columns\ImageColumn::make('check_out_photo_path')
+                    ->label('Out Photo')
+                    ->circular()
+                    ->size(40)
+                    ->defaultImageUrl(fn () => null),
                 Tables\Columns\BadgeColumn::make('status')
                     ->colors([
                         'success' => AttendanceLog::STATUS_PRESENT,
@@ -218,6 +362,16 @@ class AttendanceLogResource extends Resource
                         AttendanceLog::MODE_OFFICE => 'Office',
                         AttendanceLog::MODE_WFH => 'Work From Home',
                     ]),
+                Tables\Filters\TernaryFilter::make('has_photos')
+                    ->label('Has Photos')
+                    ->queries(
+                        true: fn (Builder $query) => $query->where(function ($q) {
+                            $q->whereNotNull('check_in_photo_path')
+                              ->orWhereNotNull('check_out_photo_path');
+                        }),
+                        false: fn (Builder $query) => $query->whereNull('check_in_photo_path')
+                            ->whereNull('check_out_photo_path'),
+                    ),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),

@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\AttendanceLogResource\Pages;
 
 use App\Filament\Resources\AttendanceLogResource;
+use App\Models\Hris\AttendanceLog;
 use Filament\Infolists\Components\Grid;
+use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
@@ -71,80 +73,115 @@ class ViewAttendanceLog extends ViewRecord
                                 'holiday' => 'Holiday',
                                 default => $state ?? '-',
                             }),
+                        TextEntry::make('working_hours')
+                            ->label('Working Hours')
+                            ->state(function (AttendanceLog $record): ?string {
+                                if (!$record->check_in_time || !$record->check_out_time) {
+                                    return null;
+                                }
+                                $diff = $record->check_in_time->diff($record->check_out_time);
+                                $hours = ($diff->days * 24) + $diff->h;
+                                return sprintf('%02d:%02d:%02d', $hours, $diff->i, $diff->s);
+                            })
+                            ->placeholder('N/A')
+                            ->badge()
+                            ->color('success'),
                     ]),
 
                 Section::make('Check-In Details')
                     ->columns(2)
                     ->schema([
-                        TextEntry::make('check_in_time')
-                            ->label('Check-In Time')
-                            ->dateTime('Y-m-d H:i:s'),
-                        TextEntry::make('check_in_address')
-                            ->label('Address')
-                            ->placeholder('No address recorded'),
-                        TextEntry::make('check_in_latitude')
-                            ->label('Latitude')
-                            ->placeholder('-'),
-                        TextEntry::make('check_in_longitude')
-                            ->label('Longitude')
-                            ->placeholder('-'),
+                        Group::make([
+                            TextEntry::make('check_in_time')
+                                ->label('Check-In Time')
+                                ->dateTime('d M Y, H:i:s')
+                                ->icon('heroicon-o-clock'),
+                            TextEntry::make('check_in_address')
+                                ->label('Address')
+                                ->placeholder('No address recorded')
+                                ->icon('heroicon-o-map-pin'),
+                            TextEntry::make('check_in_coordinates')
+                                ->label('GPS Coordinates')
+                                ->state(fn (AttendanceLog $record): ?string =>
+                                    $record->check_in_latitude && $record->check_in_longitude
+                                        ? "{$record->check_in_latitude}, {$record->check_in_longitude}"
+                                        : null
+                                )
+                                ->placeholder('No GPS data')
+                                ->url(fn (AttendanceLog $record): ?string =>
+                                    $record->check_in_latitude && $record->check_in_longitude
+                                        ? "https://www.google.com/maps?q={$record->check_in_latitude},{$record->check_in_longitude}"
+                                        : null
+                                )
+                                ->openUrlInNewTab()
+                                ->icon('heroicon-o-globe-alt')
+                                ->color('primary'),
+                        ]),
                         ImageEntry::make('check_in_photo_path')
                             ->label('Check-In Photo')
-                            ->disk('public')
-                            ->columnSpanFull()
-                            ->visible(fn ($record) => filled($record->check_in_photo_path)),
+                            ->height(250)
+                            ->extraImgAttributes([
+                                'class' => 'rounded-lg shadow-lg border',
+                                'loading' => 'lazy',
+                            ])
+                            ->placeholder('No photo captured')
+                            ->openUrlInNewTab()
+                            ->url(fn (AttendanceLog $record): ?string => $record->check_in_photo_path)
+                            ->visible(fn (AttendanceLog $record): bool => filled($record->check_in_photo_path)),
                     ]),
 
                 Section::make('Check-Out Details')
                     ->columns(2)
                     ->schema([
-                        TextEntry::make('check_out_time')
-                            ->label('Check-Out Time')
-                            ->dateTime('Y-m-d H:i:s')
-                            ->placeholder('Not checked out'),
-                        TextEntry::make('check_out_address')
-                            ->label('Address')
-                            ->placeholder('No address recorded'),
-                        TextEntry::make('check_out_latitude')
-                            ->label('Latitude')
-                            ->placeholder('-'),
-                        TextEntry::make('check_out_longitude')
-                            ->label('Longitude')
-                            ->placeholder('-'),
+                        Group::make([
+                            TextEntry::make('check_out_time')
+                                ->label('Check-Out Time')
+                                ->dateTime('d M Y, H:i:s')
+                                ->placeholder('Not checked out yet')
+                                ->icon('heroicon-o-clock'),
+                            TextEntry::make('check_out_address')
+                                ->label('Address')
+                                ->placeholder('No address recorded')
+                                ->icon('heroicon-o-map-pin'),
+                            TextEntry::make('check_out_coordinates')
+                                ->label('GPS Coordinates')
+                                ->state(fn (AttendanceLog $record): ?string =>
+                                    $record->check_out_latitude && $record->check_out_longitude
+                                        ? "{$record->check_out_latitude}, {$record->check_out_longitude}"
+                                        : null
+                                )
+                                ->placeholder('No GPS data')
+                                ->url(fn (AttendanceLog $record): ?string =>
+                                    $record->check_out_latitude && $record->check_out_longitude
+                                        ? "https://www.google.com/maps?q={$record->check_out_latitude},{$record->check_out_longitude}"
+                                        : null
+                                )
+                                ->openUrlInNewTab()
+                                ->icon('heroicon-o-globe-alt')
+                                ->color('primary'),
+                        ]),
                         ImageEntry::make('check_out_photo_path')
                             ->label('Check-Out Photo')
-                            ->disk('public')
-                            ->columnSpanFull()
-                            ->visible(fn ($record) => filled($record->check_out_photo_path)),
+                            ->height(250)
+                            ->extraImgAttributes([
+                                'class' => 'rounded-lg shadow-lg border',
+                                'loading' => 'lazy',
+                            ])
+                            ->placeholder('No photo captured')
+                            ->openUrlInNewTab()
+                            ->url(fn (AttendanceLog $record): ?string => $record->check_out_photo_path)
+                            ->visible(fn (AttendanceLog $record): bool => filled($record->check_out_photo_path)),
                     ]),
 
-                Section::make('GPS Coordinates Map')
+                Section::make('Timestamps')
+                    ->columns(2)
+                    ->collapsed()
                     ->schema([
-                        Grid::make(2)
-                            ->schema([
-                                TextEntry::make('check_in_coordinates')
-                                    ->label('Check-In Location')
-                                    ->state(fn ($record) => $record->check_in_latitude && $record->check_in_longitude
-                                        ? "{$record->check_in_latitude}, {$record->check_in_longitude}"
-                                        : null)
-                                    ->placeholder('No GPS data')
-                                    ->url(fn ($record) => $record->check_in_latitude && $record->check_in_longitude
-                                        ? "https://www.google.com/maps?q={$record->check_in_latitude},{$record->check_in_longitude}"
-                                        : null)
-                                    ->openUrlInNewTab(),
-                                TextEntry::make('check_out_coordinates')
-                                    ->label('Check-Out Location')
-                                    ->state(fn ($record) => $record->check_out_latitude && $record->check_out_longitude
-                                        ? "{$record->check_out_latitude}, {$record->check_out_longitude}"
-                                        : null)
-                                    ->placeholder('No GPS data')
-                                    ->url(fn ($record) => $record->check_out_latitude && $record->check_out_longitude
-                                        ? "https://www.google.com/maps?q={$record->check_out_latitude},{$record->check_out_longitude}"
-                                        : null)
-                                    ->openUrlInNewTab(),
-                            ]),
-                    ])
-                    ->visible(fn ($record) => $record->check_in_latitude || $record->check_out_latitude),
+                        TextEntry::make('created_at')
+                            ->dateTime('d M Y, H:i:s'),
+                        TextEntry::make('updated_at')
+                            ->dateTime('d M Y, H:i:s'),
+                    ]),
             ]);
     }
 }
