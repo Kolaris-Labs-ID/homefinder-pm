@@ -310,21 +310,21 @@ class AttendanceController extends Controller
             'source' => $log->source,
             'status' => $log->status,
             'check_in' => [
-                'time' => $log->check_in_time?->format('Y-m-d H:i:s'),
+                'time' => $log->check_in_time?->toIso8601String(),
                 'latitude' => $log->check_in_latitude,
                 'longitude' => $log->check_in_longitude,
                 'address' => $log->check_in_address,
                 'photo_path' => $log->check_in_photo_path,
             ],
             'check_out' => [
-                'time' => $log->check_out_time?->format('Y-m-d H:i:s'),
+                'time' => $log->check_out_time?->toIso8601String(),
                 'latitude' => $log->check_out_latitude,
                 'longitude' => $log->check_out_longitude,
                 'address' => $log->check_out_address,
                 'photo_path' => $log->check_out_photo_path,
             ],
-            'created_at' => $log->created_at->format('Y-m-d H:i:s'),
-            'updated_at' => $log->updated_at->format('Y-m-d H:i:s'),
+            'created_at' => $log->created_at->toIso8601String(),
+            'updated_at' => $log->updated_at->toIso8601String(),
         ];
     }
 }
