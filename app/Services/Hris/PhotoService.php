@@ -13,12 +13,12 @@ class PhotoService
     /**
      * Supabase project URL.
      */
-    protected string $supabaseUrl;
+    protected ?string $supabaseUrl;
 
     /**
      * Supabase service role key for server-side uploads.
      */
-    protected string $supabaseKey;
+    protected ?string $supabaseKey;
 
     /**
      * Supabase storage bucket name.
@@ -37,8 +37,8 @@ class PhotoService
 
     public function __construct()
     {
-        $this->supabaseUrl = config('services.supabase.url', '');
-        $this->supabaseKey = config('services.supabase.key', '');
+        $this->supabaseUrl = config('services.supabase.url') ?: null;
+        $this->supabaseKey = config('services.supabase.key') ?: null;
         $this->bucketName = config('services.supabase.attendance_bucket', 'attendance-photos');
     }
 
@@ -369,8 +369,8 @@ class PhotoService
      */
     public function clearSupabaseConfig(): self
     {
-        $this->supabaseUrl = '';
-        $this->supabaseKey = '';
+        $this->supabaseUrl = null;
+        $this->supabaseKey = null;
 
         return $this;
     }
