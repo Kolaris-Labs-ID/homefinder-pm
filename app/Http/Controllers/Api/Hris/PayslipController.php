@@ -76,13 +76,22 @@ class PayslipController extends Controller
     /**
      * Download payslip as PDF.
      */
-    public function download(Request $request, PayrollRecord $payrollRecord)
+    public function download(Request $request, $id)
     {
         $employee = $request->user()->employee;
 
         if (!$employee) {
             return response()->json([
                 'message' => 'Employee profile not found',
+            ], 404);
+        }
+
+        // Find the payroll record manually to avoid model binding issues
+        $payrollRecord = PayrollRecord::find($id);
+
+        if (!$payrollRecord) {
+            return response()->json([
+                'message' => 'Payslip not found',
             ], 404);
         }
 
