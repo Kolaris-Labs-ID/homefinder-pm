@@ -72,4 +72,40 @@ class PayslipController extends Controller
             'data' => $this->payslipService->getPayslipSummary($payrollRecord),
         ]);
     }
+
+    /**
+     * Download payslip as PDF.
+     */
+    public function download(Request $request, PayrollRecord $payrollRecord)
+    {
+        $employee = $request->user()->employee;
+
+        if (!$employee) {
+            return response()->json([
+                'message' => 'Employee profile not found',
+            ], 404);
+        }
+
+        // Authorization: employee can only download their own payslips
+        if ($payrollRecord->employee_id !== $employee->id) {
+            return response()->json([
+                'message' => 'Unauthorized',
+            ], 403);
+        }
+
+        // Check if payslip is available
+        if (!$this->payslipService->isPayslipAvailable($payrollRecord)) {
+            return response()->json([
+                'message' => 'Payslip not yet available',
+            ], 404);
+        }
+
+        // Generate PDF
+        $html = $this->payslipService->generate($payrollRecord);
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
+
+        $filename = "payslip_{$payrollRecord->payrunBatch->period_end_date->format('Y_m')}.pdf";
+
+        return $pdf->download($filename);
+    }
 }

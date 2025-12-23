@@ -15,6 +15,7 @@ class LeaveType extends Model
         'name',
         'description',
         'requires_approval',
+        'requires_attachment',
         'default_annual_quota',
         'carry_forward_allowed',
         'gender_constraint',
@@ -25,6 +26,7 @@ class LeaveType extends Model
 
     protected $casts = [
         'requires_approval' => 'boolean',
+        'requires_attachment' => 'boolean',
         'default_annual_quota' => 'integer',
         'carry_forward_allowed' => 'boolean',
         'is_special' => 'boolean',

@@ -28,6 +28,7 @@ class LeaveRequest extends Model implements ApprovableContract
         'end_date',
         'total_days',
         'reason',
+        'attachment_path',
         'status',
         'current_approver_id',
         'workflow_definition_id',

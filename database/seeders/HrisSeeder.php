@@ -60,6 +60,17 @@ class HrisSeeder extends Seeder
                 'default_annual_quota' => 12,
                 'carry_forward_allowed' => false,
                 'requires_approval' => true,
+                'requires_attachment' => false,
+                'is_special' => false,
+            ],
+            [
+                'code' => 'SICK',
+                'name' => 'Sick Leave',
+                'description' => 'Sick leave requires a doctor\'s letter/medical certificate.',
+                'default_annual_quota' => 14,
+                'carry_forward_allowed' => false,
+                'requires_approval' => true,
+                'requires_attachment' => true,
                 'is_special' => false,
             ],
             [
@@ -69,6 +80,7 @@ class HrisSeeder extends Seeder
                 'default_annual_quota' => null,
                 'carry_forward_allowed' => false,
                 'requires_approval' => true,
+                'requires_attachment' => true,
                 'gender_constraint' => 'female',
                 'is_special' => true,
                 'rules' => [
@@ -83,6 +95,7 @@ class HrisSeeder extends Seeder
                 'default_annual_quota' => 3,
                 'carry_forward_allowed' => false,
                 'requires_approval' => true,
+                'requires_attachment' => false,
                 'gender_constraint' => 'male',
                 'is_special' => true,
             ],

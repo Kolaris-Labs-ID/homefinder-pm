@@ -36,7 +36,7 @@ class LeaveBalanceController extends Controller
         $types = LeaveType::query()
             ->where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'code', 'name', 'description', 'default_annual_quota']);
+            ->get(['id', 'code', 'name', 'description', 'default_annual_quota', 'requires_attachment']);
 
         return response()->json([
             'data' => $types,

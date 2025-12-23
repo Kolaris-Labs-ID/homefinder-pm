@@ -57,6 +57,7 @@ Route::middleware(['auth:sanctum'])
         // Payslip endpoints
         Route::get('/payslips', [PayslipController::class, 'index']);
         Route::get('/payslips/{payrollRecord}', [PayslipController::class, 'show']);
+        Route::get('/payslips/{payrollRecord}/download', [PayslipController::class, 'download']);
 
         // Reimbursement endpoints
         Route::get('/reimbursements', [ReimbursementController::class, 'index']);

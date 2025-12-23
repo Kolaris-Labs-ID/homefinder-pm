@@ -11,6 +11,7 @@ use App\Services\Hris\LeaveWorkflowService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class LeaveRequestController extends Controller
@@ -31,6 +32,7 @@ class LeaveRequestController extends Controller
                 'total_days' => $leaveRequest->total_days,
                 'status' => $leaveRequest->status,
                 'reason' => $leaveRequest->reason,
+                'has_attachment' => !empty($leaveRequest->attachment_path),
                 'approved_at' => $leaveRequest->approved_at,
                 'rejected_at' => $leaveRequest->rejected_at,
                 'rejection_reason' => $leaveRequest->rejection_reason,
@@ -45,6 +47,7 @@ class LeaveRequestController extends Controller
     {
         $employee = $this->resolveEmployee($request);
 
+        // First validate basic fields
         $data = $request->validate([
             'leave_type_id' => ['required', 'exists:leave_types,id'],
             'start_date' => ['required', 'date'],
@@ -53,6 +56,20 @@ class LeaveRequestController extends Controller
         ]);
 
         $leaveType = LeaveType::findOrFail($data['leave_type_id']);
+
+        // Validate attachment if required by leave type (e.g., sick leave)
+        if ($leaveType->requires_attachment) {
+            $request->validate([
+                'attachment' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+            ], [
+                'attachment.required' => "A doctor's letter or medical certificate is required for {$leaveType->name}.",
+            ]);
+        } else {
+            $request->validate([
+                'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+            ]);
+        }
+
         $startDate = Carbon::parse($data['start_date']);
         $endDate = Carbon::parse($data['end_date']);
         $totalDays = $startDate->diffInDays($endDate) + 1;
@@ -60,9 +77,19 @@ class LeaveRequestController extends Controller
         $balanceService = app(LeaveBalanceService::class);
 
         if (! $balanceService->canConsume($employee, $leaveType, $totalDays, $startDate)) {
+            $reason = $balanceService->getIneligibilityReason($employee, $leaveType, $totalDays, $startDate);
             throw ValidationException::withMessages([
-                'leave_type_id' => ['Insufficient leave balance or not eligible.'],
+                'leave_type_id' => [$reason ?? 'Insufficient leave balance or not eligible.'],
             ]);
+        }
+
+        // Handle file upload
+        $attachmentPath = null;
+        if ($request->hasFile('attachment')) {
+            $attachmentPath = $request->file('attachment')->store(
+                "leave-attachments/{$employee->id}",
+                'private'
+            );
         }
 
         $leaveRequest = LeaveRequest::create([
@@ -72,6 +99,7 @@ class LeaveRequestController extends Controller
             'end_date' => $endDate,
             'total_days' => $totalDays,
             'reason' => $data['reason'] ?? null,
+            'attachment_path' => $attachmentPath,
             'status' => LeaveRequest::STATUS_DRAFT,
         ]);
 
@@ -97,8 +125,14 @@ class LeaveRequestController extends Controller
             app(LeaveBalanceService::class)->release($leaveRequest);
         }
 
+        // Delete attachment file if exists
+        if ($leaveRequest->attachment_path) {
+            Storage::disk('private')->delete($leaveRequest->attachment_path);
+        }
+
         $leaveRequest->update([
             'status' => LeaveRequest::STATUS_CANCELLED,
+            'attachment_path' => null,
             'rejected_at' => null,
             'rejection_reason' => null,
         ]);
