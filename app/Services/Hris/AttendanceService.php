@@ -142,11 +142,12 @@ class AttendanceService
         }
 
         // Process GPS coordinates for reverse geocoding
-        $address = $data['address'] ?? null;
+        // Always use backend geocoding service for consistent, high-quality addresses
         $latitude = $data['latitude'] ?? null;
         $longitude = $data['longitude'] ?? null;
+        $address = null;
 
-        if ($latitude !== null && $longitude !== null && $address === null) {
+        if ($latitude !== null && $longitude !== null) {
             $address = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $employee->id);
         }
 
@@ -155,8 +156,22 @@ class AttendanceService
         $photo = $data['photo'] ?? null;
         $checkInTime = Carbon::now();
 
+        \Log::info('Check-in photo processing', [
+            'employee_id' => $employee->id,
+            'has_photo' => $photo !== null,
+            'photo_type' => $photo ? get_class($photo) : 'null',
+            'photo_is_uploaded_file' => $photo instanceof UploadedFile,
+            'photo_path_provided' => $photoPath !== null,
+        ]);
+
         if ($photo instanceof UploadedFile && $photoPath === null) {
             $photoAddress = $address ?? 'Unknown Location';
+            \Log::info('Processing check-in photo', [
+                'employee_id' => $employee->id,
+                'photo_size' => $photo->getSize(),
+                'photo_mime' => $photo->getMimeType(),
+                'address' => $photoAddress,
+            ]);
             try {
                 $photoPath = $this->photoService->processAttendancePhoto(
                     $photo,
@@ -165,10 +180,15 @@ class AttendanceService
                     $photoAddress,
                     $employee->id
                 );
+                \Log::info('Check-in photo uploaded successfully', [
+                    'employee_id' => $employee->id,
+                    'photo_path' => $photoPath,
+                ]);
             } catch (\Exception $e) {
                 \Log::warning('Photo processing failed during check-in', [
                     'employee_id' => $employee->id,
                     'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
                 // Continue without photo
                 $photoPath = null;
@@ -218,12 +238,13 @@ class AttendanceService
         }
 
         // Process GPS coordinates for reverse geocoding
-        $address = $data['address'] ?? null;
+        // Always use backend geocoding service for consistent, high-quality addresses
         $latitude = $data['latitude'] ?? null;
         $longitude = $data['longitude'] ?? null;
+        $address = null;
 
-        if ($latitude !== null && $longitude !== null && $address === null) {
-            $address = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $employee->id);
+        if ($latitude !== null && $longitude !== null) {
+            $address = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $attendanceLog->employee_id);
         }
 
         // Process photo with timestamp overlay
@@ -231,8 +252,22 @@ class AttendanceService
         $photo = $data['photo'] ?? null;
         $checkOutTime = Carbon::now();
 
+        \Log::info('Check-out photo processing', [
+            'employee_id' => $attendanceLog->employee_id,
+            'has_photo' => $photo !== null,
+            'photo_type' => $photo ? get_class($photo) : 'null',
+            'photo_is_uploaded_file' => $photo instanceof UploadedFile,
+            'photo_path_provided' => $photoPath !== null,
+        ]);
+
         if ($photo instanceof UploadedFile && $photoPath === null) {
             $photoAddress = $address ?? 'Unknown Location';
+            \Log::info('Processing check-out photo', [
+                'employee_id' => $attendanceLog->employee_id,
+                'photo_size' => $photo->getSize(),
+                'photo_mime' => $photo->getMimeType(),
+                'address' => $photoAddress,
+            ]);
             try {
                 $photoPath = $this->photoService->processAttendancePhoto(
                     $photo,
@@ -241,10 +276,15 @@ class AttendanceService
                     $photoAddress,
                     $attendanceLog->employee_id
                 );
+                \Log::info('Check-out photo uploaded successfully', [
+                    'employee_id' => $attendanceLog->employee_id,
+                    'photo_path' => $photoPath,
+                ]);
             } catch (\Exception $e) {
                 \Log::warning('Photo processing failed during check-out', [
                     'employee_id' => $attendanceLog->employee_id,
                     'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
                 // Continue without photo
                 $photoPath = null;

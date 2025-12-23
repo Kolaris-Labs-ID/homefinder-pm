@@ -33,9 +33,19 @@ class AttendanceController extends Controller
         $employee = $this->resolveEmployee($request);
 
         try {
+            // Log incoming request data for debugging
+            \Log::info('Check-in request received', [
+                'employee_id' => $employee->id,
+                'has_file_photo' => $request->hasFile('photo'),
+                'all_files' => array_keys($request->allFiles()),
+                'content_type' => $request->header('Content-Type'),
+                'all_input_keys' => array_keys($request->all()),
+            ]);
+
             $data = $request->validate([
                 'latitude' => ['nullable', 'numeric', 'between:-90,90'],
                 'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+                'address' => ['nullable', 'string', 'max:500'],
                 'source' => ['nullable', Rule::in([
                     AttendanceLog::SOURCE_WEB,
                     AttendanceLog::SOURCE_MOBILE,
@@ -47,6 +57,17 @@ class AttendanceController extends Controller
                 ])],
                 'photo' => ['nullable', 'image', 'max:5120'], // Max 5MB
             ]);
+
+            // Explicitly add the photo file from request (validation doesn't include files in array)
+            if ($request->hasFile('photo')) {
+                $data['photo'] = $request->file('photo');
+                \Log::info('Photo file found in request', [
+                    'employee_id' => $employee->id,
+                    'photo_size' => $request->file('photo')->getSize(),
+                    'photo_mime' => $request->file('photo')->getMimeType(),
+                    'photo_original_name' => $request->file('photo')->getClientOriginalName(),
+                ]);
+            }
 
             $attendanceLog = $this->attendanceService->checkIn($employee, $data);
 
@@ -227,11 +248,32 @@ class AttendanceController extends Controller
         $employee = $this->resolveEmployee($request);
 
         try {
+            // Log incoming request data for debugging
+            \Log::info('Check-out request received', [
+                'employee_id' => $employee->id,
+                'has_file_photo' => $request->hasFile('photo'),
+                'all_files' => array_keys($request->allFiles()),
+                'content_type' => $request->header('Content-Type'),
+                'all_input_keys' => array_keys($request->all()),
+            ]);
+
             $data = $request->validate([
                 'latitude' => ['nullable', 'numeric', 'between:-90,90'],
                 'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+                'address' => ['nullable', 'string', 'max:500'],
                 'photo' => ['nullable', 'image', 'max:5120'], // Max 5MB
             ]);
+
+            // Explicitly add the photo file from request (validation doesn't include files in array)
+            if ($request->hasFile('photo')) {
+                $data['photo'] = $request->file('photo');
+                \Log::info('Photo file found in request', [
+                    'employee_id' => $employee->id,
+                    'photo_size' => $request->file('photo')->getSize(),
+                    'photo_mime' => $request->file('photo')->getMimeType(),
+                    'photo_original_name' => $request->file('photo')->getClientOriginalName(),
+                ]);
+            }
 
             $attendanceLog = $this->attendanceService->checkOut($employee, $data);
 

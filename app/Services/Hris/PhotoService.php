@@ -58,8 +58,23 @@ class PhotoService
 
         // Check Supabase configuration - required for photo storage
         if (!$this->isSupabaseConfigured()) {
+            Log::error('Supabase not configured', [
+                'supabase_url_set' => !empty($this->supabaseUrl),
+                'supabase_key_set' => !empty($this->supabaseKey),
+            ]);
             throw new \Exception('Supabase storage is not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY in .env');
         }
+
+        Log::info('Processing attendance photo', [
+            'employee_id' => $employeeId,
+            'clock_type' => $clockType,
+            'time' => $time->toDateTimeString(),
+            'address' => $address,
+            'photo_size' => $photo->getSize(),
+            'photo_mime' => $photo->getMimeType(),
+            'supabase_url' => $this->supabaseUrl,
+            'bucket' => $this->bucketName,
+        ]);
 
         try {
             // Format the overlay text
@@ -73,8 +88,20 @@ class PhotoService
             // Generate unique filename with optional employee folder
             $filename = $this->generateFilename($clockType, $time, $employeeId);
 
+            Log::info('Uploading to Supabase', [
+                'filename' => $filename,
+                'image_size' => strlen($processedImage),
+            ]);
+
             // Upload to Supabase and return the public URL
-            return $this->uploadToSupabase($processedImage, $filename);
+            $url = $this->uploadToSupabase($processedImage, $filename);
+
+            Log::info('Photo uploaded successfully', [
+                'employee_id' => $employeeId,
+                'url' => $url,
+            ]);
+
+            return $url;
         } catch (\Exception $e) {
             Log::error('Photo processing failed', [
                 'clock_type' => $clockType,
@@ -82,6 +109,7 @@ class PhotoService
                 'address' => $address,
                 'employee_id' => $employeeId,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             throw new \Exception('Failed to process attendance photo: ' . $e->getMessage());

@@ -181,27 +181,68 @@ class GeocodingService
             ?? $components['office']
             ?? $components['tourism']
             ?? $components['leisure']
+            ?? $components['commercial']
+            ?? $components['industrial']
             ?? null;
 
-        // Extract street
-        $street = $components['road']
+        // Extract street with house number if available
+        $houseNumber = $components['house_number'] ?? null;
+        $road = $components['road']
             ?? $components['pedestrian']
             ?? $components['footway']
             ?? $components['street']
             ?? $components['path']
             ?? null;
 
+        $street = $road;
+        if ($houseNumber && $road) {
+            $street = "{$road} No.{$houseNumber}";
+        }
+
+        // Extract neighborhood/district
+        $neighborhood = $components['neighbourhood']
+            ?? $components['suburb']
+            ?? $components['quarter']
+            ?? $components['residential']
+            ?? null;
+
+        // Extract subdistrict (kelurahan)
+        $subdistrict = $components['village']
+            ?? $components['subdistrict']
+            ?? null;
+
+        // Extract district (kecamatan)
+        $district = $components['city_district']
+            ?? $components['district']
+            ?? $components['county']
+            ?? null;
+
         // Extract city
         $city = $components['city']
             ?? $components['town']
             ?? $components['municipality']
-            ?? $components['village']
-            ?? $components['suburb']
-            ?? $components['county']
             ?? $components['state_district']
             ?? null;
 
-        return $this->formatAddressParts($building, $street, $city);
+        // Build address parts in order of specificity
+        $parts = array_filter([
+            $building,
+            $street,
+            $neighborhood,
+            $subdistrict,
+            $district,
+            $city,
+        ], fn($part) => !empty($part));
+
+        // Remove duplicates while preserving order
+        $parts = array_values(array_unique($parts));
+
+        if (empty($parts)) {
+            // Fallback to formatted address from OpenCage
+            return $result['formatted'] ?? 'Unknown Location';
+        }
+
+        return implode(', ', $parts);
     }
 
     /**
@@ -255,25 +296,66 @@ class GeocodingService
             ?? $address['office']
             ?? $address['tourism']
             ?? $address['leisure']
+            ?? $address['commercial']
+            ?? $address['industrial']
             ?? null;
 
-        // Extract street
-        $street = $address['road']
+        // Extract street with house number if available
+        $houseNumber = $address['house_number'] ?? null;
+        $road = $address['road']
             ?? $address['pedestrian']
             ?? $address['footway']
             ?? $address['street']
+            ?? null;
+
+        $street = $road;
+        if ($houseNumber && $road) {
+            $street = "{$road} No.{$houseNumber}";
+        }
+
+        // Extract neighborhood/district
+        $neighborhood = $address['neighbourhood']
+            ?? $address['suburb']
+            ?? $address['quarter']
+            ?? $address['residential']
+            ?? null;
+
+        // Extract subdistrict (kelurahan)
+        $subdistrict = $address['village']
+            ?? $address['subdistrict']
+            ?? null;
+
+        // Extract district (kecamatan)
+        $district = $address['city_district']
+            ?? $address['district']
+            ?? $address['county']
             ?? null;
 
         // Extract city
         $city = $address['city']
             ?? $address['town']
             ?? $address['municipality']
-            ?? $address['village']
-            ?? $address['suburb']
-            ?? $address['county']
             ?? null;
 
-        return $this->formatAddressParts($building, $street, $city);
+        // Build address parts in order of specificity
+        $parts = array_filter([
+            $building,
+            $street,
+            $neighborhood,
+            $subdistrict,
+            $district,
+            $city,
+        ], fn($part) => !empty($part));
+
+        // Remove duplicates while preserving order
+        $parts = array_values(array_unique($parts));
+
+        if (empty($parts)) {
+            // Fallback to display_name from Nominatim
+            return $data['display_name'] ?? 'Unknown Location';
+        }
+
+        return implode(', ', $parts);
     }
 
     /**
