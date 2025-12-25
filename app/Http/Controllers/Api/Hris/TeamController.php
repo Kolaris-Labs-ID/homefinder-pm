@@ -23,7 +23,7 @@ class TeamController extends Controller
             $today = Carbon::today();
 
             // Get all active employees with their user info and position
-            $employees = Employee::with(['user', 'primaryPosition.position.department'])
+            $employees = Employee::with(['user', 'primaryPosition.position'])
                 ->active()
                 ->get();
 
@@ -63,8 +63,8 @@ class TeamController extends Controller
                     'email' => $employee->user->email ?? null,
                     'phone' => $employee->phone ?? null,
                     'avatar_url' => $employee->user->avatar_url ?? null,
-                    'position' => $employee->primaryPosition?->position?->name ?? null,
-                    'department' => $employee->primaryPosition?->position?->department?->name ?? null,
+                    'position' => $employee->primaryPosition?->position?->title ?? null,
+                    'department' => null, // Position model doesn't have department relationship
                     'status' => $status['status'],
                     'status_label' => $status['label'],
                     'status_detail' => $status['detail'],

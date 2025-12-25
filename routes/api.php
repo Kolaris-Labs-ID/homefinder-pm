@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Hris\AttendanceController;
 use App\Http\Controllers\Api\Hris\ClientVisitController;
 use App\Http\Controllers\Api\Hris\LeaveBalanceController;
 use App\Http\Controllers\Api\Hris\LeaveRequestController;
+use App\Http\Controllers\Api\Hris\NotificationController;
 use App\Http\Controllers\Api\Hris\PayslipController;
 use App\Http\Controllers\Api\Hris\ProfileController;
 use App\Http\Controllers\Api\Hris\ReimbursementController;
@@ -32,6 +33,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
+        Route::post('/change-password', [AuthController::class, 'changePassword']);
     });
 });
 
@@ -83,5 +85,15 @@ Route::middleware(['auth:sanctum'])
 
         // Announcement endpoints
         Route::get('/announcements', [AnnouncementController::class, 'index']);
+
+        // Notification endpoints
+        Route::prefix('notifications')->group(function () {
+            Route::post('/register-token', [NotificationController::class, 'registerToken']);
+            Route::get('/settings', [NotificationController::class, 'getSettings']);
+            Route::put('/settings', [NotificationController::class, 'updateSettings']);
+            Route::get('/', [NotificationController::class, 'index']);
+            Route::put('/{notification}/read', [NotificationController::class, 'markAsRead']);
+            Route::put('/read-all', [NotificationController::class, 'markAllAsRead']);
+        });
     });
 
