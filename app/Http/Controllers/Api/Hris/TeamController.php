@@ -10,6 +10,7 @@ use App\Models\Hris\LeaveRequest;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class TeamController extends Controller
 {
@@ -18,74 +19,83 @@ class TeamController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $today = Carbon::today();
+        try {
+            $today = Carbon::today();
 
-        // Get all active employees with their user info and position
-        $employees = Employee::with(['user', 'primaryPosition.position.department'])
-            ->active()
-            ->get();
+            // Get all active employees with their user info and position
+            $employees = Employee::with(['user', 'primaryPosition.position.department'])
+                ->active()
+                ->get();
 
-        $teamMembers = $employees->map(function (Employee $employee) use ($today) {
-            // Get today's attendance
-            $attendance = AttendanceLog::where('employee_id', $employee->id)
-                ->whereDate('date', $today)
-                ->first();
-
-            // Get active leave request for today
-            $leaveRequest = LeaveRequest::where('employee_id', $employee->id)
-                ->where('status', LeaveRequest::STATUS_APPROVED)
-                ->whereDate('start_date', '<=', $today)
-                ->whereDate('end_date', '>=', $today)
-                ->with('leaveType')
-                ->first();
-
-            // Get active client visit for today (only if table exists)
-            $clientVisit = null;
-            try {
-                $clientVisit = ClientVisit::where('employee_id', $employee->id)
-                    ->whereDate('visit_date', $today)
-                    ->whereIn('status', [ClientVisit::STATUS_PLANNED, ClientVisit::STATUS_IN_PROGRESS])
+            $teamMembers = $employees->map(function (Employee $employee) use ($today) {
+                // Get today's attendance
+                $attendance = AttendanceLog::where('employee_id', $employee->id)
+                    ->whereDate('date', $today)
                     ->first();
-            } catch (\Exception $e) {
-                // Table might not exist yet
-            }
 
-            // Determine current status
-            $status = $this->determineStatus($attendance, $leaveRequest, $clientVisit);
+                // Get active leave request for today
+                $leaveRequest = LeaveRequest::where('employee_id', $employee->id)
+                    ->where('status', LeaveRequest::STATUS_APPROVED)
+                    ->whereDate('start_date', '<=', $today)
+                    ->whereDate('end_date', '>=', $today)
+                    ->with('leaveType')
+                    ->first();
 
-            return [
-                'id' => $employee->id,
-                'name' => $employee->user->name ?? 'Unknown',
-                'email' => $employee->user->email ?? null,
-                'phone' => $employee->phone,
-                'avatar_url' => $employee->user->avatar_url ?? null,
-                'position' => $employee->primaryPosition?->position?->name ?? null,
-                'department' => $employee->primaryPosition?->position?->department?->name ?? null,
-                'status' => $status['status'],
-                'status_label' => $status['label'],
-                'status_detail' => $status['detail'],
-                'check_in_time' => $attendance?->check_in_time ? $attendance->check_in_time->format('H:i:s') : null,
-                'is_on_break' => $attendance && $attendance->break_start_time && !$attendance->break_end_time,
-            ];
-        });
+                // Get active client visit for today (only if table exists)
+                $clientVisit = null;
+                if (Schema::hasTable('client_visits')) {
+                    try {
+                        $clientVisit = ClientVisit::where('employee_id', $employee->id)
+                            ->whereDate('visit_date', $today)
+                            ->whereIn('status', [ClientVisit::STATUS_PLANNED, ClientVisit::STATUS_IN_PROGRESS])
+                            ->first();
+                    } catch (\Exception $e) {
+                        // Silently ignore if table doesn't exist or has issues
+                    }
+                }
 
-        // Sort: on duty first, then by name
-        $sorted = $teamMembers->sortBy([
-            fn ($a, $b) => $this->getStatusPriority($a['status']) <=> $this->getStatusPriority($b['status']),
-            fn ($a, $b) => $a['name'] <=> $b['name'],
-        ])->values();
+                // Determine current status
+                $status = $this->determineStatus($attendance, $leaveRequest, $clientVisit);
 
-        return response()->json([
-            'data' => $sorted,
-            'summary' => [
-                'total' => $teamMembers->count(),
-                'on_duty' => $teamMembers->where('status', 'on_duty')->count(),
-                'on_break' => $teamMembers->where('status', 'on_break')->count(),
-                'on_leave' => $teamMembers->where('status', 'on_leave')->count(),
-                'visiting' => $teamMembers->where('status', 'visiting')->count(),
-                'offline' => $teamMembers->where('status', 'offline')->count(),
-            ],
-        ]);
+                return [
+                    'id' => $employee->id,
+                    'name' => $employee->user->name ?? 'Unknown',
+                    'email' => $employee->user->email ?? null,
+                    'phone' => $employee->phone ?? null,
+                    'avatar_url' => $employee->user->avatar_url ?? null,
+                    'position' => $employee->primaryPosition?->position?->name ?? null,
+                    'department' => $employee->primaryPosition?->position?->department?->name ?? null,
+                    'status' => $status['status'],
+                    'status_label' => $status['label'],
+                    'status_detail' => $status['detail'],
+                    'check_in_time' => $attendance?->check_in_time ? Carbon::parse($attendance->check_in_time)->format('H:i:s') : null,
+                    'is_on_break' => $attendance && $attendance->break_start_time && !$attendance->break_end_time,
+                ];
+            });
+
+            // Sort: on duty first, then by name
+            $sorted = $teamMembers->sortBy([
+                fn ($a, $b) => $this->getStatusPriority($a['status']) <=> $this->getStatusPriority($b['status']),
+                fn ($a, $b) => $a['name'] <=> $b['name'],
+            ])->values();
+
+            return response()->json([
+                'data' => $sorted,
+                'summary' => [
+                    'total' => $teamMembers->count(),
+                    'on_duty' => $teamMembers->where('status', 'on_duty')->count(),
+                    'on_break' => $teamMembers->where('status', 'on_break')->count(),
+                    'on_leave' => $teamMembers->where('status', 'on_leave')->count(),
+                    'visiting' => $teamMembers->where('status', 'visiting')->count(),
+                    'offline' => $teamMembers->where('status', 'offline')->count(),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to load team data',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+            ], 500);
+        }
     }
 
     /**

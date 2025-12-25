@@ -17,10 +17,11 @@ class ListAnnouncements extends ListRecords
         ];
     }
 
-    protected function getHeaderWidgets(): array
-    {
-        return [
-            AnnouncementResource\Widgets\AnnouncementStatsWidget::class,
-        ];
-    }
+    // Temporarily disabled - uncomment after migration
+    // protected function getHeaderWidgets(): array
+    // {
+    //     return [
+    //         AnnouncementResource\Widgets\AnnouncementStatsWidget::class,
+    //     ];
+    // }
 }
