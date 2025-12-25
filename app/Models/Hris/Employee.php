@@ -84,6 +84,11 @@ class Employee extends Model
         return $this->hasMany(LeaveRequest::class);
     }
 
+    public function clientVisits(): HasMany
+    {
+        return $this->hasMany(ClientVisit::class);
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);

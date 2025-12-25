@@ -1,12 +1,15 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\Hris\AnnouncementController;
 use App\Http\Controllers\Api\Hris\AttendanceController;
+use App\Http\Controllers\Api\Hris\ClientVisitController;
 use App\Http\Controllers\Api\Hris\LeaveBalanceController;
 use App\Http\Controllers\Api\Hris\LeaveRequestController;
 use App\Http\Controllers\Api\Hris\PayslipController;
 use App\Http\Controllers\Api\Hris\ProfileController;
 use App\Http\Controllers\Api\Hris\ReimbursementController;
+use App\Http\Controllers\Api\Hris\TeamController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -65,5 +68,20 @@ Route::middleware(['auth:sanctum'])
         Route::get('/reimbursements', [ReimbursementController::class, 'index']);
         Route::post('/reimbursements', [ReimbursementController::class, 'store']);
         Route::put('/reimbursements/{reimbursement}/cancel', [ReimbursementController::class, 'cancel']);
+
+        // Client Visit endpoints
+        Route::get('/visits/purposes', [ClientVisitController::class, 'purposes']);
+        Route::get('/visits', [ClientVisitController::class, 'index']);
+        Route::post('/visits', [ClientVisitController::class, 'store']);
+        Route::get('/visits/{clientVisit}', [ClientVisitController::class, 'show']);
+        Route::post('/visits/{clientVisit}/check-in', [ClientVisitController::class, 'checkIn']);
+        Route::post('/visits/{clientVisit}/check-out', [ClientVisitController::class, 'checkOut']);
+        Route::put('/visits/{clientVisit}/cancel', [ClientVisitController::class, 'cancel']);
+
+        // Team endpoints
+        Route::get('/team', [TeamController::class, 'index']);
+
+        // Announcement endpoints
+        Route::get('/announcements', [AnnouncementController::class, 'index']);
     });
 
