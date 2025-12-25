@@ -43,6 +43,9 @@ class AttendanceLog extends Model
         'check_out_longitude',
         'check_out_address',
         'check_out_photo_path',
+        'break_start_time',
+        'break_end_time',
+        'total_break_minutes',
         'source',
         'status',
         'metadata',
@@ -52,6 +55,8 @@ class AttendanceLog extends Model
         'date' => 'date',
         'check_in_time' => 'datetime',
         'check_out_time' => 'datetime',
+        'break_start_time' => 'datetime',
+        'break_end_time' => 'datetime',
         'check_in_latitude' => 'decimal:8',
         'check_in_longitude' => 'decimal:8',
         'check_out_latitude' => 'decimal:8',
@@ -160,5 +165,21 @@ class AttendanceLog extends Model
     public function hasCheckedOut(): bool
     {
         return $this->check_out_time !== null;
+    }
+
+    /**
+     * Check if the employee is currently on break.
+     */
+    public function isOnBreak(): bool
+    {
+        return $this->break_start_time !== null && $this->break_end_time === null;
+    }
+
+    /**
+     * Check if the employee has completed their break.
+     */
+    public function hasCompletedBreak(): bool
+    {
+        return $this->break_start_time !== null && $this->break_end_time !== null;
     }
 }

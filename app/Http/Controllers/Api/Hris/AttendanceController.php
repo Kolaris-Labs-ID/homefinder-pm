@@ -305,6 +305,78 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Start employee break.
+     *
+     * POST /api/hris/attendance/break/start
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function startBreak(Request $request): JsonResponse
+    {
+        $employee = $this->resolveEmployee($request);
+
+        try {
+            $attendanceLog = $this->attendanceService->startBreak($employee);
+
+            // Compute status for the attendance log
+            $status = $this->attendanceService->computeStatus($attendanceLog);
+            $attendanceLog->status = $status;
+
+            return response()->json([
+                'message' => 'Break started successfully.',
+                'data' => $this->formatAttendanceLog($attendanceLog),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Start break failed', [
+                'user_id' => $request->user()?->id,
+                'employee_id' => $employee->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * End employee break.
+     *
+     * POST /api/hris/attendance/break/end
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function endBreak(Request $request): JsonResponse
+    {
+        $employee = $this->resolveEmployee($request);
+
+        try {
+            $attendanceLog = $this->attendanceService->endBreak($employee);
+
+            // Compute status for the attendance log
+            $status = $this->attendanceService->computeStatus($attendanceLog);
+            $attendanceLog->status = $status;
+
+            return response()->json([
+                'message' => 'Break ended successfully.',
+                'data' => $this->formatAttendanceLog($attendanceLog),
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('End break failed', [
+                'user_id' => $request->user()?->id,
+                'employee_id' => $employee->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Resolve the employee from the authenticated user.
      *
      * @param Request $request
@@ -364,6 +436,12 @@ class AttendanceController extends Controller
                 'longitude' => $log->check_out_longitude,
                 'address' => $log->check_out_address,
                 'photo_path' => $log->check_out_photo_path,
+            ],
+            'break' => [
+                'start_time' => $log->break_start_time?->toIso8601String(),
+                'end_time' => $log->break_end_time?->toIso8601String(),
+                'total_minutes' => $log->total_break_minutes,
+                'is_on_break' => $log->isOnBreak(),
             ],
             'created_at' => $log->created_at->toIso8601String(),
             'updated_at' => $log->updated_at->toIso8601String(),

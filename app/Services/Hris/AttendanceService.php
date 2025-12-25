@@ -237,6 +237,12 @@ class AttendanceService
             throw new \Exception('Employee has already checked out for today.');
         }
 
+        // If employee is on break, end the break first
+        if ($attendanceLog->isOnBreak()) {
+            $this->endBreak($employee);
+            $attendanceLog->refresh();
+        }
+
         // Process GPS coordinates for reverse geocoding
         // Always use backend geocoding service for consistent, high-quality addresses
         $latitude = $data['latitude'] ?? null;
@@ -298,6 +304,86 @@ class AttendanceService
                 'check_out_longitude' => $longitude,
                 'check_out_address' => $address,
                 'check_out_photo_path' => $photoPath,
+            ]);
+
+            return $attendanceLog->fresh();
+        });
+    }
+
+    /**
+     * Start employee break.
+     *
+     * @param Employee $employee
+     * @return AttendanceLog
+     * @throws \Exception If employee has not checked in or already on break
+     */
+    public function startBreak(Employee $employee): AttendanceLog
+    {
+        $today = Carbon::today();
+
+        // Find today's attendance log with check-in
+        $attendanceLog = AttendanceLog::forEmployee($employee->id)
+            ->forDate($today)
+            ->whereNotNull('check_in_time')
+            ->first();
+
+        if (!$attendanceLog) {
+            throw new \Exception('Employee has not checked in for today.');
+        }
+
+        if ($attendanceLog->hasCheckedOut()) {
+            throw new \Exception('Employee has already checked out for today.');
+        }
+
+        if ($attendanceLog->isOnBreak()) {
+            throw new \Exception('Employee is already on break.');
+        }
+
+        if ($attendanceLog->hasCompletedBreak()) {
+            throw new \Exception('Employee has already taken a break today.');
+        }
+
+        return DB::transaction(function () use ($attendanceLog) {
+            $attendanceLog->update([
+                'break_start_time' => Carbon::now(),
+            ]);
+
+            return $attendanceLog->fresh();
+        });
+    }
+
+    /**
+     * End employee break.
+     *
+     * @param Employee $employee
+     * @return AttendanceLog
+     * @throws \Exception If employee is not on break
+     */
+    public function endBreak(Employee $employee): AttendanceLog
+    {
+        $today = Carbon::today();
+
+        // Find today's attendance log with check-in
+        $attendanceLog = AttendanceLog::forEmployee($employee->id)
+            ->forDate($today)
+            ->whereNotNull('check_in_time')
+            ->first();
+
+        if (!$attendanceLog) {
+            throw new \Exception('Employee has not checked in for today.');
+        }
+
+        if (!$attendanceLog->isOnBreak()) {
+            throw new \Exception('Employee is not currently on break.');
+        }
+
+        $breakEndTime = Carbon::now();
+        $totalBreakMinutes = $attendanceLog->break_start_time->diffInMinutes($breakEndTime);
+
+        return DB::transaction(function () use ($attendanceLog, $breakEndTime, $totalBreakMinutes) {
+            $attendanceLog->update([
+                'break_end_time' => $breakEndTime,
+                'total_break_minutes' => $totalBreakMinutes,
             ]);
 
             return $attendanceLog->fresh();

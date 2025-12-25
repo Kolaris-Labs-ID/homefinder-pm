@@ -49,6 +49,8 @@ Route::middleware(['auth:sanctum'])
         Route::prefix('attendance')->group(function () {
             Route::post('/check-in', [AttendanceController::class, 'checkIn']);
             Route::post('/check-out', [AttendanceController::class, 'checkOut']);
+            Route::post('/break/start', [AttendanceController::class, 'startBreak']);
+            Route::post('/break/end', [AttendanceController::class, 'endBreak']);
             Route::get('/daily', [AttendanceController::class, 'daily']);
             Route::get('/history', [AttendanceController::class, 'history']);
             Route::get('/wfh-quota', [AttendanceController::class, 'wfhQuota']);
