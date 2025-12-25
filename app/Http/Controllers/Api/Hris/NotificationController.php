@@ -65,34 +65,53 @@ class NotificationController extends Controller
             ], 404);
         }
 
-        $settings = NotificationSetting::firstOrCreate(
-            ['employee_id' => $employee->id],
-            [
-                'enabled' => true,
-                'check_in_reminder' => true,
-                'check_out_reminder' => true,
-                'break_reminder' => true,
-                'announcements' => true,
-                'leave_updates' => true,
-                'reimbursement_updates' => true,
-                'payslip_notifications' => true,
-                'weekly_todo_reminder' => true,
-            ]
-        );
+        try {
+            $settings = NotificationSetting::firstOrCreate(
+                ['employee_id' => $employee->id],
+                [
+                    'enabled' => true,
+                    'check_in_reminder' => true,
+                    'check_out_reminder' => true,
+                    'break_reminder' => true,
+                    'announcements' => true,
+                    'leave_updates' => true,
+                    'reimbursement_updates' => true,
+                    'payslip_notifications' => true,
+                    'weekly_todo_reminder' => true,
+                ]
+            );
 
-        return response()->json([
-            'data' => [
-                'enabled' => $settings->enabled,
-                'checkInReminder' => $settings->check_in_reminder,
-                'checkOutReminder' => $settings->check_out_reminder,
-                'breakReminder' => $settings->break_reminder,
-                'announcements' => $settings->announcements,
-                'leaveUpdates' => $settings->leave_updates,
-                'reimbursementUpdates' => $settings->reimbursement_updates,
-                'payslipNotifications' => $settings->payslip_notifications,
-                'weeklyTodoReminder' => $settings->weekly_todo_reminder,
-            ],
-        ]);
+            return response()->json([
+                'data' => [
+                    'enabled' => $settings->enabled,
+                    'checkInReminder' => $settings->check_in_reminder,
+                    'checkOutReminder' => $settings->check_out_reminder,
+                    'breakReminder' => $settings->break_reminder,
+                    'announcements' => $settings->announcements,
+                    'leaveUpdates' => $settings->leave_updates,
+                    'reimbursementUpdates' => $settings->reimbursement_updates,
+                    'payslipNotifications' => $settings->payslip_notifications,
+                    'weeklyTodoReminder' => $settings->weekly_todo_reminder,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            // If table doesn't exist, return default settings
+            \Log::warning('Notification settings fetch error: ' . $e->getMessage());
+
+            return response()->json([
+                'data' => [
+                    'enabled' => true,
+                    'checkInReminder' => true,
+                    'checkOutReminder' => true,
+                    'breakReminder' => true,
+                    'announcements' => true,
+                    'leaveUpdates' => true,
+                    'reimbursementUpdates' => true,
+                    'payslipNotifications' => true,
+                    'weeklyTodoReminder' => true,
+                ],
+            ]);
+        }
     }
 
     /**
@@ -159,28 +178,42 @@ class NotificationController extends Controller
             ], 404);
         }
 
-        $notifications = UserNotification::where('employee_id', $employee->id)
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+        try {
+            $notifications = UserNotification::where('employee_id', $employee->id)
+                ->orderBy('created_at', 'desc')
+                ->paginate(20);
 
-        return response()->json([
-            'data' => $notifications->map(function ($notification) {
-                return [
-                    'id' => $notification->id,
-                    'type' => $notification->type,
-                    'title' => $notification->title,
-                    'body' => $notification->body,
-                    'data' => $notification->data,
-                    'read_at' => $notification->read_at?->toISOString(),
-                    'created_at' => $notification->created_at->toISOString(),
-                ];
-            }),
-            'meta' => [
-                'current_page' => $notifications->currentPage(),
-                'last_page' => $notifications->lastPage(),
-                'total' => $notifications->total(),
-            ],
-        ]);
+            return response()->json([
+                'data' => $notifications->map(function ($notification) {
+                    return [
+                        'id' => $notification->id,
+                        'type' => $notification->type,
+                        'title' => $notification->title,
+                        'body' => $notification->body,
+                        'data' => $notification->data,
+                        'read_at' => $notification->read_at?->toISOString(),
+                        'created_at' => $notification->created_at->toISOString(),
+                    ];
+                }),
+                'meta' => [
+                    'current_page' => $notifications->currentPage(),
+                    'last_page' => $notifications->lastPage(),
+                    'total' => $notifications->total(),
+                ],
+            ]);
+        } catch (\Exception $e) {
+            // If table doesn't exist or other error, return empty array
+            \Log::warning('Notification fetch error: ' . $e->getMessage());
+
+            return response()->json([
+                'data' => [],
+                'meta' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'total' => 0,
+                ],
+            ]);
+        }
     }
 
     /**
