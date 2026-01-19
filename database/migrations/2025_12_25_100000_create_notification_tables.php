@@ -91,19 +91,43 @@ return new class extends Migration
     private function hasForeignKey(string $table, string $foreignKey): bool
     {
         $conn = Schema::getConnection();
-        $dbName = $conn->getDatabaseName();
+        $driver = $conn->getDriverName();
 
-        $result = $conn->select(
-            "SELECT CONSTRAINT_NAME
-             FROM information_schema.TABLE_CONSTRAINTS
-             WHERE TABLE_SCHEMA = ?
-             AND TABLE_NAME = ?
-             AND CONSTRAINT_NAME = ?
-             AND CONSTRAINT_TYPE = 'FOREIGN KEY'",
-            [$dbName, $table, $foreignKey]
-        );
+        // For SQLite, we can't easily check foreign keys, so assume they don't exist
+        // This is safe because SQLite will error if we try to add a duplicate
+        if ($driver === 'sqlite') {
+            return false;
+        }
 
-        return count($result) > 0;
+        // For MySQL/MariaDB
+        if (in_array($driver, ['mysql', 'mariadb'])) {
+            $dbName = $conn->getDatabaseName();
+            $result = $conn->select(
+                "SELECT CONSTRAINT_NAME
+                 FROM information_schema.TABLE_CONSTRAINTS
+                 WHERE TABLE_SCHEMA = ?
+                 AND TABLE_NAME = ?
+                 AND CONSTRAINT_NAME = ?
+                 AND CONSTRAINT_TYPE = 'FOREIGN KEY'",
+                [$dbName, $table, $foreignKey]
+            );
+            return count($result) > 0;
+        }
+
+        // For PostgreSQL
+        if ($driver === 'pgsql') {
+            $result = $conn->select(
+                "SELECT constraint_name
+                 FROM information_schema.table_constraints
+                 WHERE table_name = ?
+                 AND constraint_name = ?
+                 AND constraint_type = 'FOREIGN KEY'",
+                [$table, $foreignKey]
+            );
+            return count($result) > 0;
+        }
+
+        return false;
     }
 
     /**

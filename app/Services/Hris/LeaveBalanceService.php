@@ -71,16 +71,37 @@ class LeaveBalanceService
 
     public function consume(LeaveRequest $leaveRequest): void
     {
-        DB::transaction(function () use ($leaveRequest) {
-            $balance = $this->ensureBalance(
-                $leaveRequest->employee,
-                $leaveRequest->leaveType,
-                $leaveRequest->start_date->year
-            );
+        // Ensure we have the relationships loaded
+        $leaveRequest->loadMissing(['employee', 'leaveType']);
 
-            $balance->increment('used_days', $leaveRequest->total_days);
-            $balance->decrement('remaining_days', $leaveRequest->total_days);
-        });
+        $year = $leaveRequest->start_date->year;
+
+        // Get or create the balance
+        $balance = LeaveBalance::firstOrCreate(
+            [
+                'employee_id' => $leaveRequest->employee_id,
+                'leave_type_id' => $leaveRequest->leave_type_id,
+                'year' => $year,
+            ],
+            [
+                'starting_balance' => $this->determineStartingBalance(
+                    $leaveRequest->employee,
+                    $leaveRequest->leaveType,
+                    $year
+                ),
+                'used_days' => 0,
+                'remaining_days' => $this->determineStartingBalance(
+                    $leaveRequest->employee,
+                    $leaveRequest->leaveType,
+                    $year
+                ),
+            ]
+        );
+
+        // Update the balance
+        $balance->used_days = $balance->used_days + $leaveRequest->total_days;
+        $balance->remaining_days = $balance->remaining_days - $leaveRequest->total_days;
+        $balance->save();
     }
 
     public function release(LeaveRequest $leaveRequest): void

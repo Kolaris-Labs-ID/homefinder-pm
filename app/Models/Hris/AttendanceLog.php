@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris;
 
+use App\Services\Hris\PayrollPeriodService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -49,6 +50,9 @@ class AttendanceLog extends Model
         'source',
         'status',
         'metadata',
+        'payroll_period_name',
+        'payroll_period_start',
+        'payroll_period_end',
     ];
 
     protected $casts = [
@@ -62,7 +66,31 @@ class AttendanceLog extends Model
         'check_out_latitude' => 'decimal:8',
         'check_out_longitude' => 'decimal:8',
         'metadata' => 'array',
+        'payroll_period_start' => 'date',
+        'payroll_period_end' => 'date',
     ];
+
+    /**
+     * Boot the model.
+     *
+     * Auto-populate payroll period fields when creating new records.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function (AttendanceLog $attendanceLog) {
+            // Only auto-populate if date is set and payroll period fields are not already set
+            if ($attendanceLog->date && !$attendanceLog->payroll_period_name) {
+                $payrollPeriodService = app(PayrollPeriodService::class);
+                $period = $payrollPeriodService->getPeriodForDate($attendanceLog->date);
+
+                $attendanceLog->payroll_period_name = $period['name'];
+                $attendanceLog->payroll_period_start = $period['start_date'];
+                $attendanceLog->payroll_period_end = $period['end_date'];
+            }
+        });
+    }
 
     /**
      * Get all available statuses.
@@ -149,6 +177,18 @@ class AttendanceLog extends Model
     public function scopeForDateRange(Builder $query, $from, $to): Builder
     {
         return $query->whereBetween('date', [$from, $to]);
+    }
+
+    /**
+     * Scope a query to filter by payroll period name.
+     *
+     * @param Builder $query
+     * @param string $periodName Period name in format "MonthName YYYY"
+     * @return Builder
+     */
+    public function scopeForPayrollPeriod(Builder $query, string $periodName): Builder
+    {
+        return $query->where('payroll_period_name', $periodName);
     }
 
     /**

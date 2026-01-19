@@ -85,6 +85,18 @@ class AttendanceController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
+            // Business logic errors (duplicate check-in, WFH quota exhausted) should return 422
+            $businessErrors = [
+                'Employee has already checked in for today.',
+                'WFH quota exhausted for this week.',
+            ];
+
+            if (in_array($e->getMessage(), $businessErrors)) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+
             \Log::error('Attendance check-in failed', [
                 'user_id' => $request->user()?->id,
                 'employee_id' => $employee->id ?? null,
@@ -291,6 +303,18 @@ class AttendanceController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
+            // Business logic errors should return 422
+            $businessErrors = [
+                'Employee has not checked in for today.',
+                'Employee has already checked out for today.',
+            ];
+
+            if (in_array($e->getMessage(), $businessErrors)) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+
             \Log::error('Attendance check-out failed', [
                 'user_id' => $request->user()?->id,
                 'employee_id' => $employee->id ?? null,

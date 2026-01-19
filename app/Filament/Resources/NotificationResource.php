@@ -54,6 +54,7 @@ class NotificationResource extends Resource
                     
                 Tables\Columns\TextColumn::make('message')
                     ->limit(50)
+                    ->tooltip(fn (Notification $record) => $record->message)
                     ->weight(fn (Notification $record) => $record->isUnread() ? 'bold' : 'normal'),
 
                 Tables\Columns\TextColumn::make('ticket.name')
@@ -76,6 +77,15 @@ class NotificationResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->actions([
+                Action::make('viewDetails')
+                    ->label('View')
+                    ->icon('heroicon-o-eye')
+                    ->color('gray')
+                    ->modalHeading('Notification Details')
+                    ->modalContent(fn (Notification $record) => view('filament.modals.notification-detail', ['notification' => $record]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close'),
+                    
                 Action::make('markAsRead')
                     ->label('Mark as Read')
                     ->icon('heroicon-o-check')

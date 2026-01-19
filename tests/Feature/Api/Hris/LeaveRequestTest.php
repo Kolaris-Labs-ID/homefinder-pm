@@ -50,7 +50,7 @@ it('creates leave request via api', function () {
                 'status',
             ],
         ]);
-    
+
     expect(LeaveRequest::count())->toBe(1);
     $leaveRequest = LeaveRequest::first();
     expect($leaveRequest->employee_id)->toBe($this->employee->id);
@@ -124,10 +124,16 @@ it('cancels leave request', function () {
 it('can cancel approved leave request and releases balance', function () {
     Sanctum::actingAs($this->employee->user);
 
+    // Use dates in the current year to match the balance created in beforeEach
+    $startDate = now()->addDays(2);
+    $endDate = now()->addDays(4);
+
     $leaveRequest = LeaveRequest::factory()->create([
         'employee_id' => $this->employee->id,
         'leave_type_id' => $this->leaveType->id,
         'status' => LeaveRequest::STATUS_APPROVED,
+        'start_date' => $startDate,
+        'end_date' => $endDate,
         'total_days' => 3,
     ]);
 
@@ -141,7 +147,7 @@ it('can cancel approved leave request and releases balance', function () {
     $response->assertOk();
     $leaveRequest->refresh();
     expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_CANCELLED);
-    
+
     // Balance should be released
     $balance->refresh();
     expect($balance->used_days)->toBe(0);
@@ -150,7 +156,7 @@ it('can cancel approved leave request and releases balance', function () {
 it('returns profile data for authenticated employee', function () {
     $department = Department::factory()->create();
     $position = Position::factory()->create();
-    
+
     EmployeePosition::factory()->create([
         'employee_id' => $this->employee->id,
         'department_id' => $department->id,
@@ -182,7 +188,7 @@ it('updates employee profile', function () {
 
     $response->assertOk()
         ->assertJsonPath('message', 'Profile updated successfully.');
-    
+
     $this->employee->refresh();
     expect($this->employee->phone)->toBe('081234567890');
     expect($this->employee->address)->toBe('New Address');
@@ -214,9 +220,9 @@ it('returns leave balances for authenticated employee', function () {
 
 it('returns active leave types', function () {
     Sanctum::actingAs($this->employee->user);
-    
+
     LeaveType::factory()->create(['is_active' => false]);
-    
+
     $response = getJson('/api/hris/leave-types');
 
     $response->assertOk()
@@ -225,7 +231,7 @@ it('returns active leave types', function () {
                 '*' => ['id', 'code', 'name', 'description', 'default_annual_quota'],
             ],
         ]);
-    
+
     // Should only return active leave types
     $activeTypes = collect($response->json('data'));
     expect($activeTypes->every(fn ($type) => $type['is_active'] ?? true))->toBeTrue();
