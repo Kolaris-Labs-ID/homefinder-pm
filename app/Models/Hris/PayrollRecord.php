@@ -32,6 +32,18 @@ class PayrollRecord extends Model
         'total_deductions',
         'net_income',
         'details',
+        // Prorate fields
+        'total_working_days',
+        'actual_days_worked',
+        'prorate_ratio',
+        'full_basic_salary',
+        'prorated_basic_salary',
+        'daily_allowance_total',
+        'bpjs_company_paid',
+        // Weekly allowance reconciliation
+        'weekly_allowance_earned',
+        'weekly_allowance_paid',
+        'weekly_allowance_adjustment',
     ];
 
     protected $casts = [
@@ -53,6 +65,16 @@ class PayrollRecord extends Model
         'total_deductions' => 'decimal:2',
         'net_income' => 'decimal:2',
         'details' => 'array',
+        // Prorate field casts
+        'prorate_ratio' => 'decimal:4',
+        'full_basic_salary' => 'decimal:2',
+        'prorated_basic_salary' => 'decimal:2',
+        'daily_allowance_total' => 'decimal:2',
+        'bpjs_company_paid' => 'boolean',
+        // Weekly allowance reconciliation
+        'weekly_allowance_earned' => 'decimal:2',
+        'weekly_allowance_paid' => 'decimal:2',
+        'weekly_allowance_adjustment' => 'decimal:2',
     ];
 
     /**
@@ -115,6 +137,39 @@ class PayrollRecord extends Model
     public function isEditable(): bool
     {
         return $this->payrunBatch && !$this->payrunBatch->isLocked();
+    }
+
+    /**
+     * Get the prorate label for display.
+     * Example: "15/21 HK" (15 out of 21 working days)
+     */
+    public function getProrateLabelAttribute(): string
+    {
+        if ($this->total_working_days === null || $this->actual_days_worked === null) {
+            return '-';
+        }
+
+        return "{$this->actual_days_worked}/{$this->total_working_days} HK";
+    }
+
+    /**
+     * Get the prorate percentage.
+     */
+    public function getProratePercentageAttribute(): float
+    {
+        if ($this->prorate_ratio === null) {
+            return 100.0;
+        }
+
+        return round((float) $this->prorate_ratio * 100, 2);
+    }
+
+    /**
+     * Check if this payroll is prorated.
+     */
+    public function isProrated(): bool
+    {
+        return $this->prorate_ratio !== null && (float) $this->prorate_ratio < 1.0;
     }
 
     /**

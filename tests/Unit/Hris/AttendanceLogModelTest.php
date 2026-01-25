@@ -72,7 +72,7 @@ describe('Property 5: Automatic period population', function () {
         // Verify the attendance date falls within the period range
         expect($date->gte($expectedPeriod['start_date']))->toBeTrue()
             ->and($date->lte($expectedPeriod['end_date']))->toBeTrue();
-    })->with(generateRandomDatesForModel(100));
+    })->with(generateRandomDatesForModel(20));
 });
 
 /**

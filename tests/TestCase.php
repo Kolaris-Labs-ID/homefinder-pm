@@ -9,7 +9,13 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
  * @property \App\Models\TicketStatus $status
  * @property \App\Models\TicketPriority $priority
  * @property \App\Models\User $user
+ * @property \App\Models\User $admin
  * @property \Spatie\Permission\Models\Role $role
+ * @property \App\Services\Hris\PayrollSettingService $settingService
+ * @property \App\Services\Hris\BpjsCalculationService $bpjsService
+ * @property \App\Services\Hris\Pph21CalculationService $pph21Service
+ * @property \App\Services\Hris\AttendancePayrollService $attendanceService
+ * @property \App\Services\Hris\PayrollCalculationService $service
  */
 abstract class TestCase extends BaseTestCase
 {
@@ -18,4 +24,17 @@ abstract class TestCase extends BaseTestCase
     public $priority;
     public $user;
     public $role;
+    public $admin;
+    public $settingService;
+    public $bpjsService;
+    public $pph21Service;
+    public $attendanceService;
+    public $service;
+
+    protected function setUp(): void
+    {
+        // Ensure sufficient memory for tests
+        ini_set('memory_limit', '512M');
+        parent::setUp();
+    }
 }

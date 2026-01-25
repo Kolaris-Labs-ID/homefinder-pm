@@ -23,6 +23,11 @@ class SalaryStructure extends Model
     const JKK_RISK_HIGH = 'high';
     const JKK_RISK_VERY_HIGH = 'very_high';
 
+    // BPJS Paid By constants
+    const BPJS_PAID_BY_EMPLOYEE = 'employee';
+    const BPJS_PAID_BY_COMPANY = 'company';
+    const BPJS_PAID_BY_SHARED = 'shared';
+
     protected $fillable = [
         'employee_id',
         'effective_date',
@@ -32,6 +37,10 @@ class SalaryStructure extends Model
         'deductions',
         'pph21_method',
         'jkk_risk_level',
+        'daily_allowance_rate',
+        'prorate_enabled',
+        'bpjs_paid_by',
+        'weekly_allowance_enabled',
     ];
 
     protected $casts = [
@@ -40,6 +49,9 @@ class SalaryStructure extends Model
         'allowances_fixed' => 'array',
         'allowances_variable' => 'array',
         'deductions' => 'array',
+        'daily_allowance_rate' => 'decimal:2',
+        'prorate_enabled' => 'boolean',
+        'weekly_allowance_enabled' => 'boolean',
     ];
 
     /**
@@ -66,6 +78,38 @@ class SalaryStructure extends Model
             self::JKK_RISK_HIGH,
             self::JKK_RISK_VERY_HIGH,
         ];
+    }
+
+    /**
+     * Get all available BPJS paid by options.
+     */
+    public static function getBpjsPaidByOptions(): array
+    {
+        return [
+            self::BPJS_PAID_BY_EMPLOYEE,
+            self::BPJS_PAID_BY_COMPANY,
+            self::BPJS_PAID_BY_SHARED,
+        ];
+    }
+
+    /**
+     * Get BPJS paid by labels for display.
+     */
+    public static function getBpjsPaidByLabels(): array
+    {
+        return [
+            self::BPJS_PAID_BY_EMPLOYEE => 'Employee (Ditanggung Karyawan)',
+            self::BPJS_PAID_BY_COMPANY => 'Company (Ditanggung Perusahaan)',
+            self::BPJS_PAID_BY_SHARED => 'Shared (Ditanggung Bersama)',
+        ];
+    }
+
+    /**
+     * Check if BPJS is paid by company.
+     */
+    public function isBpjsPaidByCompany(): bool
+    {
+        return $this->bpjs_paid_by === self::BPJS_PAID_BY_COMPANY;
     }
 
     /**

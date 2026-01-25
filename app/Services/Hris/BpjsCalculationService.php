@@ -4,35 +4,30 @@ namespace App\Services\Hris;
 
 class BpjsCalculationService
 {
-    // BPJS Kesehatan ceiling (maximum wage for calculation)
+    // Legacy constants kept for backward compatibility
     const KESEHATAN_CEILING = 12000000;
-
-    // BPJS JP (Jaminan Pensiun) ceiling - updated March 2025
     const JP_CEILING = 10547400;
-
-    // BPJS Kesehatan rates
-    const KESEHATAN_EMPLOYEE_RATE = 0.01; // 1%
-    const KESEHATAN_COMPANY_RATE = 0.04;  // 4%
-
-    // BPJS JHT (Jaminan Hari Tua) rates - no ceiling
-    const JHT_EMPLOYEE_RATE = 0.02;  // 2%
-    const JHT_COMPANY_RATE = 0.037;  // 3.7%
-
-    // BPJS JP (Jaminan Pensiun) rates
-    const JP_EMPLOYEE_RATE = 0.01;  // 1%
-    const JP_COMPANY_RATE = 0.02;   // 2%
-
-    // BPJS JKM (Jaminan Kematian) rate - company only
-    const JKM_RATE = 0.003;  // 0.30%
-
-    // BPJS JKK (Jaminan Kecelakaan Kerja) rates by risk level - company only
+    const KESEHATAN_EMPLOYEE_RATE = 0.01;
+    const KESEHATAN_COMPANY_RATE = 0.04;
+    const JHT_EMPLOYEE_RATE = 0.02;
+    const JHT_COMPANY_RATE = 0.037;
+    const JP_EMPLOYEE_RATE = 0.01;
+    const JP_COMPANY_RATE = 0.02;
+    const JKM_RATE = 0.003;
     const JKK_RATES = [
-        'very_low' => 0.0024,  // 0.24%
-        'low' => 0.0054,       // 0.54%
-        'medium' => 0.0089,    // 0.89%
-        'high' => 0.0127,      // 1.27%
-        'very_high' => 0.0174, // 1.74%
+        'very_low' => 0.0024,
+        'low' => 0.0054,
+        'medium' => 0.0089,
+        'high' => 0.0127,
+        'very_high' => 0.0174,
     ];
+
+    protected PayrollSettingService $settingService;
+
+    public function __construct(?PayrollSettingService $settingService = null)
+    {
+        $this->settingService = $settingService ?? app(PayrollSettingService::class);
+    }
 
     /**
      * Calculate BPJS Kesehatan contributions.
@@ -42,11 +37,15 @@ class BpjsCalculationService
      */
     public function calculateKesehatan(float $salary): array
     {
-        $cappedSalary = min($salary, self::KESEHATAN_CEILING);
+        $ceiling = $this->settingService->getBpjsKesehatanCeiling();
+        $employeeRate = $this->settingService->getBpjsKesehatanEmployeeRate();
+        $companyRate = $this->settingService->getBpjsKesehatanCompanyRate();
+
+        $cappedSalary = min($salary, $ceiling);
 
         return [
-            'employee' => round($cappedSalary * self::KESEHATAN_EMPLOYEE_RATE, 2),
-            'company' => round($cappedSalary * self::KESEHATAN_COMPANY_RATE, 2),
+            'employee' => round($cappedSalary * $employeeRate, 2),
+            'company' => round($cappedSalary * $companyRate, 2),
         ];
     }
 
@@ -59,9 +58,12 @@ class BpjsCalculationService
      */
     public function calculateJht(float $salary): array
     {
+        $employeeRate = $this->settingService->getBpjsJhtEmployeeRate();
+        $companyRate = $this->settingService->getBpjsJhtCompanyRate();
+
         return [
-            'employee' => round($salary * self::JHT_EMPLOYEE_RATE, 2),
-            'company' => round($salary * self::JHT_COMPANY_RATE, 2),
+            'employee' => round($salary * $employeeRate, 2),
+            'company' => round($salary * $companyRate, 2),
         ];
     }
 
@@ -73,11 +75,15 @@ class BpjsCalculationService
      */
     public function calculateJp(float $salary): array
     {
-        $cappedSalary = min($salary, self::JP_CEILING);
+        $ceiling = $this->settingService->getBpjsJpCeiling();
+        $employeeRate = $this->settingService->getBpjsJpEmployeeRate();
+        $companyRate = $this->settingService->getBpjsJpCompanyRate();
+
+        $cappedSalary = min($salary, $ceiling);
 
         return [
-            'employee' => round($cappedSalary * self::JP_EMPLOYEE_RATE, 2),
-            'company' => round($cappedSalary * self::JP_COMPANY_RATE, 2),
+            'employee' => round($cappedSalary * $employeeRate, 2),
+            'company' => round($cappedSalary * $companyRate, 2),
         ];
     }
 
@@ -91,7 +97,7 @@ class BpjsCalculationService
      */
     public function calculateJkk(float $salary, string $riskLevel = 'low'): float
     {
-        $rate = self::JKK_RATES[$riskLevel] ?? self::JKK_RATES['low'];
+        $rate = $this->settingService->getJkkRate($riskLevel);
 
         return round($salary * $rate, 2);
     }
@@ -105,7 +111,9 @@ class BpjsCalculationService
      */
     public function calculateJkm(float $salary): float
     {
-        return round($salary * self::JKM_RATE, 2);
+        $rate = $this->settingService->getBpjsJkmRate();
+
+        return round($salary * $rate, 2);
     }
 
     /**
@@ -116,7 +124,7 @@ class BpjsCalculationService
      */
     public function getJkkRate(string $riskLevel): float
     {
-        return self::JKK_RATES[$riskLevel] ?? self::JKK_RATES['low'];
+        return $this->settingService->getJkkRate($riskLevel);
     }
 
     /**
@@ -124,9 +132,10 @@ class BpjsCalculationService
      *
      * @param float $salary Base salary for calculation
      * @param string $jkkRiskLevel JKK risk level
+     * @param bool $companyPaid If true, employee contributions are zero (company pays all)
      * @return array Complete BPJS breakdown
      */
-    public function calculateAll(float $salary, string $jkkRiskLevel = 'low'): array
+    public function calculateAll(float $salary, string $jkkRiskLevel = 'low', bool $companyPaid = false): array
     {
         $kesehatan = $this->calculateKesehatan($salary);
         $jht = $this->calculateJht($salary);
@@ -134,8 +143,31 @@ class BpjsCalculationService
         $jkk = $this->calculateJkk($salary, $jkkRiskLevel);
         $jkm = $this->calculateJkm($salary);
 
-        $totalEmployee = $kesehatan['employee'] + $jht['employee'] + $jp['employee'];
-        $totalCompany = $kesehatan['company'] + $jht['company'] + $jp['company'] + $jkk + $jkm;
+        if ($companyPaid) {
+            // Company pays all - employee contributions become company contributions
+            $totalEmployee = 0.0;
+            $totalCompany = $kesehatan['employee'] + $kesehatan['company']
+                + $jht['employee'] + $jht['company']
+                + $jp['employee'] + $jp['company']
+                + $jkk + $jkm;
+
+            // Update individual breakdowns (use floats for consistency)
+            $kesehatan = [
+                'employee' => 0.0,
+                'company' => $kesehatan['employee'] + $kesehatan['company'],
+            ];
+            $jht = [
+                'employee' => 0.0,
+                'company' => $jht['employee'] + $jht['company'],
+            ];
+            $jp = [
+                'employee' => 0.0,
+                'company' => $jp['employee'] + $jp['company'],
+            ];
+        } else {
+            $totalEmployee = $kesehatan['employee'] + $jht['employee'] + $jp['employee'];
+            $totalCompany = $kesehatan['company'] + $jht['company'] + $jp['company'] + $jkk + $jkm;
+        }
 
         return [
             'kesehatan' => $kesehatan,
@@ -146,6 +178,7 @@ class BpjsCalculationService
             'total_employee' => round($totalEmployee, 2),
             'total_company' => round($totalCompany, 2),
             'grand_total' => round($totalEmployee + $totalCompany, 2),
+            'company_paid' => $companyPaid,
         ];
     }
 
@@ -160,12 +193,32 @@ class BpjsCalculationService
     }
 
     /**
-     * Get JKK rates mapping.
+     * Get JKK rates mapping from settings.
      *
      * @return array
      */
     public static function getJkkRatesMapping(): array
     {
         return self::JKK_RATES;
+    }
+
+    /**
+     * Get JKK rates from settings (instance method).
+     *
+     * @return array
+     */
+    public function getConfiguredJkkRates(): array
+    {
+        return $this->settingService->getJkkRates();
+    }
+
+    /**
+     * Get current BPJS rates configuration.
+     *
+     * @return array
+     */
+    public function getCurrentRates(): array
+    {
+        return $this->settingService->getBpjsRates();
     }
 }

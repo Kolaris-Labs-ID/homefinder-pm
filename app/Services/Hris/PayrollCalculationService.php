@@ -12,10 +12,21 @@ use Illuminate\Support\Facades\DB;
 
 class PayrollCalculationService
 {
+    protected AttendancePayrollService $attendanceService;
+    protected PayrollSettingService $settingService;
+    protected WeeklyAllowanceService $weeklyAllowanceService;
+
     public function __construct(
         protected BpjsCalculationService $bpjsService,
-        protected Pph21CalculationService $pph21Service
-    ) {}
+        protected Pph21CalculationService $pph21Service,
+        ?AttendancePayrollService $attendanceService = null,
+        ?PayrollSettingService $settingService = null,
+        ?WeeklyAllowanceService $weeklyAllowanceService = null
+    ) {
+        $this->attendanceService = $attendanceService ?? app(AttendancePayrollService::class);
+        $this->settingService = $settingService ?? app(PayrollSettingService::class);
+        $this->weeklyAllowanceService = $weeklyAllowanceService ?? app(WeeklyAllowanceService::class);
+    }
 
     /**
      * Get the active salary structure for an employee at a given date.
@@ -39,14 +50,82 @@ class PayrollCalculationService
             return null;
         }
 
-        // Calculate gross income
-        $basicSalary = (float) $salaryStructure->basic_salary;
-        $totalFixedAllowances = $salaryStructure->total_fixed_allowances;
-        $totalVariableAllowances = $salaryStructure->total_variable_allowances;
-        $grossIncome = $basicSalary + $totalFixedAllowances + $totalVariableAllowances;
+        // Get attendance summary for the period
+        $attendanceSummary = $this->attendanceService->getAttendanceSummary(
+            $employee,
+            $batch->period_start_date,
+            $batch->period_end_date
+        );
 
-        // Calculate BPJS components
-        $bpjs = $this->bpjsService->calculateAll($grossIncome, $salaryStructure->jkk_risk_level);
+        // Calculate prorate information
+        $totalWorkingDays = $attendanceSummary['total_working_days'];
+        $actualDaysWorked = (int) $this->attendanceService->calculateActualDaysWorked($attendanceSummary);
+        
+        // Calculate prorate ratio if prorate is enabled
+        $prorateRatio = 1.0;
+        if ($salaryStructure->prorate_enabled) {
+            $prorateRatio = $this->attendanceService->calculateProrateRatio($actualDaysWorked, $totalWorkingDays);
+        }
+
+        // Calculate basic salary (with prorate)
+        $fullBasicSalary = (float) $salaryStructure->basic_salary;
+        $proratedBasicSalary = $salaryStructure->prorate_enabled 
+            ? $this->attendanceService->calculateProratedSalary($fullBasicSalary, $prorateRatio)
+            : $fullBasicSalary;
+
+        // Calculate fixed allowances (prorated if enabled)
+        $totalFixedAllowances = $salaryStructure->total_fixed_allowances;
+        if ($salaryStructure->prorate_enabled) {
+            $totalFixedAllowances = round($totalFixedAllowances * $prorateRatio, 2);
+        }
+
+        // Calculate variable allowances (attendance-based)
+        $variableAllowancesResult = [];
+        $totalVariableAllowances = 0;
+        
+        if (!empty($salaryStructure->allowances_variable)) {
+            $variableAllowancesResult = $this->attendanceService->calculateVariableAllowances(
+                $salaryStructure->allowances_variable,
+                $attendanceSummary
+            );
+            $totalVariableAllowances = $variableAllowancesResult['total'];
+        }
+
+        // Calculate daily allowance (Uang Harian)
+        $dailyAllowanceTotal = 0;
+        if ($salaryStructure->daily_allowance_rate && $salaryStructure->daily_allowance_rate > 0) {
+            $dailyAllowanceTotal = round($salaryStructure->daily_allowance_rate * $actualDaysWorked, 2);
+        }
+
+        // Weekly allowance reconciliation
+        $weeklyAllowanceEarned = $dailyAllowanceTotal;
+        $weeklyAllowancePaid = 0;
+        $weeklyAllowanceAdjustment = 0;
+
+        // If employee has weekly allowance enabled, calculate how much was already paid
+        if ($salaryStructure->weekly_allowance_enabled) {
+            $weeklyAllowancePaid = $this->weeklyAllowanceService->getMonthlyPaidTotal(
+                $employee,
+                $batch->period_start_date,
+                $batch->period_end_date
+            );
+            $weeklyAllowanceAdjustment = $weeklyAllowanceEarned - $weeklyAllowancePaid;
+        }
+
+        // Calculate gross income
+        $grossIncome = $proratedBasicSalary + $totalFixedAllowances + $totalVariableAllowances + $dailyAllowanceTotal;
+
+        // Determine if BPJS is company paid
+        $bpjsCompanyPaid = $salaryStructure->isBpjsPaidByCompany();
+
+        // Calculate BPJS components (using full salary for BPJS base, not prorated)
+        // BPJS is typically calculated on full monthly salary
+        $bpjsBaseSalary = $fullBasicSalary + $salaryStructure->total_fixed_allowances;
+        $bpjs = $this->bpjsService->calculateAll(
+            $bpjsBaseSalary,
+            $salaryStructure->jkk_risk_level ?? 'low',
+            $bpjsCompanyPaid
+        );
 
         // Calculate taxable income (gross - employee BPJS contributions)
         $taxableIncome = $grossIncome - $bpjs['total_employee'];
@@ -54,11 +133,14 @@ class PayrollCalculationService
         // Calculate PPh 21
         $pph21Amount = $this->pph21Service->calculateMonthlyTax(
             $taxableIncome,
-            $salaryStructure->pph21_method
+            $salaryStructure->pph21_method ?? 'gross'
         );
 
-        // Calculate other deductions from salary structure
+        // Calculate other deductions from salary structure (prorated if enabled)
         $otherDeductions = $salaryStructure->total_deductions;
+        if ($salaryStructure->prorate_enabled) {
+            $otherDeductions = round($otherDeductions * $prorateRatio, 2);
+        }
 
         // Calculate total deductions (employee BPJS + PPh 21 + other)
         $totalDeductions = $bpjs['total_employee'] + $pph21Amount + $otherDeductions;
@@ -73,10 +155,20 @@ class PayrollCalculationService
             'pph21_method' => $salaryStructure->pph21_method,
             'jkk_risk_level' => $salaryStructure->jkk_risk_level,
             'allowances_fixed' => $salaryStructure->allowances_fixed ?? [],
-            'allowances_variable' => $salaryStructure->allowances_variable ?? [],
+            'allowances_variable' => $variableAllowancesResult['breakdown'] ?? [],
             'deductions' => $salaryStructure->deductions ?? [],
             'bpjs_breakdown' => $bpjs,
+            'bpjs_paid_by' => $salaryStructure->bpjs_paid_by,
             'pph21_rate' => $this->pph21Service->getTerRate($taxableIncome),
+            // Attendance details
+            'attendance_summary' => $attendanceSummary,
+            'prorate_enabled' => $salaryStructure->prorate_enabled,
+            'daily_allowance_rate' => $salaryStructure->daily_allowance_rate,
+            // Weekly allowance reconciliation
+            'weekly_allowance_enabled' => $salaryStructure->weekly_allowance_enabled,
+            'weekly_allowance_earned' => $weeklyAllowanceEarned,
+            'weekly_allowance_paid' => $weeklyAllowancePaid,
+            'weekly_allowance_adjustment' => $weeklyAllowanceAdjustment,
         ];
 
         // Create or update payroll record
@@ -86,7 +178,7 @@ class PayrollCalculationService
                 'employee_id' => $employee->id,
             ],
             [
-                'basic_salary' => $basicSalary,
+                'basic_salary' => $proratedBasicSalary,
                 'total_fixed_allowances' => $totalFixedAllowances,
                 'total_variable_allowances' => $totalVariableAllowances,
                 'gross_income' => $grossIncome,
@@ -104,6 +196,18 @@ class PayrollCalculationService
                 'total_deductions' => $totalDeductions,
                 'net_income' => $netIncome,
                 'details' => $details,
+                // Prorate fields
+                'total_working_days' => $totalWorkingDays,
+                'actual_days_worked' => $actualDaysWorked,
+                'prorate_ratio' => $prorateRatio,
+                'full_basic_salary' => $fullBasicSalary,
+                'prorated_basic_salary' => $proratedBasicSalary,
+                'daily_allowance_total' => $dailyAllowanceTotal,
+                'bpjs_company_paid' => $bpjsCompanyPaid,
+                // Weekly allowance reconciliation
+                'weekly_allowance_earned' => $weeklyAllowanceEarned,
+                'weekly_allowance_paid' => $weeklyAllowancePaid,
+                'weekly_allowance_adjustment' => $weeklyAllowanceAdjustment,
             ]
         );
     }

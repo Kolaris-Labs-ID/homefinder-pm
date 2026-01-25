@@ -89,6 +89,20 @@ class Employee extends Model
         return $this->hasMany(ClientVisit::class);
     }
 
+    public function salaryStructures(): HasMany
+    {
+        return $this->hasMany(SalaryStructure::class);
+    }
+
+    public function activeSalaryStructure(): HasOne
+    {
+        return $this->hasOne(SalaryStructure::class)
+            ->ofMany(
+                ['effective_date' => 'max'],
+                fn ($query) => $query->where('effective_date', '<=', now())
+            );
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);

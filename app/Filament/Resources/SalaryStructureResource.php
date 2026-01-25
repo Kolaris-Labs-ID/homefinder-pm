@@ -65,7 +65,33 @@ class SalaryStructureResource extends Resource
                             ])
                             ->default('low')
                             ->required(),
-                    ])->columns(2),
+                        Forms\Components\Select::make('bpjs_paid_by')
+                            ->label('BPJS Paid By')
+                            ->options(SalaryStructure::getBpjsPaidByLabels())
+                            ->default(SalaryStructure::BPJS_PAID_BY_EMPLOYEE)
+                            ->required()
+                            ->helperText('Who pays the employee portion of BPJS contributions'),
+                    ])->columns(3),
+
+                Forms\Components\Section::make('Prorate & Daily Allowance Settings')
+                    ->description('Configure how salary is calculated based on attendance')
+                    ->schema([
+                        Forms\Components\Toggle::make('prorate_enabled')
+                            ->label('Enable Prorate Calculation')
+                            ->helperText('Calculate salary based on actual days worked vs total working days')
+                            ->default(true),
+                        Forms\Components\TextInput::make('daily_allowance_rate')
+                            ->label('Daily Allowance Rate (Uang Harian)')
+                            ->numeric()
+                            ->prefix('Rp')
+                            ->minValue(0)
+                            ->helperText('Amount paid per day of attendance (leave empty if not applicable)'),
+                        Forms\Components\Toggle::make('weekly_allowance_enabled')
+                            ->label('Enable Weekly Allowance Disbursement')
+                            ->helperText('Pay daily allowance weekly instead of monthly. Requires daily_allowance_rate to be set.')
+                            ->default(false)
+                            ->visible(fn ($get) => $get('daily_allowance_rate') > 0),
+                    ])->columns(3),
 
                 Forms\Components\Section::make('Fixed Allowances')
                     ->schema([
@@ -84,19 +110,57 @@ class SalaryStructureResource extends Resource
                     ]),
 
                 Forms\Components\Section::make('Variable Allowances')
+                    ->description('Configure allowances that may vary based on attendance')
                     ->schema([
                         Forms\Components\Repeater::make('allowances_variable')
                             ->schema([
                                 Forms\Components\TextInput::make('name')
-                                    ->required(),
-                                Forms\Components\TextInput::make('amount')
-                                    ->numeric()
                                     ->required()
-                                    ->prefix('Rp'),
+                                    ->columnSpan(2),
+                                Forms\Components\Select::make('type')
+                                    ->options([
+                                        'fixed' => 'Fixed Amount',
+                                        'attendance_based' => 'Attendance Based (per day)',
+                                    ])
+                                    ->default('fixed')
+                                    ->required()
+                                    ->reactive()
+                                    ->columnSpan(1),
+                                Forms\Components\TextInput::make('amount')
+                                    ->label('Fixed Amount')
+                                    ->numeric()
+                                    ->prefix('Rp')
+                                    ->visible(fn ($get) => $get('type') === 'fixed')
+                                    ->columnSpan(1),
+                                Forms\Components\TextInput::make('per_day_amount')
+                                    ->label('Per Day Amount')
+                                    ->numeric()
+                                    ->prefix('Rp')
+                                    ->visible(fn ($get) => $get('type') === 'attendance_based')
+                                    ->columnSpan(1),
+                                Forms\Components\Toggle::make('count_late')
+                                    ->label('Count Late Days')
+                                    ->default(true)
+                                    ->visible(fn ($get) => $get('type') === 'attendance_based')
+                                    ->columnSpan(1),
+                                Forms\Components\Toggle::make('count_wfh')
+                                    ->label('Count WFH Days')
+                                    ->default(true)
+                                    ->visible(fn ($get) => $get('type') === 'attendance_based')
+                                    ->columnSpan(1),
+                                Forms\Components\TextInput::make('max_amount')
+                                    ->label('Max Amount (optional)')
+                                    ->numeric()
+                                    ->prefix('Rp')
+                                    ->visible(fn ($get) => $get('type') === 'attendance_based')
+                                    ->helperText('Leave empty for no limit')
+                                    ->columnSpan(1),
                             ])
-                            ->columns(2)
+                            ->columns(4)
                             ->defaultItems(0)
-                            ->addActionLabel('Add Variable Allowance'),
+                            ->addActionLabel('Add Variable Allowance')
+                            ->collapsible()
+                            ->cloneable(),
                     ]),
 
                 Forms\Components\Section::make('Deductions')
@@ -131,6 +195,43 @@ class SalaryStructureResource extends Resource
                 Tables\Columns\TextColumn::make('basic_salary')
                     ->money('IDR')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('daily_allowance_rate')
+                    ->label('Daily Allowance')
+                    ->money('IDR')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('prorate_enabled')
+                    ->label('Prorate')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-x-circle')
+                    ->trueColor('success')
+                    ->falseColor('gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('weekly_allowance_enabled')
+                    ->label('Weekly')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-calendar-days')
+                    ->falseIcon('heroicon-o-x-circle')
+                    ->trueColor('info')
+                    ->falseColor('gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('bpjs_paid_by')
+                    ->label('BPJS By')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        'employee' => 'gray',
+                        'company' => 'success',
+                        'shared' => 'warning',
+                        default => 'gray',
+                    })
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'employee' => 'Employee',
+                        'company' => 'Company',
+                        'shared' => 'Shared',
+                        default => 'Employee',
+                    })
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('pph21_method')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {

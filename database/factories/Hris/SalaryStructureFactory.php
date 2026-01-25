@@ -42,6 +42,7 @@ class SalaryStructureFactory extends Factory
             'deductions' => $deductions,
             'pph21_method' => $this->faker->randomElement(SalaryStructure::getPph21Methods()),
             'jkk_risk_level' => $this->faker->randomElement(SalaryStructure::getJkkRiskLevels()),
+            'prorate_enabled' => false, // Disable prorate by default in tests to avoid zero gross income
         ];
     }
 

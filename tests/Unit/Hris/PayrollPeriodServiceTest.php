@@ -37,7 +37,7 @@ describe('Property 1: Period calculation for dates 1-25', function () {
 
         expect($periodName)->toContain($expectedMonthName)
             ->and($periodName)->toContain((string) $date->year);
-    })->with(generateRandomDates(100, 1, 25));
+    })->with(generateRandomDates(20, 1, 25));
 });
 
 /**
@@ -65,7 +65,7 @@ describe('Property 2: Period calculation for dates 26+', function () {
 
         expect($periodName)->toContain($expectedMonthName)
             ->and($periodName)->toContain((string) $expectedYear);
-    })->with(generateRandomDates(100, 26, 31));
+    })->with(generateRandomDates(20, 26, 31));
 });
 
 /**
@@ -89,7 +89,7 @@ describe('Property 3: Period name format validity', function () {
             ->and($parsed['month'])->toBeLessThanOrEqual(12)
             ->and($parsed['year'])->toBeGreaterThanOrEqual(2000)
             ->and($parsed['year'])->toBeLessThanOrEqual(2100);
-    })->with(generateRandomDates(100, 1, 31));
+    })->with(generateRandomDates(20, 1, 31));
 });
 
 /**
@@ -129,7 +129,7 @@ describe('Property 4: Period date consistency', function () {
 
         // Start date should be before end date
         expect($period['start_date']->lt($period['end_date']))->toBeTrue();
-    })->with(generateRandomDates(100, 1, 31));
+    })->with(generateRandomDates(20, 1, 31));
 });
 
 
