@@ -42,8 +42,70 @@ class GoogleSheetsAttendanceImport implements ToModel, WithHeadingRow, WithValid
     protected $skippedCount = 0;
     protected $attendanceCache = [];
 
+    /**
+     * Normalize row keys to handle various header formats
+     */
+    protected function normalizeRow(array $row): array
+    {
+        $normalized = [];
+
+        foreach ($row as $key => $value) {
+            // Convert key to lowercase and remove special characters
+            $normalizedKey = strtolower(preg_replace('/[^a-z0-9]+/i', '_', trim($key)));
+            $normalizedKey = trim($normalizedKey, '_');
+
+            // Map common variations
+            $keyMappings = [
+                'name' => 'name',
+                'nama' => 'name',
+                'employee_name' => 'name',
+                'employee' => 'name',
+                'action' => 'action',
+                'aksi' => 'action',
+                'type' => 'action',
+                'tipe' => 'action',
+                'date_time' => 'date_time',
+                'date_and_time' => 'date_time',
+                'datetime' => 'date_time',
+                'tanggal_waktu' => 'date_time',
+                'waktu' => 'date_time',
+                'timestamp' => 'date_time',
+                'latitude' => 'latitude',
+                'lat' => 'latitude',
+                'longitude' => 'longitude',
+                'lng' => 'longitude',
+                'long' => 'longitude',
+                'photo_url' => 'photo_url',
+                'photo' => 'photo_url',
+                'foto' => 'photo_url',
+                'address' => 'address',
+                'alamat' => 'address',
+                'location' => 'location',
+                'lokasi' => 'location',
+                'city' => 'city',
+                'kota' => 'city',
+                'state_province' => 'state_province',
+                'state' => 'state_province',
+                'province' => 'state_province',
+                'provinsi' => 'state_province',
+                'country' => 'country',
+                'negara' => 'country',
+                'postal_code' => 'postal_code',
+                'kode_pos' => 'postal_code',
+                'zip' => 'postal_code',
+            ];
+
+            $mappedKey = $keyMappings[$normalizedKey] ?? $normalizedKey;
+            $normalized[$mappedKey] = $value;
+        }
+
+        return $normalized;
+    }
+
     public function model(array $row)
     {
+        // Normalize the row keys to handle various header formats
+        $row = $this->normalizeRow($row);
         // Skip empty rows
         if (empty($row['name']) || empty($row['action']) || empty($row['date_time'])) {
             $this->skippedCount++;
@@ -81,7 +143,7 @@ class GoogleSheetsAttendanceImport implements ToModel, WithHeadingRow, WithValid
 
         $attendanceLog = $this->attendanceCache[$cacheKey];
 
-        if ($action === 'check in' || $action === 'checkin' || $action === 'in') {
+        if ($action === 'check in' || $action === 'checkin' || $action === 'in' || $action === 'clock in' || $action === 'clockin') {
             // Handle check-in
             if ($attendanceLog) {
                 // Update existing record with check-in data
@@ -112,7 +174,7 @@ class GoogleSheetsAttendanceImport implements ToModel, WithHeadingRow, WithValid
                 $this->importedCount++;
                 return $attendanceLog;
             }
-        } elseif ($action === 'check out' || $action === 'checkout' || $action === 'out') {
+        } elseif ($action === 'check out' || $action === 'checkout' || $action === 'out' || $action === 'clock out' || $action === 'clockout') {
             // Handle check-out
             if ($attendanceLog) {
                 // Update existing record with check-out data
@@ -244,9 +306,19 @@ class GoogleSheetsAttendanceImport implements ToModel, WithHeadingRow, WithValid
     public function rules(): array
     {
         return [
-            'name' => 'required',
-            'action' => 'required',
-            'date_time' => 'required',
+            // Use wildcards to match various column name formats
+            '*.name' => 'nullable',
+            '*.action' => 'nullable',
+            '*.date_time' => 'nullable',
+        ];
+    }
+
+    public function customValidationMessages(): array
+    {
+        return [
+            'name.required' => 'The name field is required.',
+            'action.required' => 'The action field is required.',
+            'date_time.required' => 'The date_time field is required.',
         ];
     }
 
