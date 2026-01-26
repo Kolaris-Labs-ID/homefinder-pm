@@ -103,7 +103,10 @@ class ImportGoogleSheetsAttendanceAction
                             $message .= ' ' . __(':count row(s) were skipped.', ['count' => $skippedCount]);
                         }
 
-                        if (count($errors) > 0 || count($failures) > 0) {
+                        $failuresCount = $failures instanceof \Illuminate\Support\Collection ? $failures->count() : count($failures);
+                        $errorsCount = $errors instanceof \Illuminate\Support\Collection ? $errors->count() : count($errors);
+
+                        if ($errorsCount > 0 || $failuresCount > 0) {
                             $message .= ' ' . __('Some rows had errors.');
                         }
 
@@ -115,22 +118,25 @@ class ImportGoogleSheetsAttendanceAction
                     } else {
                         $errorDetails = [];
 
-                        if (count($failures) > 0) {
-                            $errorDetails[] = __('Validation errors found in :count row(s):', ['count' => count($failures)]);
-                            foreach (array_slice($failures, 0, 5) as $failure) {
+                        $failuresArray = $failures instanceof \Illuminate\Support\Collection ? $failures->all() : (array) $failures;
+                        $errorsArray = $errors instanceof \Illuminate\Support\Collection ? $errors->all() : (array) $errors;
+
+                        if (count($failuresArray) > 0) {
+                            $errorDetails[] = __('Validation errors found in :count row(s):', ['count' => count($failuresArray)]);
+                            foreach (array_slice($failuresArray, 0, 5) as $failure) {
                                 $errorDetails[] = __('Row :row: :errors', [
                                     'row' => $failure->row(),
                                     'errors' => implode(', ', $failure->errors())
                                 ]);
                             }
-                            if (count($failures) > 5) {
-                                $errorDetails[] = __('... and :count more errors', ['count' => count($failures) - 5]);
+                            if (count($failuresArray) > 5) {
+                                $errorDetails[] = __('... and :count more errors', ['count' => count($failuresArray) - 5]);
                             }
                         }
 
-                        if (count($errors) > 0) {
+                        if (count($errorsArray) > 0) {
                             $errorDetails[] = __('Processing errors:');
-                            foreach (array_slice($errors, 0, 5) as $error) {
+                            foreach (array_slice($errorsArray, 0, 5) as $error) {
                                 $errorDetails[] = $error->getMessage();
                             }
                         }
