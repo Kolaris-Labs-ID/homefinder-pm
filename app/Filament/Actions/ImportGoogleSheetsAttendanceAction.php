@@ -50,18 +50,28 @@ class ImportGoogleSheetsAttendanceAction
                             ->required()
                             ->disk('local')
                             ->directory('temp-imports')
-                            ->visibility('private'),
+                            ->visibility('private')
+                            ->preserveFilenames(false)
+                            ->storeFileNamesIn('original_filename'),
                     ]),
             ])
             ->action(function (array $data) {
                 // Handle file path - FileUpload returns filename as string
                 $fileName = $data['excel_file'];
 
-                // Build the full path
-                $filePath = Storage::disk('local')->path('temp-imports/' . $fileName);
+                // The file is stored relative to the disk root
+                $relativePath = 'temp-imports/' . $fileName;
 
-                // Check if file exists
-                if (!file_exists($filePath)) {
+                // Check if file exists using Storage facade first
+                if (!Storage::disk('local')->exists($relativePath)) {
+                    // Log for debugging
+                    \Log::error('Import file not found', [
+                        'fileName' => $fileName,
+                        'relativePath' => $relativePath,
+                        'diskRoot' => config('filesystems.disks.local.root'),
+                        'fullPath' => Storage::disk('local')->path($relativePath),
+                    ]);
+
                     Notification::make()
                         ->title(__('Import Error'))
                         ->body(__('Uploaded file not found. Please try again.'))
@@ -69,6 +79,9 @@ class ImportGoogleSheetsAttendanceAction
                         ->send();
                     return;
                 }
+
+                // Get the full path for Excel import
+                $filePath = Storage::disk('local')->path($relativePath);
 
                 try {
                     $import = new GoogleSheetsAttendanceImport();
@@ -80,7 +93,7 @@ class ImportGoogleSheetsAttendanceAction
                     $failures = $import->failures();
 
                     // Clean up uploaded file
-                    Storage::disk('local')->delete('temp-imports/' . $fileName);
+                    Storage::disk('local')->delete($relativePath);
 
                     if ($importedCount > 0) {
                         $message = __("Successfully imported/updated :count attendance record(s).", ['count' => $importedCount]);
@@ -140,8 +153,8 @@ class ImportGoogleSheetsAttendanceAction
                     }
                 } catch (\Exception $e) {
                     // Clean up uploaded file on error
-                    if (Storage::disk('local')->exists('temp-imports/' . $fileName)) {
-                        Storage::disk('local')->delete('temp-imports/' . $fileName);
+                    if (Storage::disk('local')->exists($relativePath)) {
+                        Storage::disk('local')->delete($relativePath);
                     }
 
                     Notification::make()
