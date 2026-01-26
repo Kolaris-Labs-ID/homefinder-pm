@@ -4,6 +4,7 @@ namespace App\Filament\Resources\AttendanceLogResource\Pages;
 
 use App\Exports\AttendanceLogsExport;
 use App\Filament\Actions\ImportAttendanceLogsAction;
+use App\Filament\Actions\ImportGoogleSheetsAttendanceAction;
 use App\Filament\Resources\AttendanceLogResource;
 use Filament\Actions;
 use Filament\Forms\Components\CheckboxList;
@@ -19,6 +20,7 @@ class ListAttendanceLogs extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            ImportGoogleSheetsAttendanceAction::make(),
             ImportAttendanceLogsAction::make(),
             Actions\Action::make('export')
                 ->label('Export')
