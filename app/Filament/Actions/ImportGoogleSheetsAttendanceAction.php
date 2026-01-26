@@ -56,17 +56,18 @@ class ImportGoogleSheetsAttendanceAction
                     ]),
             ])
             ->action(function (array $data) {
-                // Handle file path - FileUpload returns filename as string
-                $fileName = $data['excel_file'];
+                // Handle file path - FileUpload returns the relative path including directory
+                $filePath = $data['excel_file'];
 
-                // The file is stored relative to the disk root
-                $relativePath = 'temp-imports/' . $fileName;
+                // FileUpload may return path with or without directory prefix
+                // Normalize to just use what FileUpload returns directly
+                $relativePath = $filePath;
 
                 // Check if file exists using Storage facade first
                 if (!Storage::disk('local')->exists($relativePath)) {
                     // Log for debugging
                     \Log::error('Import file not found', [
-                        'fileName' => $fileName,
+                        'filePath' => $filePath,
                         'relativePath' => $relativePath,
                         'diskRoot' => config('filesystems.disks.local.root'),
                         'fullPath' => Storage::disk('local')->path($relativePath),
