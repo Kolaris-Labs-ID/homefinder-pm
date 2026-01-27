@@ -23,6 +23,28 @@ class MembersRelationManager extends RelationManager
         return $ownerRecord->members_count ?? $ownerRecord->members()->count();
     }
 
+    /**
+     * Determine if the relation manager should be visible for the given record.
+     * This is a Filament method that controls tab visibility.
+     */
+    public static function canViewForRecord(Model $ownerRecord, string $pageClass): bool
+    {
+        $user = auth()->user();
+        
+        // If no user, hide the tab
+        if (!$user) {
+            return false;
+        }
+
+        // Super admin and C-Level can always see members tab
+        if ($user->hasRole('super_admin') || $user->hasAnyRole(['CEO', 'COO', 'CTO', 'HR'])) {
+            return true;
+        }
+
+        // Other users can only see members tab if they are members of the project
+        return $ownerRecord->members()->where('user_id', $user->id)->exists();
+    }
+
     public function form(Form $form): Form
     {
         return $form
