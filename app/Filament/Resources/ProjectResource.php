@@ -352,14 +352,27 @@ class ProjectResource extends Resource
     {
         $query = parent::getEloquentQuery();
 
-        $userIsSuperAdmin = auth()->user() && (
-            (method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('super_admin'))
-            || (isset(auth()->user()->role) && auth()->user()->role === 'super_admin')
+        $user = auth()->user();
+        if (!$user) {
+            return $query;
+        }
+
+        $userIsSuperAdmin = (
+            (method_exists($user, 'hasRole') && $user->hasRole('super_admin'))
+            || (isset($user->role) && $user->role === 'super_admin')
         );
 
-        if (! $userIsSuperAdmin) {
-            $query->whereHas('members', function (Builder $query) {
-                $query->where('user_id', auth()->id());
+        // Check if user is Head Division using RoleHelper
+        $userIsHeadDivision = (
+            method_exists($user, 'hasRole') && $user->hasRole('Head Division')
+        ) || (
+            class_exists('App\Helpers\RoleHelper') && \App\Helpers\RoleHelper::isHeadDivision($user)
+        );
+
+        // Allow full access to super_admin and Head Division users
+        if (! $userIsSuperAdmin && ! $userIsHeadDivision) {
+            $query->whereHas('members', function (Builder $query) use ($user) {
+                $query->where('user_id', $user->id);
             });
         }
 
