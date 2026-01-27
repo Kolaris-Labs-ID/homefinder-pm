@@ -362,15 +362,15 @@ class ProjectResource extends Resource
             || (isset($user->role) && $user->role === 'super_admin')
         );
 
-        // Check if user is Head Division using RoleHelper
-        $userIsHeadDivision = (
-            method_exists($user, 'hasRole') && $user->hasRole('Head Division')
+        // Check if user is C-Level using RoleHelper
+        $userIsCLevel = (
+            method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['CEO', 'COO', 'CTO', 'HR'])
         ) || (
-            class_exists('App\Helpers\RoleHelper') && \App\Helpers\RoleHelper::isHeadDivision($user)
+            class_exists('App\Helpers\RoleHelper') && \App\Helpers\RoleHelper::isCLevel($user)
         );
 
-        // Allow full access to super_admin and Head Division users
-        if (! $userIsSuperAdmin && ! $userIsHeadDivision) {
+        // Allow full access to super_admin and C-Level users
+        if (! $userIsSuperAdmin && ! $userIsCLevel) {
             $query->whereHas('members', function (Builder $query) use ($user) {
                 $query->where('user_id', $user->id);
             });

@@ -59,17 +59,13 @@ class RoleHelper
             return false;
         }
 
-        // Head Division can assign to anyone
-        if (self::isHeadDivision($assigner)) {
+        // C-Level roles and Head Division can assign to anyone
+        if (self::isCLevel($assigner) || self::isHeadDivision($assigner)) {
             return true;
         }
 
-        // C-Level roles can only assign to Head Division
-        if (self::isCLevel($assigner)) {
-            return self::isHeadDivision($targetUser);
-        }
-
-        // Other roles (no restrictions for now, but can be added later)
+        // All other users can assign to anyone
+        // but they can only see projects they are members of (handled by ProjectResource query)
         return true;
     }
 
@@ -88,17 +84,13 @@ class RoleHelper
             return $query->whereRaw('1 = 0'); // No users if no assigner
         }
 
-        // Head Division can assign to anyone - no additional restrictions
-        if (self::isHeadDivision($assigner)) {
-            return $query; // No restrictions
+        // C-Level roles and Head Division can assign to anyone
+        if (self::isCLevel($assigner) || self::isHeadDivision($assigner)) {
+            return $query;
         }
 
-        // C-Level roles can only assign to Head Division
-        if (self::isCLevel($assigner)) {
-            return $query->role(self::$headDivisionRole);
-        }
-
-        // Other roles - no restrictions for now
+        // All other users can assign to anyone
+        // but they can only see projects they are members of (handled by ProjectResource query)
         return $query;
     }
 
