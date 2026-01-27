@@ -92,6 +92,8 @@ class ImportGoogleSheetsAttendanceAction
                     $skippedCount = $import->getSkippedCount();
                     $errors = $import->errors();
                     $failures = $import->failures();
+                    $skipSummary = $import->getSkipSummary();
+                    $notFoundEmployees = $import->getNotFoundEmployees();
 
                     // Clean up uploaded file
                     Storage::disk('local')->delete($relativePath);
@@ -101,6 +103,34 @@ class ImportGoogleSheetsAttendanceAction
 
                         if ($skippedCount > 0) {
                             $message .= ' ' . __(':count row(s) were skipped.', ['count' => $skippedCount]);
+
+                            // Add skip reason breakdown
+                            $skipDetails = [];
+                            if ($skipSummary['employee_not_found'] > 0) {
+                                $skipDetails[] = __(':count employee(s) not found', ['count' => $skipSummary['employee_not_found']]);
+                            }
+                            if ($skipSummary['missing_fields'] > 0) {
+                                $skipDetails[] = __(':count missing required fields', ['count' => $skipSummary['missing_fields']]);
+                            }
+                            if ($skipSummary['invalid_datetime'] > 0) {
+                                $skipDetails[] = __(':count invalid date/time', ['count' => $skipSummary['invalid_datetime']]);
+                            }
+                            if ($skipSummary['invalid_action'] > 0) {
+                                $skipDetails[] = __(':count invalid action', ['count' => $skipSummary['invalid_action']]);
+                            }
+
+                            if (!empty($skipDetails)) {
+                                $message .= "\n" . __('Skip reasons: :reasons', ['reasons' => implode(', ', $skipDetails)]);
+                            }
+
+                            // Show first few not found employees
+                            if (!empty($notFoundEmployees)) {
+                                $showEmployees = array_slice($notFoundEmployees, 0, 5);
+                                $message .= "\n" . __('Employees not found: :names', ['names' => implode(', ', $showEmployees)]);
+                                if (count($notFoundEmployees) > 5) {
+                                    $message .= __(' and :count more', ['count' => count($notFoundEmployees) - 5]);
+                                }
+                            }
                         }
 
                         $failuresCount = $failures instanceof \Illuminate\Support\Collection ? $failures->count() : count($failures);
@@ -117,6 +147,37 @@ class ImportGoogleSheetsAttendanceAction
                             ->send();
                     } else {
                         $errorDetails = [];
+
+                        // Show skip summary first
+                        if ($skippedCount > 0) {
+                            $errorDetails[] = __(':count row(s) were skipped:', ['count' => $skippedCount]);
+
+                            if ($skipSummary['employee_not_found'] > 0) {
+                                $errorDetails[] = __('• :count row(s): Employee not found in HRIS', ['count' => $skipSummary['employee_not_found']]);
+                            }
+                            if ($skipSummary['missing_fields'] > 0) {
+                                $errorDetails[] = __('• :count row(s): Missing required fields (Name, Action, or Date & Time)', ['count' => $skipSummary['missing_fields']]);
+                            }
+                            if ($skipSummary['invalid_datetime'] > 0) {
+                                $errorDetails[] = __('• :count row(s): Invalid date/time format', ['count' => $skipSummary['invalid_datetime']]);
+                            }
+                            if ($skipSummary['invalid_action'] > 0) {
+                                $errorDetails[] = __('• :count row(s): Invalid action (must be Check In or Check Out)', ['count' => $skipSummary['invalid_action']]);
+                            }
+
+                            // Show not found employees
+                            if (!empty($notFoundEmployees)) {
+                                $errorDetails[] = '';
+                                $errorDetails[] = __('Employees not found in HRIS:');
+                                $showEmployees = array_slice($notFoundEmployees, 0, 10);
+                                foreach ($showEmployees as $emp) {
+                                    $errorDetails[] = "• {$emp}";
+                                }
+                                if (count($notFoundEmployees) > 10) {
+                                    $errorDetails[] = __('... and :count more', ['count' => count($notFoundEmployees) - 10]);
+                                }
+                            }
+                        }
 
                         $failuresArray = $failures instanceof \Illuminate\Support\Collection ? $failures->all() : (array) $failures;
                         $errorsArray = $errors instanceof \Illuminate\Support\Collection ? $errors->all() : (array) $errors;

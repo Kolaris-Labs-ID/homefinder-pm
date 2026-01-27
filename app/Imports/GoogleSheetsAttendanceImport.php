@@ -41,6 +41,9 @@ class GoogleSheetsAttendanceImport implements ToModel, WithHeadingRow, WithValid
     protected $importedCount = 0;
     protected $skippedCount = 0;
     protected $attendanceCache = [];
+    protected $employeeCache = [];
+    protected $skippedReasons = [];
+    protected $notFoundEmployees = [];
 
     /**
      * Normalize row keys to handle various header formats
@@ -106,16 +109,27 @@ class GoogleSheetsAttendanceImport implements ToModel, WithHeadingRow, WithValid
     {
         // Normalize the row keys to handle various header formats
         $row = $this->normalizeRow($row);
+
         // Skip empty rows
         if (empty($row['name']) || empty($row['action']) || empty($row['date_time'])) {
             $this->skippedCount++;
+            $missing = [];
+            if (empty($row['name'])) $missing[] = 'name';
+            if (empty($row['action'])) $missing[] = 'action';
+            if (empty($row['date_time'])) $missing[] = 'date_time';
+            $this->skippedReasons[] = 'Missing required fields: ' . implode(', ', $missing);
             return null;
         }
 
         // Find employee by name
-        $employee = $this->findEmployeeByName(trim($row['name']));
+        $employeeName = trim($row['name']);
+        $employee = $this->findEmployeeByName($employeeName);
         if (!$employee) {
             $this->skippedCount++;
+            if (!in_array($employeeName, $this->notFoundEmployees)) {
+                $this->notFoundEmployees[] = $employeeName;
+            }
+            $this->skippedReasons[] = "Employee not found: {$employeeName}";
             return null;
         }
 
@@ -123,6 +137,7 @@ class GoogleSheetsAttendanceImport implements ToModel, WithHeadingRow, WithValid
         $dateTime = $this->parseDateTime($row['date_time']);
         if (!$dateTime) {
             $this->skippedCount++;
+            $this->skippedReasons[] = "Invalid date/time format: {$row['date_time']} for {$employeeName}";
             return null;
         }
 
@@ -143,7 +158,7 @@ class GoogleSheetsAttendanceImport implements ToModel, WithHeadingRow, WithValid
 
         $attendanceLog = $this->attendanceCache[$cacheKey];
 
-        if ($action === 'check in' || $action === 'checkin' || $action === 'in' || $action === 'clock in' || $action === 'clockin') {
+        if ($action === 'check in' || $action === 'checkin' || $action === 'in' || $action === 'clock in' || $action === 'clockin' || $action === 'masuk') {
             // Handle check-in
             if ($attendanceLog) {
                 // Update existing record with check-in data
@@ -174,7 +189,7 @@ class GoogleSheetsAttendanceImport implements ToModel, WithHeadingRow, WithValid
                 $this->importedCount++;
                 return $attendanceLog;
             }
-        } elseif ($action === 'check out' || $action === 'checkout' || $action === 'out' || $action === 'clock out' || $action === 'clockout') {
+        } elseif ($action === 'check out' || $action === 'checkout' || $action === 'out' || $action === 'clock out' || $action === 'clockout' || $action === 'keluar' || $action === 'pulang') {
             // Handle check-out
             if ($attendanceLog) {
                 // Update existing record with check-out data
@@ -208,15 +223,66 @@ class GoogleSheetsAttendanceImport implements ToModel, WithHeadingRow, WithValid
         }
 
         $this->skippedCount++;
+        $this->skippedReasons[] = "Invalid action value: '{$action}' for {$employeeName} (expected: Check In/Check Out)";
         return null;
     }
 
     protected function findEmployeeByName(string $name): ?Employee
     {
-        // Try to find employee by user name
-        return Employee::whereHas('user', function ($query) use ($name) {
-            $query->where('name', 'LIKE', '%' . $name . '%');
+        // Check cache first
+        $cacheKey = strtolower(trim($name));
+        if (isset($this->employeeCache[$cacheKey])) {
+            return $this->employeeCache[$cacheKey];
+        }
+
+        // Try exact match first (case-insensitive)
+        $employee = Employee::whereHas('user', function ($query) use ($name) {
+            $query->whereRaw('LOWER(name) = ?', [strtolower($name)]);
         })->first();
+
+        if ($employee) {
+            $this->employeeCache[$cacheKey] = $employee;
+            return $employee;
+        }
+
+        // Try partial match (name contains search term)
+        $employee = Employee::whereHas('user', function ($query) use ($name) {
+            $query->whereRaw('LOWER(name) LIKE ?', ['%' . strtolower($name) . '%']);
+        })->first();
+
+        if ($employee) {
+            $this->employeeCache[$cacheKey] = $employee;
+            return $employee;
+        }
+
+        // Try matching by splitting name parts (handles "John Doe" vs "Doe, John")
+        $nameParts = preg_split('/[\s,]+/', $name);
+        if (count($nameParts) > 1) {
+            $employee = Employee::whereHas('user', function ($query) use ($nameParts) {
+                foreach ($nameParts as $part) {
+                    if (strlen($part) > 2) { // Skip short parts like initials
+                        $query->whereRaw('LOWER(name) LIKE ?', ['%' . strtolower($part) . '%']);
+                    }
+                }
+            })->first();
+
+            if ($employee) {
+                $this->employeeCache[$cacheKey] = $employee;
+                return $employee;
+            }
+        }
+
+        // Try matching by NIK if the name looks like an employee ID
+        if (preg_match('/^[A-Z0-9\-]+$/i', $name)) {
+            $employee = Employee::where('nik', $name)->first();
+            if ($employee) {
+                $this->employeeCache[$cacheKey] = $employee;
+                return $employee;
+            }
+        }
+
+        $this->employeeCache[$cacheKey] = null;
+        return null;
     }
 
     protected function parseDateTime($value): ?Carbon
@@ -330,5 +396,42 @@ class GoogleSheetsAttendanceImport implements ToModel, WithHeadingRow, WithValid
     public function getSkippedCount(): int
     {
         return $this->skippedCount;
+    }
+
+    public function getSkippedReasons(): array
+    {
+        return $this->skippedReasons;
+    }
+
+    public function getNotFoundEmployees(): array
+    {
+        return $this->notFoundEmployees;
+    }
+
+    /**
+     * Get a summary of skip reasons grouped by type
+     */
+    public function getSkipSummary(): array
+    {
+        $summary = [
+            'missing_fields' => 0,
+            'employee_not_found' => 0,
+            'invalid_datetime' => 0,
+            'invalid_action' => 0,
+        ];
+
+        foreach ($this->skippedReasons as $reason) {
+            if (str_contains($reason, 'Missing required fields')) {
+                $summary['missing_fields']++;
+            } elseif (str_contains($reason, 'Employee not found')) {
+                $summary['employee_not_found']++;
+            } elseif (str_contains($reason, 'Invalid date/time')) {
+                $summary['invalid_datetime']++;
+            } elseif (str_contains($reason, 'Invalid action')) {
+                $summary['invalid_action']++;
+            }
+        }
+
+        return $summary;
     }
 }
