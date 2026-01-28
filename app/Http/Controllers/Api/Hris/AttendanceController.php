@@ -127,7 +127,7 @@ class AttendanceController extends Controller
                 'date' => ['nullable', 'date_format:Y-m-d'],
             ]);
 
-            $date = isset($data['date']) ? Carbon::parse($data['date']) : Carbon::today();
+            $date = isset($data['date']) ? Carbon::parse($data['date'], 'Asia/Jakarta') : Carbon::today('Asia/Jakarta');
             $attendanceLog = $this->attendanceService->getTodayAttendance($employee, $date);
 
             if (!$attendanceLog) {
@@ -213,8 +213,8 @@ class AttendanceController extends Controller
                 'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
             ]);
 
-            $from = Carbon::parse($data['from']);
-            $to = Carbon::parse($data['to']);
+            $from = Carbon::parse($data['from'], 'Asia/Jakarta');
+            $to = Carbon::parse($data['to'], 'Asia/Jakarta');
 
             $attendanceLogs = $this->attendanceService->getHistory($employee, $from, $to);
 

@@ -120,7 +120,7 @@ class AttendanceService
      */
     public function checkIn(Employee $employee, array $data): AttendanceLog
     {
-        $today = Carbon::today();
+        $today = Carbon::today('Asia/Jakarta');
         $mode = $data['mode'] ?? AttendanceLog::MODE_OFFICE;
 
         // Validate employee not already checked in for today
@@ -154,7 +154,7 @@ class AttendanceService
         // Process photo with timestamp overlay
         $photoPath = $data['photo_path'] ?? null;
         $photo = $data['photo'] ?? null;
-        $checkInTime = Carbon::now();
+        $checkInTime = Carbon::now('Asia/Jakarta');
 
         \Log::info('Check-in photo processing', [
             'employee_id' => $employee->id,
@@ -221,7 +221,7 @@ class AttendanceService
      */
     public function checkOut(Employee $employee, array $data): AttendanceLog
     {
-        $today = Carbon::today();
+        $today = Carbon::today('Asia/Jakarta');
 
         // Find today's attendance log with check-in
         $attendanceLog = AttendanceLog::forEmployee($employee->id)
@@ -256,7 +256,7 @@ class AttendanceService
         // Process photo with timestamp overlay
         $photoPath = $data['photo_path'] ?? null;
         $photo = $data['photo'] ?? null;
-        $checkOutTime = Carbon::now();
+        $checkOutTime = Carbon::now('Asia/Jakarta');
 
         \Log::info('Check-out photo processing', [
             'employee_id' => $attendanceLog->employee_id,
@@ -319,7 +319,7 @@ class AttendanceService
      */
     public function startBreak(Employee $employee): AttendanceLog
     {
-        $today = Carbon::today();
+        $today = Carbon::today('Asia/Jakarta');
 
         // Find today's attendance log with check-in
         $attendanceLog = AttendanceLog::forEmployee($employee->id)
@@ -345,7 +345,7 @@ class AttendanceService
 
         return DB::transaction(function () use ($attendanceLog) {
             $attendanceLog->update([
-                'break_start_time' => Carbon::now(),
+                'break_start_time' => Carbon::now('Asia/Jakarta'),
             ]);
 
             return $attendanceLog->fresh();
@@ -361,7 +361,7 @@ class AttendanceService
      */
     public function endBreak(Employee $employee): AttendanceLog
     {
-        $today = Carbon::today();
+        $today = Carbon::today('Asia/Jakarta');
 
         // Find today's attendance log with check-in
         $attendanceLog = AttendanceLog::forEmployee($employee->id)
@@ -377,7 +377,7 @@ class AttendanceService
             throw new \Exception('Employee is not currently on break.');
         }
 
-        $breakEndTime = Carbon::now();
+        $breakEndTime = Carbon::now('Asia/Jakarta');
         $totalBreakMinutes = $attendanceLog->break_start_time->diffInMinutes($breakEndTime);
 
         return DB::transaction(function () use ($attendanceLog, $breakEndTime, $totalBreakMinutes) {

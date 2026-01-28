@@ -394,7 +394,7 @@ class AttendanceLogResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
-        return (string) static::getModel()::whereDate('date', today())->count();
+        return (string) static::getModel()::whereDate('date', now('Asia/Jakarta')->toDateString())->count();
     }
 
     public static function getNavigationBadgeColor(): ?string

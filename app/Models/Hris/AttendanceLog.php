@@ -56,18 +56,18 @@ class AttendanceLog extends Model
     ];
 
     protected $casts = [
-        'date' => 'date',
-        'check_in_time' => 'datetime',
-        'check_out_time' => 'datetime',
-        'break_start_time' => 'datetime',
-        'break_end_time' => 'datetime',
+        'date' => 'date:Y-m-d',
+        'check_in_time' => 'datetime:Y-m-d H:i:s',
+        'check_out_time' => 'datetime:Y-m-d H:i:s',
+        'break_start_time' => 'datetime:Y-m-d H:i:s',
+        'break_end_time' => 'datetime:Y-m-d H:i:s',
         'check_in_latitude' => 'decimal:8',
         'check_in_longitude' => 'decimal:8',
         'check_out_latitude' => 'decimal:8',
         'check_out_longitude' => 'decimal:8',
         'metadata' => 'array',
-        'payroll_period_start' => 'date',
-        'payroll_period_end' => 'date',
+        'payroll_period_start' => 'date:Y-m-d',
+        'payroll_period_end' => 'date:Y-m-d',
     ];
 
     /**
