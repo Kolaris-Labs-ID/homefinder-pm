@@ -381,7 +381,7 @@ class AttendanceLogResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('date', 'desc');
+            ->defaultSort('check_in_time', 'desc');
     }
 
     public static function getPages(): array
