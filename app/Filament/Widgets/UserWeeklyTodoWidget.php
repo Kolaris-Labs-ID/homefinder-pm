@@ -18,6 +18,12 @@ class UserWeeklyTodoWidget extends BaseWidget
     use HasWidgetShield;
 
     protected static ?string $heading = 'My Weekly To-Do List';
+
+    public static function canView(): bool
+    {
+        // Hidden - using kanban-based project/epic/ticket system instead
+        return false;
+    }
     
     protected int | string | array $columnSpan = [
         'default' => 'full',

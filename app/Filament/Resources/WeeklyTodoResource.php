@@ -29,21 +29,8 @@ class WeeklyTodoResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        if (!auth()->check()) {
-            return false;
-        }
-        
-        $user = auth()->user();
-        
-        // Management roles always see it
-        if (self::isManagementRole($user)) {
-            return true;
-        }
-        
-        // Check if user has any weekly todo permission
-        return $user->can('view_any_weekly::todo') 
-            || $user->can('view_weekly::todo')
-            || $user->can('create_weekly::todo');
+        // Hidden - using kanban-based project/epic/ticket system instead
+        return false;
     }
 
     /**

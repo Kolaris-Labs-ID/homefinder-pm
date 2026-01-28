@@ -23,7 +23,8 @@ Schedule::command('hris:check-expiring-certifications')
     ->description('Check for certifications expiring within 30 days and notify employees and HR');
 
 // Schedule weekly todo reminder every Monday at 10:00 AM
-Schedule::command('hris:send-weekly-todo-reminder')
-    ->weeklyOn(1, '10:00')
-    ->timezone('Asia/Jakarta')
-    ->description('Send weekly todo reminder to employees who have checked in on Monday');
+// DISABLED - using kanban-based project/epic/ticket system instead
+// Schedule::command('hris:send-weekly-todo-reminder')
+//     ->weeklyOn(1, '10:00')
+//     ->timezone('Asia/Jakarta')
+//     ->description('Send weekly todo reminder to employees who have checked in on Monday');
