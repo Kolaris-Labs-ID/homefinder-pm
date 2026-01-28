@@ -462,8 +462,8 @@ class AttendanceController extends Controller
                 'photo_path' => $log->check_out_photo_path,
             ],
             'break' => [
-                'start_time' => $log->break_start_time?->toIso8601String(),
-                'end_time' => $log->break_end_time?->toIso8601String(),
+                'start_time' => $log->break_start_time?->utc()->toIso8601String(),
+                'end_time' => $log->break_end_time?->utc()->toIso8601String(),
                 'total_minutes' => $log->total_break_minutes,
                 'is_on_break' => $log->isOnBreak(),
             ],
