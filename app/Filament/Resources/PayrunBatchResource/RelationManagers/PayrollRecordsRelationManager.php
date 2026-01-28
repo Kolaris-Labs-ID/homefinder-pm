@@ -28,9 +28,11 @@ class PayrollRecordsRelationManager extends RelationManager
                     ->sortable(),
                 Tables\Columns\TextColumn::make('total_bpjs_employee')
                     ->label('BPJS (Employee)')
+                    ->tooltip('Badan Penyelenggara Jaminan Sosial - Potongan iuran BPJS dari gaji karyawan')
                     ->money('IDR'),
                 Tables\Columns\TextColumn::make('pph21_amount')
                     ->label('PPh 21')
+                    ->tooltip('Pajak Penghasilan Pasal 21 - Potongan pajak penghasilan dari gaji')
                     ->money('IDR'),
                 Tables\Columns\TextColumn::make('total_deductions')
                     ->money('IDR'),

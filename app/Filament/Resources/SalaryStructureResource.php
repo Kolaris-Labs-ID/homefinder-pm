@@ -47,6 +47,7 @@ class SalaryStructureResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('pph21_method')
                             ->label('PPh 21 Method')
+                            ->tooltip('Pajak Penghasilan Pasal 21 - Pajak atas penghasilan yang diterima karyawan')
                             ->options([
                                 'netto' => 'Netto (Pajak ditanggung karyawan)',
                                 'gross' => 'Gross (Pajak ditanggung karyawan)',
@@ -56,6 +57,7 @@ class SalaryStructureResource extends Resource
                             ->required(),
                         Forms\Components\Select::make('jkk_risk_level')
                             ->label('JKK Risk Level')
+                            ->tooltip('Jaminan Kecelakaan Kerja - Program BPJS untuk perlindungan risiko kecelakaan saat bekerja')
                             ->options([
                                 'very_low' => 'Very Low (0.24%)',
                                 'low' => 'Low (0.54%)',
@@ -67,6 +69,7 @@ class SalaryStructureResource extends Resource
                             ->required(),
                         Forms\Components\Select::make('bpjs_paid_by')
                             ->label('BPJS Paid By')
+                            ->tooltip('Badan Penyelenggara Jaminan Sosial - Program jaminan sosial wajib bagi pekerja di Indonesia')
                             ->options(SalaryStructure::getBpjsPaidByLabels())
                             ->default(SalaryStructure::BPJS_PAID_BY_EMPLOYEE)
                             ->required()
@@ -218,6 +221,7 @@ class SalaryStructureResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('bpjs_paid_by')
                     ->label('BPJS By')
+                    ->tooltip('Badan Penyelenggara Jaminan Sosial - Program jaminan sosial wajib bagi pekerja di Indonesia')
                     ->badge()
                     ->color(fn (?string $state): string => match ($state) {
                         'employee' => 'gray',
@@ -233,6 +237,8 @@ class SalaryStructureResource extends Resource
                     })
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('pph21_method')
+                    ->label('PPh 21')
+                    ->tooltip('Pajak Penghasilan Pasal 21 - Pajak atas penghasilan yang diterima karyawan')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'netto' => 'info',
@@ -240,6 +246,8 @@ class SalaryStructureResource extends Resource
                         'gross_up' => 'success',
                     }),
                 Tables\Columns\TextColumn::make('jkk_risk_level')
+                    ->label('JKK')
+                    ->tooltip('Jaminan Kecelakaan Kerja - Program BPJS untuk perlindungan risiko kecelakaan saat bekerja')
                     ->badge(),
                 Tables\Columns\TextColumn::make('updated_at')
                     ->dateTime()

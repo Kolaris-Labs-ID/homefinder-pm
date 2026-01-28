@@ -105,10 +105,15 @@ class EmployeeResource extends Resource
                             ->maxLength(255),
                         Forms\Components\TextInput::make('npwp_number')
                             ->label('NPWP')
+                            ->tooltip('Nomor Pokok Wajib Pajak - Nomor identitas wajib pajak untuk pelaporan pajak')
                             ->maxLength(255),
                         Forms\Components\TextInput::make('bpjs_kesehatan_number')
+                            ->label('BPJS Kesehatan')
+                            ->tooltip('Badan Penyelenggara Jaminan Sosial Kesehatan - Nomor kepesertaan jaminan kesehatan')
                             ->maxLength(255),
                         Forms\Components\TextInput::make('bpjs_ketenagakerjaan_number')
+                            ->label('BPJS Ketenagakerjaan')
+                            ->tooltip('Badan Penyelenggara Jaminan Sosial Ketenagakerjaan - Nomor kepesertaan jaminan ketenagakerjaan (JHT, JKK, JKM, JP)')
                             ->maxLength(255),
                     ]),
             ]);
