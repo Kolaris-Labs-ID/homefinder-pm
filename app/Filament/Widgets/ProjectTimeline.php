@@ -32,15 +32,17 @@ class ProjectTimeline extends Widget
             ->with(['tickets' => function($q) {
                 $q->whereNotNull('due_date')
                   ->with(['status', 'assignees', 'priority']);
-            }])
-            ->whereNotNull('start_date')
-            ->whereNotNull('end_date');
+            }]);
             
         if ($this->filter === 'pinned') {
+            // For pinned filter, include all pinned projects regardless of dates
             $query->whereNotNull('pinned_date')
                   ->orderBy('pinned_date', 'desc');
         } else {
-            $query->orderBy('start_date');
+            // For all projects, only show those with dates
+            $query->whereNotNull('start_date')
+                  ->whereNotNull('end_date')
+                  ->orderBy('start_date');
         }
             
         $userIsSuperAdmin = auth()->user() && (
@@ -69,24 +71,35 @@ class ProjectTimeline extends Widget
     
     public function getTotalProjects()
     {
-        $query = Project::query()
-            ->whereNotNull('start_date')
-            ->whereNotNull('end_date');
-            
         $userIsSuperAdmin = auth()->user() && (
             (method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('super_admin'))
             || (isset(auth()->user()->role) && auth()->user()->role === 'super_admin')
         );
 
+        // Count all projects with dates
+        $allQuery = Project::query()
+            ->whereNotNull('start_date')
+            ->whereNotNull('end_date');
+
         if (!$userIsSuperAdmin) {
-            $query->whereHas('members', function ($query) {
+            $allQuery->whereHas('members', function ($query) {
+                $query->where('user_id', auth()->id());
+            });
+        }
+
+        // Count pinned projects regardless of dates
+        $pinnedQuery = Project::query()
+            ->whereNotNull('pinned_date');
+
+        if (!$userIsSuperAdmin) {
+            $pinnedQuery->whereHas('members', function ($query) {
                 $query->where('user_id', auth()->id());
             });
         }
             
         return [
-            'all' => $query->count(),
-            'pinned' => $query->whereNotNull('pinned_date')->count(),
+            'all' => $allQuery->count(),
+            'pinned' => $pinnedQuery->count(),
         ];
     }
     
@@ -146,7 +159,39 @@ class ProjectTimeline extends Widget
         $timelineData = [];
         
         foreach ($projects as $project) {
+            // Get ticket statistics
+            $ticketStats = [
+                'total' => $project->tickets->count(),
+                'completed' => $project->tickets->filter(function($ticket) {
+                    return $ticket->status && in_array(strtolower($ticket->status->name), ['done', 'completed', 'closed']);
+                })->count(),
+                'overdue' => $project->tickets->filter(function($ticket) {
+                    return $ticket->due_date && Carbon::parse($ticket->due_date)->isPast();
+                })->count(),
+            ];
+            
+            // Handle projects without dates (for pinned projects)
             if (!$project->start_date || !$project->end_date) {
+                $timelineData[] = [
+                    'id' => $project->id,
+                    'name' => $project->name,
+                    'description' => $project->description,
+                    'start_date' => null,
+                    'end_date' => null,
+                    'start_date_obj' => null,
+                    'end_date_obj' => null,
+                    'total_days' => null,
+                    'past_days' => null,
+                    'remaining_days' => null,
+                    'progress_percent' => null,
+                    'status' => 'No Timeline',
+                    'status_color' => 'gray',
+                    'left_percent' => 0,
+                    'width_percent' => 0,
+                    'ticket_stats' => $ticketStats,
+                    'tickets' => collect([]),
+                    'has_dates' => false,
+                ];
                 continue;
             }
             
@@ -203,17 +248,6 @@ class ProjectTimeline extends Widget
                 $statusColor = 'gray';
             }
             
-            // Get ticket statistics
-            $ticketStats = [
-                'total' => $project->tickets->count(),
-                'completed' => $project->tickets->filter(function($ticket) {
-                    return $ticket->status && in_array(strtolower($ticket->status->name), ['done', 'completed', 'closed']);
-                })->count(),
-                'overdue' => $project->tickets->filter(function($ticket) {
-                    return $ticket->due_date && Carbon::parse($ticket->due_date)->isPast();
-                })->count(),
-            ];
-            
             $timelineData[] = [
                 'id' => $project->id,
                 'name' => $project->name,
@@ -249,11 +283,19 @@ class ProjectTimeline extends Widget
                         'is_overdue' => $dueDate->isPast(),
                     ];
                 })->filter()->values(),
+                'has_dates' => true,
             ];
         }
         
-        // Sort by start date
+        // Sort: projects with dates first (by start date), then projects without dates
         usort($timelineData, function($a, $b) {
+            $aHasDates = $a['has_dates'] ?? ($a['start_date_obj'] !== null);
+            $bHasDates = $b['has_dates'] ?? ($b['start_date_obj'] !== null);
+            
+            if ($aHasDates && !$bHasDates) return -1;
+            if (!$aHasDates && $bHasDates) return 1;
+            if (!$aHasDates && !$bHasDates) return 0;
+            
             return $a['start_date_obj']->timestamp <=> $b['start_date_obj']->timestamp;
         });
         

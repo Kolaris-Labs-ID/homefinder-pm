@@ -85,6 +85,7 @@
                                                 'Approaching Deadline' => 'warning',
                                                 'In Progress' => 'primary',
                                                 'Not Started' => 'gray',
+                                                'No Timeline' => 'gray',
                                                 default => 'gray'
                                             };
                                         @endphp
@@ -96,16 +97,23 @@
                                 </div>
                                 
                                 <div class="text-right">
-                                    <div class="text-sm font-medium text-gray-900 dark:text-white">
-                                        {{ $project['start_date'] }} - {{ $project['end_date'] }}
-                                    </div>
-                                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        {{ $project['total_days'] }} total days
-                                    </div>
+                                    @if($project['start_date'] && $project['end_date'])
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white">
+                                            {{ $project['start_date'] }} - {{ $project['end_date'] }}
+                                        </div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            {{ $project['total_days'] }} total days
+                                        </div>
+                                    @else
+                                        <div class="text-sm text-gray-500 dark:text-gray-400">
+                                            No dates set
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                             
                             <!-- Progress Section -->
+                            @if($project['start_date'] && $project['end_date'])
                             <div class="space-y-3">
                                 <!-- Progress Bar -->
                                 <div class="relative">
@@ -147,6 +155,13 @@
                                     </div>
                                 </div>
                             </div>
+                            @else
+                            <div class="py-2">
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    Set start and end dates to see timeline progress.
+                                </p>
+                            </div>
+                            @endif
                         </div>
                     @endforeach
                 </div>
