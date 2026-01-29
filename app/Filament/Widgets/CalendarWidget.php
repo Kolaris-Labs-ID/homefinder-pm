@@ -15,15 +15,15 @@ class CalendarWidget extends Widget
 {
 
     protected static string $view = 'filament.widgets.calendar';
-    
+
     protected int | string | array $columnSpan = [
         'default' => 'full',
         'md' => 'full',
         'lg' => 'full',
         'xl' => 'full',
     ];
-    
-    protected static ?int $sort = 2;
+
+    protected static ?int $sort = 3;
 
     protected static bool $isLazy = false;
 
@@ -142,12 +142,12 @@ class CalendarWidget extends Widget
         foreach ($tickets as $ticket) {
             $isOverdue = $ticket->isOverdue();
             $isCompleted = $ticket->status && $ticket->status->is_completed;
-            
+
             $events[] = [
                 'id' => 'ticket_' . $ticket->id,
                 'title' => '🎫 ' . $ticket->uuid . ': ' . Str::limit($ticket->name, 30),
-                'start' => $ticket->start_date 
-                    ? $ticket->start_date->format('Y-m-d') 
+                'start' => $ticket->start_date
+                    ? $ticket->start_date->format('Y-m-d')
                     : $ticket->due_date->copy()->subDays(1)->format('Y-m-d'),
                 'end' => $ticket->due_date->format('Y-m-d'),
                 'allDay' => true,
@@ -186,7 +186,7 @@ class CalendarWidget extends Widget
         if ($isCompleted) {
             return '#10b981'; // green
         }
-        
+
         if ($isOverdue) {
             return '#ef4444'; // red
         }

@@ -24,6 +24,10 @@ class TrainingRecordResource extends Resource
 
     public static function form(Form $form): Form
     {
+        $user = auth()->user();
+        $employee = $user?->employee;
+        $canManageOthers = $user?->can('manage_training_record') || $user?->hasRole(['super_admin', 'hr_manager']);
+
         return $form
             ->schema([
                 Forms\Components\Section::make('Training Information')
@@ -35,7 +39,11 @@ class TrainingRecordResource extends Resource
                             ->getOptionLabelFromRecordUsing(fn ($record) => $record->user?->name ?? "Employee #{$record->id}")
                             ->searchable(['user.name'])
                             ->preload()
-                            ->required(),
+                            ->required()
+                            ->default(fn () => $employee?->id)
+                            ->disabled(fn () => !$canManageOthers)
+                            ->dehydrated()
+                            ->helperText(fn () => !$canManageOthers ? 'Training record will be created for yourself' : null),
                         Forms\Components\Select::make('status')
                             ->options([
                                 TrainingRecord::STATUS_PLANNED => 'Planned',
@@ -47,12 +55,12 @@ class TrainingRecordResource extends Resource
                         Forms\Components\Select::make('training_type')
                             ->label('Training Type')
                             ->options([
-                                TrainingRecord::TRAINING_TYPE_FREE => 'Free (Company-provided)',
-                                TrainingRecord::TRAINING_TYPE_PAID => 'Paid (External/Certification)',
+                                TrainingRecord::TRAINING_TYPE_FREE => 'Free',
+                                TrainingRecord::TRAINING_TYPE_PAID => 'Paid (Reimbursable)',
                             ])
                             ->default(TrainingRecord::TRAINING_TYPE_FREE)
                             ->required()
-                            ->helperText('Free training awards 35 PGP, paid training awards 15-25 PGP'),
+                            ->helperText('Select "Paid" if you paid for this training yourself and want to request reimbursement'),
                         Forms\Components\TextInput::make('training_name')
                             ->label('Training Name')
                             ->required()
@@ -206,7 +214,7 @@ class TrainingRecordResource extends Resource
                     ->label('Training Type')
                     ->options([
                         TrainingRecord::TRAINING_TYPE_FREE => 'Free',
-                        TrainingRecord::TRAINING_TYPE_PAID => 'Paid',
+                        TrainingRecord::TRAINING_TYPE_PAID => 'Paid (Reimbursable)',
                     ]),
                 Tables\Filters\Filter::make('with_pgp')
                     ->label('Has PGP Points')
