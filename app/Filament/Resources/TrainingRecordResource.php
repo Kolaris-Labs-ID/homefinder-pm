@@ -31,8 +31,9 @@ class TrainingRecordResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('employee_id')
                             ->label('Employee')
-                            ->relationship('employee', 'full_name')
-                            ->searchable()
+                            ->relationship('employee', 'id')
+                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->user?->name ?? "Employee #{$record->id}")
+                            ->searchable(['user.name'])
                             ->preload()
                             ->required(),
                         Forms\Components\Select::make('status')
@@ -86,7 +87,7 @@ class TrainingRecordResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('employee.full_name')
+                Tables\Columns\TextColumn::make('employee.user.name')
                     ->label('Employee')
                     ->searchable()
                     ->sortable(),
@@ -160,7 +161,8 @@ class TrainingRecordResource extends Resource
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('employee')
-                    ->relationship('employee', 'full_name')
+                    ->relationship('employee', 'id')
+                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->user?->name ?? "Employee #{$record->id}")
                     ->searchable()
                     ->preload(),
                 Tables\Filters\SelectFilter::make('status')
