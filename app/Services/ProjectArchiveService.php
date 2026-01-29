@@ -112,4 +112,69 @@ class ProjectArchiveService
             }
         }
     }
+
+    /**
+     * Archive all tickets in a project.
+     *
+     * Called when a project is archived or marked as done.
+     * Only archives tickets that are not already archived.
+     *
+     * @param Project $project The project whose tickets should be archived
+     * @param User|null $user The user performing the action (optional, uses project's archived_by or auth user)
+     * @return int Number of tickets archived
+     */
+    public function archiveProjectTickets(Project $project, ?User $user = null): int
+    {
+        $userId = $user?->id ?? $project->archived_by ?? auth()->id();
+
+        return $project->tickets()
+            ->whereNull('archived_at')
+            ->update([
+                'archived_at' => now(),
+                'archived_by' => $userId,
+            ]);
+    }
+
+    /**
+     * Restore all archived tickets in a project.
+     *
+     * Called when a project is restored from archived/done status.
+     *
+     * @param Project $project The project whose tickets should be restored
+     * @return int Number of tickets restored
+     */
+    public function restoreProjectTickets(Project $project): int
+    {
+        return $project->tickets()
+            ->whereNotNull('archived_at')
+            ->update([
+                'archived_at' => null,
+                'archived_by' => null,
+            ]);
+    }
+
+    /**
+     * Handle project status change for ticket archiving.
+     *
+     * Archives tickets when project is archived or done.
+     * Restores tickets when project is restored from archived/done.
+     *
+     * @param Project $project The project that changed status
+     * @param bool $wasArchived Previous archived status
+     * @param bool $wasDone Previous done status
+     * @return void
+     */
+    public function handleProjectStatusChange(Project $project, bool $wasArchived, bool $wasDone): void
+    {
+        $isNowArchivedOrDone = $project->is_archived || $project->is_done;
+        $wasArchivedOrDone = $wasArchived || $wasDone;
+
+        if ($isNowArchivedOrDone && !$wasArchivedOrDone) {
+            // Project just became archived or done - archive all tickets
+            $this->archiveProjectTickets($project);
+        } elseif (!$isNowArchivedOrDone && $wasArchivedOrDone) {
+            // Project just became active again - restore all tickets
+            $this->restoreProjectTickets($project);
+        }
+    }
 }

@@ -25,11 +25,14 @@ class Ticket extends Model
         'uuid',
         'epic_id',
         'created_by',
+        'archived_at',
+        'archived_by',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'due_date' => 'date',
+        'archived_at' => 'datetime',
     ];
 
     protected static function booted()
@@ -100,6 +103,26 @@ class Ticket extends Model
     public function priority(): BelongsTo
     {
         return $this->belongsTo(TicketPriority::class, 'priority_id');
+    }
+
+    public function archivedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'archived_by');
+    }
+
+    public function getIsArchivedAttribute(): bool
+    {
+        return !is_null($this->archived_at);
+    }
+
+    public function scopeActive(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    public function scopeArchived(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->whereNotNull('archived_at');
     }
 
     // Helper methods

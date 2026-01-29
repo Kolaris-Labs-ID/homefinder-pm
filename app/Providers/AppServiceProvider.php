@@ -2,12 +2,13 @@
 
 namespace App\Providers;
 
-use App\Filament\Resources\TicketResource\Pages\EditCommentModal;
 use App\Models\Hris\PayrunBatch;
 use App\Models\Hris\Reimbursement;
 use App\Models\Hris\SalaryStructure;
+use App\Models\Project;
 use App\Models\Ticket;
 use App\Observers\Hris\PayrollAuditObserver;
+use App\Observers\ProjectObserver;
 use App\Observers\TicketObserver;
 use Filament\Notifications\Livewire\Notifications;
 use Filament\Notifications\Notification;
@@ -15,7 +16,6 @@ use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\VerticalAlignment;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
-use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -32,11 +32,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Livewire::component('edit-comment-modal', EditCommentModal::class);
 
         // Register TicketObserver for auto-done detection
         // Requirements: 3.1
         Ticket::observe(TicketObserver::class);
+
+        // Register ProjectObserver for auto-archiving tickets when project is done/archived
+        Project::observe(ProjectObserver::class);
 
         // Register Payroll audit observers
         $this->registerPayrollAuditObservers();

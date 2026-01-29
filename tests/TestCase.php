@@ -33,6 +33,9 @@ abstract class TestCase extends BaseTestCase
 
     protected function setUp(): void
     {
+        // Suppress PHP 8.5 deprecation warnings from vendor packages
+        error_reporting(E_ALL & ~E_DEPRECATED);
+        
         // Ensure sufficient memory for tests
         ini_set('memory_limit', '512M');
         parent::setUp();
