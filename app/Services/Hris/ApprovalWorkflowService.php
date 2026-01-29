@@ -451,6 +451,7 @@ class ApprovalWorkflowService
                 \App\Models\Hris\LeaveRequest::class => route('filament.admin.resources.leave-requests.edit', ['record' => $approvable->id]),
                 \App\Models\Hris\Reimbursement::class => route('filament.admin.resources.reimbursements.edit', ['record' => $approvable->id]),
                 \App\Models\Hris\PayrollRecord::class => route('filament.admin.resources.payrun-batches.index'),
+                \App\Models\Hris\TrainingRecord::class => route('filament.admin.resources.training-records.edit', ['record' => $approvable->id]),
                 default => null,
             };
         } catch (\Exception $e) {
@@ -513,7 +514,7 @@ class ApprovalWorkflowService
      * Get pending approval steps for a user filtered by module type.
      *
      * @param User $user
-     * @param string $module The module type (leave, reimbursement, payroll_adjustment)
+     * @param string $module The module type (leave, reimbursement, payroll_adjustment, training)
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getPendingApprovalsByModule(User $user, string $module): \Illuminate\Database\Eloquent\Collection
@@ -523,6 +524,7 @@ class ApprovalWorkflowService
             ApprovalWorkflow::MODULE_LEAVE => \App\Models\Hris\LeaveRequest::class,
             ApprovalWorkflow::MODULE_REIMBURSEMENT => \App\Models\Hris\Reimbursement::class,
             ApprovalWorkflow::MODULE_PAYROLL_ADJUSTMENT => \App\Models\Hris\PayrollRecord::class,
+            ApprovalWorkflow::MODULE_TRAINING => \App\Models\Hris\TrainingRecord::class,
         ];
 
         $approvableClass = $moduleToClass[$module] ?? null;

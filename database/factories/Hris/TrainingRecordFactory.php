@@ -53,6 +53,12 @@ class TrainingRecordFactory extends Factory
                 ? 'certificates/' . $this->faker->uuid() . '.pdf'
                 : null,
             'status' => $status,
+            'training_type' => $this->faker->randomElement([
+                TrainingRecord::TRAINING_TYPE_FREE,
+                TrainingRecord::TRAINING_TYPE_PAID,
+            ]),
+            'pgp_points' => null,
+            'approved_at' => null,
         ];
     }
 
@@ -155,5 +161,73 @@ class TrainingRecordFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'expiry_date' => $date,
         ]);
+    }
+
+    /**
+     * Set training type to free.
+     */
+    public function freeTraining(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'training_type' => TrainingRecord::TRAINING_TYPE_FREE,
+        ]);
+    }
+
+    /**
+     * Set training type to paid.
+     */
+    public function paidTraining(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'training_type' => TrainingRecord::TRAINING_TYPE_PAID,
+        ]);
+    }
+
+    /**
+     * Set training as approved for PGP with specified points.
+     */
+    public function approvedForPgp(int $points = null, \DateTimeInterface $approvedAt = null): static
+    {
+        return $this->state(function (array $attributes) use ($points, $approvedAt) {
+            $trainingType = $attributes['training_type'] ?? TrainingRecord::TRAINING_TYPE_FREE;
+
+            if ($points === null) {
+                $points = $trainingType === TrainingRecord::TRAINING_TYPE_FREE
+                    ? TrainingRecord::PGP_FREE_TRAINING
+                    : $this->faker->numberBetween(TrainingRecord::PGP_PAID_MIN, TrainingRecord::PGP_PAID_MAX);
+            }
+
+            return [
+                'status' => TrainingRecord::STATUS_COMPLETED,
+                'pgp_points' => $points,
+                'approved_at' => $approvedAt ?? now(),
+            ];
+        });
+    }
+
+    /**
+     * Set training as approved for PGP in a specific quarter.
+     */
+    public function approvedInQuarter(int $quarter, int $year, int $points = null): static
+    {
+        return $this->state(function (array $attributes) use ($quarter, $year, $points) {
+            $trainingType = $attributes['training_type'] ?? TrainingRecord::TRAINING_TYPE_FREE;
+
+            if ($points === null) {
+                $points = $trainingType === TrainingRecord::TRAINING_TYPE_FREE
+                    ? TrainingRecord::PGP_FREE_TRAINING
+                    : $this->faker->numberBetween(TrainingRecord::PGP_PAID_MIN, TrainingRecord::PGP_PAID_MAX);
+            }
+
+            $startMonth = ($quarter - 1) * 3 + 1;
+            $start = \Carbon\Carbon::create($year, $startMonth, 1);
+            $end = $start->copy()->addMonths(3)->subDay();
+
+            return [
+                'status' => TrainingRecord::STATUS_COMPLETED,
+                'pgp_points' => $points,
+                'approved_at' => $this->faker->dateTimeBetween($start, $end),
+            ];
+        });
     }
 }

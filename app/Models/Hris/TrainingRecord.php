@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,15 @@ class TrainingRecord extends Model
     const STATUS_IN_PROGRESS = 'in_progress';
     const STATUS_COMPLETED = 'completed';
 
+    // Training type constants
+    const TRAINING_TYPE_FREE = 'free';
+    const TRAINING_TYPE_PAID = 'paid';
+
+    // PGP point constants
+    const PGP_FREE_TRAINING = 35;
+    const PGP_PAID_MIN = 15;
+    const PGP_PAID_MAX = 25;
+
     protected $fillable = [
         'employee_id',
         'training_name',
@@ -25,11 +35,16 @@ class TrainingRecord extends Model
         'expiry_date',
         'certificate_file_path',
         'status',
+        'training_type',
+        'pgp_points',
+        'approved_at',
     ];
 
     protected $casts = [
         'completion_date' => 'date',
         'expiry_date' => 'date',
+        'approved_at' => 'datetime',
+        'pgp_points' => 'integer',
     ];
 
     /**
@@ -169,5 +184,63 @@ class TrainingRecord extends Model
         }
 
         return (int) now()->diffInDays($this->expiry_date, false);
+    }
+
+    /**
+     * Get all available training types.
+     */
+    public static function getTrainingTypes(): array
+    {
+        return [
+            self::TRAINING_TYPE_FREE,
+            self::TRAINING_TYPE_PAID,
+        ];
+    }
+
+    /**
+     * Check if this is a paid training.
+     */
+    public function isPaidTraining(): bool
+    {
+        return $this->training_type === self::TRAINING_TYPE_PAID;
+    }
+
+    /**
+     * Check if this is a free training.
+     */
+    public function isFreeTraining(): bool
+    {
+        return $this->training_type === self::TRAINING_TYPE_FREE;
+    }
+
+    /**
+     * Check if this training has been approved for PGP.
+     */
+    public function isApprovedForPgp(): bool
+    {
+        return $this->approved_at !== null && $this->pgp_points !== null;
+    }
+
+    /**
+     * Scope to filter training records approved within a specific quarter.
+     */
+    public function scopeApprovedInQuarter(Builder $query, int $quarter, int $year): Builder
+    {
+        $startMonth = ($quarter - 1) * 3 + 1;
+        $start = Carbon::create($year, $startMonth, 1)->startOfDay();
+        $end = $start->copy()->addMonths(3)->subSecond();
+
+        return $query->whereNotNull('approved_at')
+            ->where('approved_at', '>=', $start)
+            ->where('approved_at', '<=', $end);
+    }
+
+    /**
+     * Scope to filter training records that have PGP points assigned.
+     */
+    public function scopeWithPgpPoints(Builder $query): Builder
+    {
+        return $query->whereNotNull('pgp_points')
+            ->where('pgp_points', '>', 0);
     }
 }

@@ -12,6 +12,7 @@ class ApprovalWorkflow extends Model
     const MODULE_LEAVE = 'leave';
     const MODULE_REIMBURSEMENT = 'reimbursement';
     const MODULE_PAYROLL_ADJUSTMENT = 'payroll_adjustment';
+    const MODULE_TRAINING = 'training';
 
     protected $fillable = [
         'name',

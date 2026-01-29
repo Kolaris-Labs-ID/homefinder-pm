@@ -6,10 +6,14 @@ use App\Models\Hris\ApprovalStep;
 use App\Models\Hris\ApprovalWorkflow;
 use App\Models\Hris\LeaveRequest;
 use App\Models\Hris\Reimbursement;
+use App\Models\Hris\TrainingRecord;
 use App\Services\Hris\ApprovalWorkflowService;
+use App\Services\Hris\PgpService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
@@ -41,10 +45,12 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     public ?string $moduleFilter = null;
 
     protected ApprovalWorkflowService $approvalService;
+    protected PgpService $pgpService;
 
-    public function boot(ApprovalWorkflowService $approvalService): void
+    public function boot(ApprovalWorkflowService $approvalService, PgpService $pgpService): void
     {
         $this->approvalService = $approvalService;
+        $this->pgpService = $pgpService;
     }
 
     public function mount(): void
@@ -64,6 +70,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
             'view_any_leave::request',
             'view_any_reimbursement',
             'view_any_payroll::record',
+            'view_any_training::record',
         ]) || $user->hasRole('super_admin');
     }
 
@@ -164,6 +171,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
                         ApprovalWorkflow::MODULE_LEAVE => 'Leave Requests',
                         ApprovalWorkflow::MODULE_REIMBURSEMENT => 'Reimbursements',
                         ApprovalWorkflow::MODULE_PAYROLL_ADJUSTMENT => 'Payroll Adjustments',
+                        ApprovalWorkflow::MODULE_TRAINING => 'Training Records',
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         if (!$data['value']) {
@@ -174,6 +182,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
                             ApprovalWorkflow::MODULE_LEAVE => LeaveRequest::class,
                             ApprovalWorkflow::MODULE_REIMBURSEMENT => Reimbursement::class,
                             ApprovalWorkflow::MODULE_PAYROLL_ADJUSTMENT => \App\Models\Hris\PayrollRecord::class,
+                            ApprovalWorkflow::MODULE_TRAINING => TrainingRecord::class,
                         ];
 
                         $approvableClass = $moduleToClass[$data['value']] ?? null;
@@ -191,13 +200,39 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->form([
-                        Textarea::make('notes')
-                            ->label('Notes (Optional)')
-                            ->placeholder('Add any notes for this approval...'),
-                    ])
+                    ->form(function (ApprovalStep $record): array {
+                        $formFields = [
+                            Textarea::make('notes')
+                                ->label('Notes (Optional)')
+                                ->placeholder('Add any notes for this approval...'),
+                        ];
+
+                        // Add PGP fields for training record approvals
+                        if ($record->approvable_type === TrainingRecord::class) {
+                            $trainingRecord = $record->approvable;
+
+                            if ($trainingRecord && $trainingRecord->isPaidTraining()) {
+                                // Paid training: show PGP input field
+                                $formFields[] = TextInput::make('pgp_points')
+                                    ->label('PGP Points')
+                                    ->numeric()
+                                    ->required()
+                                    ->minValue(TrainingRecord::PGP_PAID_MIN)
+                                    ->maxValue(TrainingRecord::PGP_PAID_MAX)
+                                    ->default(20)
+                                    ->helperText('Enter PGP points between ' . TrainingRecord::PGP_PAID_MIN . ' and ' . TrainingRecord::PGP_PAID_MAX . ' for paid training');
+                            } else {
+                                // Free training: show info placeholder
+                                $formFields[] = Placeholder::make('pgp_info')
+                                    ->label('PGP Points')
+                                    ->content('35 PGP points will be automatically assigned for free training.');
+                            }
+                        }
+
+                        return $formFields;
+                    })
                     ->action(function (ApprovalStep $record, array $data): void {
-                        $this->approveStep($record, $data['notes'] ?? null);
+                        $this->approveStep($record, $data['notes'] ?? null, $data['pgp_points'] ?? null);
                     })
                     ->visible(fn (ApprovalStep $record): bool => $record->status === ApprovalStep::STATUS_PENDING),
                 TableAction::make('reject')
@@ -284,10 +319,27 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     /**
      * Approve a single step.
      */
-    protected function approveStep(ApprovalStep $step, ?string $notes = null): void
+    protected function approveStep(ApprovalStep $step, ?string $notes = null, ?int $pgpPoints = null): void
     {
         try {
             $this->approvalService->approve($step, Auth::user(), $notes);
+
+            // Handle PGP point assignment for training records
+            if ($step->approvable_type === TrainingRecord::class) {
+                $trainingRecord = $step->approvable;
+
+                if ($trainingRecord) {
+                    if ($trainingRecord->isPaidTraining()) {
+                        // Paid training: use provided points
+                        if ($pgpPoints !== null) {
+                            $this->pgpService->awardPoints($trainingRecord, $pgpPoints);
+                        }
+                    } else {
+                        // Free training: auto-assign 35 PGP
+                        $this->pgpService->awardPoints($trainingRecord, TrainingRecord::PGP_FREE_TRAINING);
+                    }
+                }
+            }
 
             Notification::make()
                 ->title('Approval Successful')
@@ -383,12 +435,13 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     /**
      * Get the module label from approvable type.
      */
-    protected function getModuleLabel(string $approvableType): string
+    public function getModuleLabel(string $approvableType): string
     {
         return match ($approvableType) {
             LeaveRequest::class => 'Leave Request',
             Reimbursement::class => 'Reimbursement',
             \App\Models\Hris\PayrollRecord::class => 'Payroll Adjustment',
+            TrainingRecord::class => 'Training Record',
             default => class_basename($approvableType),
         };
     }
@@ -396,12 +449,13 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     /**
      * Get the module color from approvable type.
      */
-    protected function getModuleColor(string $approvableType): string
+    public function getModuleColor(string $approvableType): string
     {
         return match ($approvableType) {
             LeaveRequest::class => 'info',
             Reimbursement::class => 'success',
             \App\Models\Hris\PayrollRecord::class => 'warning',
+            TrainingRecord::class => 'primary',
             default => 'gray',
         };
     }
@@ -421,6 +475,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
             LeaveRequest::class => \App\Filament\Resources\LeaveRequestResource::getUrl('edit', ['record' => $approvable->id]),
             Reimbursement::class => \App\Filament\Resources\ReimbursementResource::getUrl('edit', ['record' => $approvable->id]),
             \App\Models\Hris\PayrollRecord::class => \App\Filament\Resources\PayrunBatchResource::getUrl('index'),
+            TrainingRecord::class => \App\Filament\Resources\TrainingRecordResource::getUrl('edit', ['record' => $approvable->id]),
             default => '#',
         };
     }

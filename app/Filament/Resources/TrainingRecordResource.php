@@ -44,6 +44,15 @@ class TrainingRecordResource extends Resource
                             ])
                             ->default(TrainingRecord::STATUS_PLANNED)
                             ->required(),
+                        Forms\Components\Select::make('training_type')
+                            ->label('Training Type')
+                            ->options([
+                                TrainingRecord::TRAINING_TYPE_FREE => 'Free (Company-provided)',
+                                TrainingRecord::TRAINING_TYPE_PAID => 'Paid (External/Certification)',
+                            ])
+                            ->default(TrainingRecord::TRAINING_TYPE_FREE)
+                            ->required()
+                            ->helperText('Free training awards 35 PGP, paid training awards 15-25 PGP'),
                         Forms\Components\TextInput::make('training_name')
                             ->label('Training Name')
                             ->required()
@@ -112,6 +121,28 @@ class TrainingRecordResource extends Resource
                         TrainingRecord::STATUS_COMPLETED => 'Completed',
                         default => $state,
                     }),
+                Tables\Columns\BadgeColumn::make('training_type')
+                    ->label('Type')
+                    ->colors([
+                        'info' => TrainingRecord::TRAINING_TYPE_FREE,
+                        'warning' => TrainingRecord::TRAINING_TYPE_PAID,
+                    ])
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        TrainingRecord::TRAINING_TYPE_FREE => 'Free',
+                        TrainingRecord::TRAINING_TYPE_PAID => 'Paid',
+                        default => '-',
+                    }),
+                Tables\Columns\TextColumn::make('pgp_points')
+                    ->label('PGP')
+                    ->placeholder('-')
+                    ->sortable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('approved_at')
+                    ->label('PGP Approved')
+                    ->dateTime('M d, Y')
+                    ->placeholder('-')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('completion_date')
                     ->label('Completed')
                     ->date()
@@ -171,6 +202,15 @@ class TrainingRecordResource extends Resource
                         TrainingRecord::STATUS_IN_PROGRESS => 'In Progress',
                         TrainingRecord::STATUS_COMPLETED => 'Completed',
                     ]),
+                Tables\Filters\SelectFilter::make('training_type')
+                    ->label('Training Type')
+                    ->options([
+                        TrainingRecord::TRAINING_TYPE_FREE => 'Free',
+                        TrainingRecord::TRAINING_TYPE_PAID => 'Paid',
+                    ]),
+                Tables\Filters\Filter::make('with_pgp')
+                    ->label('Has PGP Points')
+                    ->query(fn ($query) => $query->withPgpPoints()),
                 Tables\Filters\Filter::make('expiring_soon')
                     ->label('Expiring within 30 days')
                     ->query(fn ($query) => $query->expiringWithinDays(30)),
