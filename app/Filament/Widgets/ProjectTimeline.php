@@ -30,8 +30,8 @@ class ProjectTimeline extends Widget
     {
         $query = Project::query()
             ->with(['tickets' => function($q) {
-                $q->whereNotNull('due_date')
-                  ->with(['status', 'assignees', 'priority']);
+                $q->with(['status', 'assignees', 'priority'])
+                  ->orderBy('created_at', 'desc');
             }]);
             
         if ($this->filter === 'pinned') {
@@ -170,6 +170,23 @@ class ProjectTimeline extends Widget
                 })->count(),
             ];
             
+            // Get recent active tickets (not done/completed)
+            $activeTickets = $project->tickets->filter(function($ticket) {
+                return !$ticket->status || !in_array(strtolower($ticket->status->name), ['done', 'completed', 'closed']);
+            })->take(5)->map(function($ticket) {
+                return [
+                    'id' => $ticket->id,
+                    'name' => $ticket->name,
+                    'status' => $ticket->status?->name ?? 'No Status',
+                    'status_color' => $ticket->status?->color ?? '#6b7280',
+                    'priority' => $ticket->priority?->name ?? null,
+                    'priority_color' => $ticket->priority?->color ?? null,
+                    'due_date' => $ticket->due_date ? Carbon::parse($ticket->due_date)->format('d/m/Y') : null,
+                    'is_overdue' => $ticket->due_date && Carbon::parse($ticket->due_date)->isPast(),
+                    'assignees' => $ticket->assignees->pluck('name')->take(2)->join(', '),
+                ];
+            })->values();
+            
             // Handle projects without dates (for pinned projects)
             if (!$project->start_date || !$project->end_date) {
                 $timelineData[] = [
@@ -189,7 +206,7 @@ class ProjectTimeline extends Widget
                     'left_percent' => 0,
                     'width_percent' => 0,
                     'ticket_stats' => $ticketStats,
-                    'tickets' => collect([]),
+                    'active_tickets' => $activeTickets,
                     'has_dates' => false,
                 ];
                 continue;
@@ -265,24 +282,7 @@ class ProjectTimeline extends Widget
                 'left_percent' => max(0, $leftPercent),
                 'width_percent' => min(100 - max(0, $leftPercent), $widthPercent),
                 'ticket_stats' => $ticketStats,
-                'tickets' => $project->tickets->map(function($ticket) use ($rangeStart, $totalRangeDays) {
-                    if (!$ticket->due_date) return null;
-                    
-                    $dueDate = Carbon::parse($ticket->due_date);
-                    $dueDayOffset = $rangeStart->diffInDays($dueDate);
-                    $duePercent = ($dueDayOffset / $totalRangeDays) * 100;
-                    
-                    return [
-                        'id' => $ticket->id,
-                        'name' => $ticket->name,
-                        'due_date' => $dueDate->format('d/m/Y'),
-                        'due_percent' => max(0, min(100, $duePercent)),
-                        'status' => $ticket->status?->name ?? 'No Status',
-                        'priority' => $ticket->priority?->name ?? 'No Priority',
-                        'assignees' => $ticket->assignees->pluck('name')->join(', '),
-                        'is_overdue' => $dueDate->isPast(),
-                    ];
-                })->filter()->values(),
+                'active_tickets' => $activeTickets,
                 'has_dates' => true,
             ];
         }

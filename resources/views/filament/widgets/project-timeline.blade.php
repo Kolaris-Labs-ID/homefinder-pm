@@ -162,6 +162,59 @@
                                 </p>
                             </div>
                             @endif
+                            
+                            <!-- Ticket Stats & Active Tickets -->
+                            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <!-- Ticket Stats Summary -->
+                                <div class="flex items-center gap-4 mb-3">
+                                    <div class="flex items-center gap-1.5 text-sm">
+                                        <x-heroicon-o-ticket class="h-4 w-4 text-gray-400" />
+                                        <span class="text-gray-600 dark:text-gray-400">{{ $project['ticket_stats']['total'] }} tickets</span>
+                                    </div>
+                                    @if($project['ticket_stats']['completed'] > 0)
+                                        <div class="flex items-center gap-1.5 text-sm">
+                                            <x-heroicon-o-check-circle class="h-4 w-4 text-green-500" />
+                                            <span class="text-green-600 dark:text-green-400">{{ $project['ticket_stats']['completed'] }} done</span>
+                                        </div>
+                                    @endif
+                                    @if($project['ticket_stats']['overdue'] > 0)
+                                        <div class="flex items-center gap-1.5 text-sm">
+                                            <x-heroicon-o-exclamation-circle class="h-4 w-4 text-red-500" />
+                                            <span class="text-red-600 dark:text-red-400">{{ $project['ticket_stats']['overdue'] }} overdue</span>
+                                        </div>
+                                    @endif
+                                </div>
+                                
+                                <!-- Active Tickets List -->
+                                @if(count($project['active_tickets']) > 0)
+                                    <div class="space-y-2">
+                                        <div class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Active Tickets</div>
+                                        @foreach($project['active_tickets'] as $ticket)
+                                            <div class="flex items-center justify-between gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors">
+                                                <div class="flex items-center gap-2 min-w-0 flex-1">
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                                          style="background-color: {{ $ticket['status_color'] }}20; color: {{ $ticket['status_color'] }}">
+                                                        {{ $ticket['status'] }}
+                                                    </span>
+                                                    <span class="text-sm text-gray-900 dark:text-white truncate">{{ $ticket['name'] }}</span>
+                                                </div>
+                                                <div class="flex items-center gap-2 shrink-0">
+                                                    @if($ticket['due_date'])
+                                                        <span class="text-xs {{ $ticket['is_overdue'] ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400' }}">
+                                                            {{ $ticket['due_date'] }}
+                                                        </span>
+                                                    @endif
+                                                    @if($ticket['assignees'])
+                                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ $ticket['assignees'] }}</span>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">No active tickets</p>
+                                @endif
+                            </div>
                         </div>
                     @endforeach
                 </div>
