@@ -35,6 +35,14 @@ class TicketResource extends Resource
     {
         $query = parent::getEloquentQuery();
 
+        // Exclude tickets from archived or done projects
+        $query->whereHas('project', function ($q) {
+            $q->whereNull('archived_at')->whereNull('done_at');
+        });
+
+        // Exclude archived tickets
+        $query->whereNull('archived_at');
+
         if (! auth()->user()->hasRole(['super_admin'])) {
             $query->where(function ($query) {
                 $query->whereHas('assignees', function ($query) {
@@ -61,10 +69,10 @@ class TicketResource extends Resource
                     ->label('Project')
                     ->options(function () {
                         if (auth()->user()->hasRole(['super_admin'])) {
-                            return Project::pluck('name', 'id')->toArray();
+                            return Project::active()->whereNull('done_at')->pluck('name', 'id')->toArray();
                         }
 
-                        return auth()->user()->projects()->pluck('name', 'projects.id')->toArray();
+                        return auth()->user()->projects()->whereNull('archived_at')->whereNull('done_at')->pluck('name', 'projects.id')->toArray();
                     })
                     ->default($projectId)
                     ->required()
@@ -265,10 +273,10 @@ class TicketResource extends Resource
                     ->label('Project')
                     ->options(function () {
                         if (auth()->user()->hasRole(['super_admin'])) {
-                            return Project::pluck('name', 'id')->toArray();
+                            return Project::active()->whereNull('done_at')->pluck('name', 'id')->toArray();
                         }
             
-                        return auth()->user()->projects()->pluck('name', 'projects.id')->toArray();
+                        return auth()->user()->projects()->whereNull('archived_at')->whereNull('done_at')->pluck('name', 'projects.id')->toArray();
                     })
                     ->searchable()
                     ->preload(),

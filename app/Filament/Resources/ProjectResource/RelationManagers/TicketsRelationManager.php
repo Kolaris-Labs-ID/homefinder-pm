@@ -29,7 +29,12 @@ class TicketsRelationManager extends RelationManager
 
     public static function getBadge(Model $ownerRecord, string $pageClass): ?string
     {
-        return $ownerRecord->tickets_count ?? $ownerRecord->tickets()->count();
+        return $ownerRecord->tickets()->whereNull('archived_at')->count();
+    }
+
+    protected function getTableQuery(): ?\Illuminate\Database\Eloquent\Builder
+    {
+        return parent::getTableQuery()->whereNull('archived_at');
     }
 
     public function form(Form $form): Form
