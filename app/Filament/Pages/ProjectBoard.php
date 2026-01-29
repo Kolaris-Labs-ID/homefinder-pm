@@ -70,7 +70,8 @@ class ProjectBoard extends Page
         }
 
         if ($user->hasRole(['super_admin'])) {
-            $this->projects = Project::with([
+            $this->projects = Project::active()
+                ->with([
                     'users' => function ($query) {
                         $query->orderBy('name')->limit(4);
                     },
@@ -81,6 +82,7 @@ class ProjectBoard extends Page
                 ->get();
         } else {
             $this->projects = $user->projects()
+                ->active()
                 ->with([
                     'users' => function ($query) {
                         $query->orderBy('name')->limit(4);
