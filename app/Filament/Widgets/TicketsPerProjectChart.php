@@ -14,7 +14,7 @@ class TicketsPerProjectChart extends ChartWidget
     
     protected static ?string $heading = 'Number of tickets per project';
     
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 4;
     
     protected int | string | array $columnSpan = [
         'default' => 'full',

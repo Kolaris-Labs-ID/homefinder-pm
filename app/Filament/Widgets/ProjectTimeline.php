@@ -21,7 +21,7 @@ class ProjectTimeline extends Widget
         'xl' => 6,
     ];
 
-    static ?int $sort = 6;
+    protected static ?int $sort = 1;
     
     public string $filter = 'pinned';
     public string $viewMode = 'projects'; // 'projects' or 'tickets'

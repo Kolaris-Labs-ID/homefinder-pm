@@ -91,8 +91,8 @@ class WeeklyTodoOverviewWidget extends BaseWidget
 
     public static function canView(): bool
     {
-        $user = self::getAuthUser();
-        return self::isManagementRole($user);
+        // Hidden - using kanban-based project/epic/ticket system instead
+        return false;
     }
 
     public function table(Table $table): Table

@@ -64,10 +64,12 @@ class CalendarWidget extends Widget
             ];
         }
 
-        // 2. Projects - Only projects user is a member of
+        // 2. Projects - Only active projects user is a member of (exclude archived/done)
         $projects = Project::query()
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
+            ->whereNull('archived_at')
+            ->whereNull('done_at')
             ->whereHas('members', function($q) use ($user) {
                 $q->where('user_id', $user->id);
             })
@@ -91,12 +93,16 @@ class CalendarWidget extends Widget
             ];
         }
 
-        // 3. Epics - Only epics from projects user is a member of
+        // 3. Epics - Only epics from active projects user is a member of (exclude archived/done)
         $epics = Epic::query()
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
-            ->whereHas('project.members', function($q) use ($user) {
-                $q->where('user_id', $user->id);
+            ->whereHas('project', function($q) use ($user) {
+                $q->whereNull('archived_at')
+                  ->whereNull('done_at')
+                  ->whereHas('members', function($q2) use ($user) {
+                      $q2->where('user_id', $user->id);
+                  });
             })
             ->with('project')
             ->get();
@@ -120,9 +126,13 @@ class CalendarWidget extends Widget
             ];
         }
 
-        // 4. Assigned Tickets - Only tickets assigned to user
+        // 4. Assigned Tickets - Only non-archived tickets from active projects assigned to user
         $tickets = Ticket::query()
             ->whereNotNull('due_date')
+            ->whereNull('archived_at')
+            ->whereHas('project', function($q) {
+                $q->whereNull('archived_at')->whereNull('done_at');
+            })
             ->whereHas('assignees', function($q) use ($user) {
                 $q->where('user_id', $user->id);
             })
