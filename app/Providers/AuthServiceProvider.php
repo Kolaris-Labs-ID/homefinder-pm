@@ -17,6 +17,7 @@ use App\Models\Hris\Position;
 use App\Models\Hris\Reimbursement;
 use App\Models\Hris\SalaryStructure;
 use App\Models\Hris\TrainingRecord;
+use App\Models\TicketTemplate;
 use App\Policies\Hris\ApplicantPolicy;
 use App\Policies\Hris\AttendanceLogPolicy;
 use App\Policies\Hris\DepartmentPolicy;
@@ -32,6 +33,7 @@ use App\Policies\Hris\PositionPolicy;
 use App\Policies\Hris\ReimbursementPolicy;
 use App\Policies\Hris\SalaryStructurePolicy;
 use App\Policies\Hris\TrainingRecordPolicy;
+use App\Policies\TicketTemplatePolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
 
@@ -58,6 +60,7 @@ class AuthServiceProvider extends ServiceProvider
         Reimbursement::class => ReimbursementPolicy::class,
         SalaryStructure::class => SalaryStructurePolicy::class,
         TrainingRecord::class => TrainingRecordPolicy::class,
+        TicketTemplate::class => TicketTemplatePolicy::class,
     ];
 
     /**
