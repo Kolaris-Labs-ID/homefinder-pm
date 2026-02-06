@@ -11,6 +11,43 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
+/* Project Board Table Styles */
+.pb-board table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.pb-board table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.pb-board table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.pb-board table tbody tr:hover td {
+    background-color: rgba(239, 246, 255, 0.5);
+}
+
+/* Dark mode overrides for project board */
+.dark .pb-board table tbody tr:hover td {
+    background-color: rgba(55, 65, 81, 0.5);
+}
+
+.dark .pb-board table thead tr {
+    border-color: #374151;
+}
+
+.dark .pb-board table tbody tr {
+    background-color: #1F2937 !important;
+    border-color: #374151 !important;
+}
+
+.dark .pb-board .rounded-lg {
+    border-color: #374151 !important;
+    background-color: #111827 !important;
+}
+
 /* View-only mode styles */
 .view-only-mode .ticket-card {
     cursor: default !important;

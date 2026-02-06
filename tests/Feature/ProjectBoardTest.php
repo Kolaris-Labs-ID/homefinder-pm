@@ -270,3 +270,279 @@ test('super admin sees all projects regardless of membership', function () {
     expect($projectIds)->toContain($otherProject->id);
 });
 
+// =========================================================
+// Project Board Table View Tests
+// =========================================================
+
+test('getProjectStatus returns Done for done projects', function () {
+    $project = Project::factory()->done()->create();
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+    $page = $component->instance();
+
+    $status = $page->getProjectStatus($project);
+
+    expect($status['label'])->toBe('Done');
+    expect($status['bg'])->toBe('#7AD7A2');
+    expect($status['text'])->toBe('#064E3B');
+});
+
+test('getProjectStatus returns Stuck for overdue projects', function () {
+    $project = Project::factory()->create([
+        'end_date' => now()->subDays(5),
+    ]);
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+    $page = $component->instance();
+
+    $status = $page->getProjectStatus($project);
+
+    expect($status['label'])->toBe('Stuck');
+    expect($status['bg'])->toBe('#FC7D82');
+});
+
+test('getProjectStatus returns Waiting on it for active projects', function () {
+    $project = Project::factory()->create([
+        'end_date' => now()->addDays(30),
+    ]);
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+    $page = $component->instance();
+
+    $status = $page->getProjectStatus($project);
+
+    expect($status['label'])->toBe('Waiting on it');
+    expect($status['bg'])->toBe('#F4C571');
+});
+
+test('getDueDateIndicator returns green for on-track projects', function () {
+    $project = Project::factory()->create([
+        'end_date' => now()->addDays(30),
+    ]);
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+    $page = $component->instance();
+
+    $indicator = $page->getDueDateIndicator($project);
+
+    expect($indicator['dot'])->toBe('#10B981');
+    expect($indicator['icon'])->toBe('success');
+});
+
+test('getDueDateIndicator returns red for overdue projects', function () {
+    $project = Project::factory()->create([
+        'end_date' => now()->subDays(5),
+    ]);
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+    $page = $component->instance();
+
+    $indicator = $page->getDueDateIndicator($project);
+
+    expect($indicator['dot'])->toBe('#EF4444');
+    expect($indicator['icon'])->toBe('danger');
+});
+
+test('getDueDateIndicator returns amber for near-deadline projects', function () {
+    $project = Project::factory()->create([
+        'end_date' => now()->addDays(3),
+    ]);
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+    $page = $component->instance();
+
+    $indicator = $page->getDueDateIndicator($project);
+
+    expect($indicator['dot'])->toBe('#D97706');
+    expect($indicator['icon'])->toBe('warning');
+});
+
+test('getDueDateIndicator returns gray for projects without end date', function () {
+    $project = Project::factory()->withoutEndDate()->create();
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+    $page = $component->instance();
+
+    $indicator = $page->getDueDateIndicator($project);
+
+    expect($indicator['dot'])->toBe('#9CA3AF');
+    expect($indicator['icon'])->toBe('none');
+});
+
+test('search filters projects by name', function () {
+    Project::factory()->create(['name' => 'Alpha Design Project']);
+    Project::factory()->create(['name' => 'Beta Marketing App']);
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+
+    // Set search to filter
+    $component->set('projectSearch', 'Alpha');
+
+    $grouped = $component->instance()->getGroupedProjects();
+    $allProjects = $grouped->flatten();
+
+    expect($allProjects->pluck('name')->toArray())->toContain('Alpha Design Project');
+    expect($allProjects->pluck('name')->toArray())->not->toContain('Beta Marketing App');
+});
+
+test('search filters projects by ticket prefix', function () {
+    Project::factory()->create(['name' => 'Some Project', 'ticket_prefix' => 'XYZQ']);
+    Project::factory()->create(['name' => 'Another Project', 'ticket_prefix' => 'ABCD']);
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+    $component->set('projectSearch', 'XYZQ');
+
+    $grouped = $component->instance()->getGroupedProjects();
+    $allProjects = $grouped->flatten();
+
+    expect($allProjects->count())->toBe(1);
+    expect($allProjects->first()->ticket_prefix)->toBe('XYZQ');
+});
+
+test('sortProjectsBy toggles direction on same field', function () {
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+
+    // Default sort is name asc
+    expect($component->get('projectSortField'))->toBe('name');
+    expect($component->get('projectSortDirection'))->toBe('asc');
+
+    // Click name again toggles to desc
+    $component->call('sortProjectsBy', 'name');
+    expect($component->get('projectSortDirection'))->toBe('desc');
+
+    // Click name again toggles back to asc
+    $component->call('sortProjectsBy', 'name');
+    expect($component->get('projectSortDirection'))->toBe('asc');
+});
+
+test('sortProjectsBy switches to new field with asc direction', function () {
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+
+    $component->call('sortProjectsBy', 'end_date');
+    expect($component->get('projectSortField'))->toBe('end_date');
+    expect($component->get('projectSortDirection'))->toBe('asc');
+});
+
+test('toggleGroup collapses and expands groups', function () {
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+
+    // Initially no collapsed groups
+    expect($component->get('collapsedGroups'))->toBe([]);
+
+    // Collapse a group
+    $component->call('toggleGroup', 'January 2026');
+    expect($component->get('collapsedGroups'))->toContain('January 2026');
+
+    // Expand the same group
+    $component->call('toggleGroup', 'January 2026');
+    expect($component->get('collapsedGroups'))->not->toContain('January 2026');
+});
+
+test('toggleColumn hides and shows columns', function () {
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+
+    // Initially no hidden columns
+    expect($component->get('hiddenColumns'))->toBe([]);
+
+    // Hide a column
+    $component->call('toggleColumn', 'due_date');
+    expect($component->get('hiddenColumns'))->toContain('due_date');
+
+    // Show it again
+    $component->call('toggleColumn', 'due_date');
+    expect($component->get('hiddenColumns'))->not->toContain('due_date');
+});
+
+test('getGroupedProjects groups by end_date month', function () {
+    // Create projects with specific end dates
+    Project::factory()->create([
+        'name' => 'March Project',
+        'end_date' => '2026-03-15',
+    ]);
+    Project::factory()->create([
+        'name' => 'April Project',
+        'end_date' => '2026-04-10',
+    ]);
+    Project::factory()->create([
+        'name' => 'No Date Project',
+        'end_date' => null,
+    ]);
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+    $grouped = $component->instance()->getGroupedProjects();
+
+    // Should have groups for March 2026, April 2026, and No Due Date
+    expect($grouped->keys()->toArray())->toContain('March 2026');
+    expect($grouped->keys()->toArray())->toContain('April 2026');
+    expect($grouped->keys()->toArray())->toContain('No Due Date');
+});
+
+test('project table view renders successfully with grouped projects', function () {
+    Project::factory()->create(['end_date' => now()->addDays(10)]);
+    Project::factory()->create(['end_date' => now()->addMonth()]);
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+
+    // Page should render without errors
+    $component->assertSuccessful();
+
+    // Should see the table headers
+    $component->assertSee('Project');
+    $component->assertSee('Due date');
+    $component->assertSee('Status');
+    $component->assertSee('Member');
+});
+
+test('project table view shows search input', function () {
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+
+    // Should see the search placeholder
+    $component->assertSee('Search');
+    $component->assertSee('Sort');
+    $component->assertSee('Hide');
+});
+
+test('collapsedGroups and hiddenColumns are initialized on mount', function () {
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+
+    expect($component->get('collapsedGroups'))->toBe([]);
+    expect($component->get('hiddenColumns'))->toBe([]);
+    expect($component->get('projectSearch'))->toBe('');
+    expect($component->get('projectSortField'))->toBe('name');
+    expect($component->get('projectSortDirection'))->toBe('asc');
+});
+

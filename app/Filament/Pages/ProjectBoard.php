@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Form;
+use Carbon\Carbon;
 
 class ProjectBoard extends Page
 {
@@ -30,7 +31,10 @@ class ProjectBoard extends Page
 
     public function getSubheading(): ?string
     {
-        return 'Kanban board for ticket management';
+        if ($this->selectedProject) {
+            return 'Kanban board for ticket management';
+        }
+        return null;
     }
     protected static ?string $slug = 'project-board/{project_id?}';
 
@@ -49,6 +53,16 @@ class ProjectBoard extends Page
     public array $selectedUserIds = [];
 
     public Collection $projectUsers;
+
+    public string $projectSearch = '';
+
+    public string $projectSortField = 'name';
+
+    public string $projectSortDirection = 'asc';
+
+    public array $collapsedGroups = [];
+
+    public array $hiddenColumns = [];
 
     /**
      * Get the authenticated user
@@ -105,6 +119,107 @@ class ProjectBoard extends Page
             $this->ticketStatuses = collect();
             $this->projectUsers = collect();
         }
+
+        $this->collapsedGroups = [];
+        $this->hiddenColumns = [];
+    }
+
+    public function updatedProjectSearch(): void
+    {
+        // Livewire reactivity handles re-render
+    }
+
+    public function sortProjectsBy(string $field): void
+    {
+        if ($this->projectSortField === $field) {
+            $this->projectSortDirection = $this->projectSortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->projectSortField = $field;
+            $this->projectSortDirection = 'asc';
+        }
+    }
+
+    public function toggleGroup(string $groupKey): void
+    {
+        if (in_array($groupKey, $this->collapsedGroups)) {
+            $this->collapsedGroups = array_values(array_diff($this->collapsedGroups, [$groupKey]));
+        } else {
+            $this->collapsedGroups[] = $groupKey;
+        }
+    }
+
+    public function toggleColumn(string $column): void
+    {
+        if (in_array($column, $this->hiddenColumns)) {
+            $this->hiddenColumns = array_values(array_diff($this->hiddenColumns, [$column]));
+        } else {
+            $this->hiddenColumns[] = $column;
+        }
+    }
+
+    public function getProjectStatus(Project $project): array
+    {
+        if ($project->is_done) {
+            return ['label' => 'Done', 'bg' => '#7AD7A2', 'text' => '#064E3B'];
+        }
+
+        if ($project->end_date && Carbon::parse($project->end_date)->isPast()) {
+            return ['label' => 'Stuck', 'bg' => '#FC7D82', 'text' => '#7F1D1D'];
+        }
+
+        return ['label' => 'Waiting on it', 'bg' => '#F4C571', 'text' => '#78350F'];
+    }
+
+    public function getDueDateIndicator(Project $project): array
+    {
+        if (!$project->end_date) {
+            return ['dot' => '#9CA3AF', 'icon' => 'none'];
+        }
+
+        $endDate = Carbon::parse($project->end_date);
+        $daysLeft = Carbon::today()->diffInDays($endDate, false);
+
+        if ($daysLeft < 0) {
+            return ['dot' => '#EF4444', 'icon' => 'danger'];
+        }
+
+        if ($daysLeft <= 7) {
+            return ['dot' => '#D97706', 'icon' => 'warning'];
+        }
+
+        return ['dot' => '#10B981', 'icon' => 'success'];
+    }
+
+    public function getGroupedProjects(): Collection
+    {
+        $filtered = $this->projects;
+
+        if (!empty($this->projectSearch)) {
+            $search = strtolower($this->projectSearch);
+            $filtered = $filtered->filter(function ($project) use ($search) {
+                return str_contains(strtolower($project->name), $search)
+                    || ($project->ticket_prefix && str_contains(strtolower($project->ticket_prefix), $search));
+            });
+        }
+
+        $field = $this->projectSortField;
+        $direction = $this->projectSortDirection;
+
+        $filtered = $filtered->sortBy(function ($project) use ($field) {
+            return match ($field) {
+                'name' => strtolower($project->name),
+                'end_date' => $project->end_date ? $project->end_date->format('Y-m-d') : '9999-12-31',
+                'status' => $this->getProjectStatus($project)['label'],
+                default => strtolower($project->name),
+            };
+        }, SORT_REGULAR, $direction === 'desc');
+
+        return $filtered->groupBy(function ($project) {
+            if (!$project->end_date) {
+                return 'No Due Date';
+            }
+            return Carbon::parse($project->end_date)->format('F Y');
+        });
     }
 
     public function updatedSelectedProjectId($value): void

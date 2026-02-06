@@ -1,16 +1,104 @@
 <x-filament-panels::page>
 
-    {{-- Project Selection --}}
+    {{-- Project Selection - Monday.com Style Table --}}
     @if (! $selectedProject)
-        <x-filament::section class="mb-8">
-            <div class="flex items-center justify-between mb-6">
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                        Choose a Project Board
-                    </h2>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        Select one of your available projects below to open its kanban board.
-                    </p>
+        <div class="pb-board" style="font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            {{-- Toolbar --}}
+            <div class="flex flex-wrap items-center gap-3 mb-6">
+                {{-- New Project Button --}}
+                @can('create', \App\Models\Project::class)
+                    <a
+                        href="{{ \App\Filament\Resources\ProjectResource::getUrl('create') }}"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-md text-white text-sm font-medium transition-colors"
+                        style="background-color: #56C078;"
+                        onmouseover="this.style.backgroundColor='#4CAF6A'"
+                        onmouseout="this.style.backgroundColor='#56C078'"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        New Project
+                    </a>
+                @endcan
+
+                {{-- Search --}}
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <input
+                        type="text"
+                        wire:model.live.debounce.300ms="projectSearch"
+                        placeholder="Search"
+                        class="pl-9 pr-4 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-gray-600"
+                        style="border-color: #E5E7EB; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);"
+                    />
+                </div>
+
+                {{-- Sort --}}
+                <div class="relative" x-data="{ open: false }">
+                    <button
+                        @click="open = !open"
+                        class="inline-flex items-center gap-1.5 px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        style="border-color: #E5E7EB; color: #111827;"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg>
+                        Sort
+                    </button>
+                    <div
+                        x-show="open"
+                        @click.away="open = false"
+                        x-transition
+                        class="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-1"
+                        style="display: none;"
+                    >
+                        <button wire:click="sortProjectsBy('name')" @click="open = false" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between">
+                            Project Name
+                            @if($projectSortField === 'name')
+                                <svg class="w-3 h-3 {{ $projectSortDirection === 'asc' ? '' : 'rotate-180' }}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 4.414l-3.293 3.293a1 1 0 01-1.414 0z"/></svg>
+                            @endif
+                        </button>
+                        <button wire:click="sortProjectsBy('end_date')" @click="open = false" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between">
+                            Due Date
+                            @if($projectSortField === 'end_date')
+                                <svg class="w-3 h-3 {{ $projectSortDirection === 'asc' ? '' : 'rotate-180' }}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 4.414l-3.293 3.293a1 1 0 01-1.414 0z"/></svg>
+                            @endif
+                        </button>
+                        <button wire:click="sortProjectsBy('status')" @click="open = false" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between">
+                            Status
+                            @if($projectSortField === 'status')
+                                <svg class="w-3 h-3 {{ $projectSortDirection === 'asc' ? '' : 'rotate-180' }}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 4.414l-3.293 3.293a1 1 0 01-1.414 0z"/></svg>
+                            @endif
+                        </button>
+                    </div>
+                </div>
+
+                {{-- Hide Columns --}}
+                <div class="relative" x-data="{ open: false }">
+                    <button
+                        @click="open = !open"
+                        class="inline-flex items-center gap-1.5 px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        style="border-color: #E5E7EB; color: #111827;"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
+                        Hide
+                    </button>
+                    <div
+                        x-show="open"
+                        @click.away="open = false"
+                        x-transition
+                        class="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-1"
+                        style="display: none;"
+                    >
+                        @foreach(['due_date' => 'Due Date', 'status' => 'Status', 'members' => 'Members', 'progress' => 'Progress'] as $col => $label)
+                            <button wire:click="toggleColumn('{{ $col }}')" @click.stop class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
+                                <span class="w-4 h-4 border rounded flex items-center justify-center {{ in_array($col, $hiddenColumns) ? 'border-gray-300 dark:border-gray-600' : 'bg-green-500 border-green-500' }}" style="{{ !in_array($col, $hiddenColumns) ? 'background-color: #56C078; border-color: #56C078;' : '' }}">
+                                    @if(!in_array($col, $hiddenColumns))
+                                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                    @endif
+                                </span>
+                                {{ $label }}
+                            </button>
+                        @endforeach
+                    </div>
                 </div>
             </div>
 
@@ -25,126 +113,179 @@
                     </p>
                 </div>
             @else
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    @foreach ($projects as $project)
-                        @php
-                            $progress = $project->progress_percentage ?? 0;
-                            $displayDate = $project->start_date ?? $project->created_at;
-                        @endphp
+                @php $groupedProjects = $this->getGroupedProjects(); @endphp
 
+                @forelse ($groupedProjects as $groupName => $groupProjects)
+                    <div class="mb-6">
+                        {{-- Group Header --}}
                         <button
-                            type="button"
-                            wire:click="selectProject({{ $project->id }})"
-                            class="group relative w-full text-left rounded-2xl border border-primary-100/70 dark:border-primary-900/40 bg-gradient-to-b from-primary-50/60 via-white to-white dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 p-6 shadow-sm hover:shadow-md hover:border-primary-400/90 dark:hover:border-primary-500 transition duration-150"
+                            wire:click="toggleGroup('{{ $groupName }}')"
+                            class="flex items-center gap-2 mb-3 group cursor-pointer"
                         >
-                            {{-- Header --}}
-                            <div class="flex items-start justify-between gap-3">
-                                <div class="flex items-start gap-3 min-w-0">
-                                    <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-primary-500 text-white shadow-sm">
-                                        <x-heroicon-o-view-columns class="w-5 h-5" />
-                                    </div>
-                                    <div class="min-w-0">
-                                        <h3 class="text-base font-semibold text-gray-900 dark:text-white truncate group-hover:text-primary-600 dark:group-hover:text-primary-400">
-                                            {{ $project->name }}
-                                        </h3>
-                                        @if ($displayDate)
-                                            <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
-                                                <x-heroicon-o-calendar class="w-3.5 h-3.5" />
-                                                <span>{{ $displayDate->format('M d Y') }}</span>
-                                            </p>
-                                        @endif
-                                    </div>
-                                </div>
-
-                                <div class="flex flex-col items-end gap-1">
-                                    <span class="inline-flex items-center rounded-full bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 px-2 py-0.5 text-[11px] font-medium">
-                                        {{ $project->tickets_count ?? $project->tickets?->count() ?? 0 }} tickets
-                                    </span>
-                                    @if ($progress > 0)
-                                        <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                                            {{ number_format(min($progress, 100), 0) }}%
-                                        </span>
-                                    @endif
-                                </div>
-                            </div>
-
-                            {{-- Meta row: avatars + days left --}}
-                            <div class="mt-4 flex items-center justify-between gap-3">
-                                <div class="flex items-center gap-2 min-w-0">
-                                    @if ($project->users && $project->users->isNotEmpty())
-                                        <div class="flex -space-x-2">
-                                            @foreach ($project->users->take(4) as $member)
-                                                <div class="h-7 w-7 rounded-full border-2 border-white dark:border-gray-900 bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center text-[10px] font-semibold text-primary-700 dark:text-primary-200">
-                                                    {{ $member->avatar_initials ?? \Illuminate\Support\Str::of($member->name)->explode(' ')->map(fn ($part) => mb_substr($part, 0, 1))->take(2)->implode('') }}
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                        @if ($project->users->count() > 4)
-                                            <span class="text-xs text-gray-500 dark:text-gray-400">
-                                                +{{ $project->users->count() - 4 }}
-                                            </span>
-                                        @endif
-                                    @else
-                                        <span class="text-xs text-gray-400 dark:text-gray-500">
-                                            No members yet
-                                        </span>
-                                    @endif
-                                </div>
-
-                                @php
-                                    $daysLeft = $project->remaining_days ?? null;
-                                @endphp
-                                <div class="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                                    <x-heroicon-o-clock class="w-4 h-4" />
-                                    @if ($daysLeft === null)
-                                        <span>No end date</span>
-                                    @elseif ($daysLeft === 0)
-                                        <span class="font-medium text-red-600 dark:text-red-400">Ends today</span>
-                                    @elseif ($daysLeft < 0)
-                                        <span class="font-medium text-red-600 dark:text-red-400">Past due</span>
-                                    @else
-                                        <span>{{ $daysLeft }} days left</span>
-                                    @endif
-                                </div>
-                            </div>
-
-                            {{-- Description --}}
-                            @if ($project->description)
-                                <p class="mt-3 text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-                                    {{ \Illuminate\Support\Str::limit(strip_tags($project->description), 90) }}
-                                </p>
-                            @endif
-
-                            {{-- Progress --}}
-                            <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
-                                <div class="flex items-center justify-between text-xs mb-1.5">
-                                    <span class="font-semibold text-primary-700 dark:text-primary-300 tracking-wide">Project Progress</span>
-                                    <span>
-                                        @if ($progress > 0)
-                                            <span class="font-semibold text-primary-700 dark:text-primary-300">
-                                                {{ number_format(min($progress, 100), 1) }}%
-                                            </span>
-                                        @else
-                                            <span class="text-gray-500 dark:text-gray-400">Not started</span>
-                                        @endif
-                                    </span>
-                                </div>
-                                <div class="h-2 w-full rounded-full bg-primary-100/80 dark:bg-primary-950 overflow-hidden">
-                                    <div
-                                        class="h-2 rounded-full bg-primary-500 dark:bg-primary-400 transition-all duration-300"
-                                        style="width: {{ $progress > 0 ? min($progress, 100) : 4 }}%;"
-                                    ></div>
-                                </div>
-                            </div>
-
-                            <div class="pointer-events-none absolute right-4 bottom-4 flex items-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                                <x-heroicon-m-arrow-right class="w-4 h-4 text-primary-500" />
-                            </div>
+                            <svg
+                                class="w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform duration-200 {{ in_array($groupName, $collapsedGroups) ? '-rotate-90' : '' }}"
+                                fill="currentColor" viewBox="0 0 20 20"
+                            >
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ $groupName }}</span>
+                            <span class="text-xs text-gray-400 dark:text-gray-500">({{ $groupProjects->count() }})</span>
                         </button>
-                    @endforeach
-                </div>
+
+                        {{-- Table --}}
+                        @if (!in_array($groupName, $collapsedGroups))
+                            <div class="rounded-lg border overflow-hidden" style="border-color: #E5E7EB; background-color: #F7F8FA;">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full" style="min-width: 700px;">
+                                        <thead>
+                                            <tr style="border-bottom: 1px solid #E5E7EB;">
+                                                <th class="text-left py-3 px-4 text-sm font-semibold" style="color: #111827; width: 30%;">Project</th>
+                                                @if(!in_array('due_date', $hiddenColumns))
+                                                    <th class="text-left py-3 px-4 text-sm font-semibold" style="color: #111827; width: 18%;">
+                                                        <span class="inline-flex items-center gap-1">
+                                                            Due date
+                                                            <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                                        </span>
+                                                    </th>
+                                                @endif
+                                                @if(!in_array('status', $hiddenColumns))
+                                                    <th class="text-center py-3 px-4 text-sm font-semibold" style="color: #111827; width: 18%;">
+                                                        <span class="inline-flex items-center gap-1">
+                                                            Status
+                                                            <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                                        </span>
+                                                    </th>
+                                                @endif
+                                                @if(!in_array('members', $hiddenColumns))
+                                                    <th class="text-center py-3 px-4 text-sm font-semibold" style="color: #111827; width: 18%;">Member</th>
+                                                @endif
+                                                @if(!in_array('progress', $hiddenColumns))
+                                                    <th class="text-center py-3 px-4 text-sm font-semibold" style="color: #111827; width: 12%;">Progress</th>
+                                                @endif
+                                                <th style="width: 40px;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($groupProjects as $project)
+                                                @php
+                                                    $status = $this->getProjectStatus($project);
+                                                    $dueDateIndicator = $this->getDueDateIndicator($project);
+                                                    $progress = $project->progress_percentage ?? 0;
+                                                @endphp
+                                                <tr
+                                                    wire:click="selectProject({{ $project->id }})"
+                                                    class="cursor-pointer transition-colors hover:bg-blue-50/50 dark:hover:bg-gray-700/50"
+                                                    style="background-color: #FFFFFF; border-bottom: 1px solid #F7F8FA; height: 64px;"
+                                                >
+                                                    {{-- Project Name --}}
+                                                    <td class="py-3 px-4">
+                                                        <div class="flex items-center gap-3">
+                                                            <div class="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style="background-color: #56C078;">
+                                                                {{ strtoupper(substr($project->name, 0, 1)) }}
+                                                            </div>
+                                                            <div class="min-w-0">
+                                                                <span class="text-sm font-medium truncate block" style="color: #111827;">{{ $project->name }}</span>
+                                                                @if($project->ticket_prefix)
+                                                                    <span class="text-xs" style="color: #6B7280;">{{ $project->ticket_prefix }}</span>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    {{-- Due Date --}}
+                                                    @if(!in_array('due_date', $hiddenColumns))
+                                                        <td class="py-3 px-4">
+                                                            @if($project->end_date)
+                                                                <div class="flex items-center gap-2">
+                                                                    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: {{ $dueDateIndicator['dot'] }};"></span>
+                                                                    <span class="text-sm" style="color: #6B7280;">{{ $project->end_date->format('d M Y') }}</span>
+                                                                </div>
+                                                            @else
+                                                                <span class="text-sm" style="color: #9CA3AF;">No date</span>
+                                                            @endif
+                                                        </td>
+                                                    @endif
+
+                                                    {{-- Status Badge --}}
+                                                    @if(!in_array('status', $hiddenColumns))
+                                                        <td class="py-3 px-4 text-center">
+                                                            <span
+                                                                class="inline-flex items-center justify-center px-4 py-1.5 rounded-md text-sm font-medium whitespace-nowrap"
+                                                                style="background-color: {{ $status['bg'] }}; color: {{ $status['text'] }}; min-width: 110px;"
+                                                            >
+                                                                {{ $status['label'] }}
+                                                            </span>
+                                                        </td>
+                                                    @endif
+
+                                                    {{-- Members --}}
+                                                    @if(!in_array('members', $hiddenColumns))
+                                                        <td class="py-3 px-4">
+                                                            <div class="flex items-center justify-center">
+                                                                @if($project->users && $project->users->isNotEmpty())
+                                                                    <div class="flex -space-x-2">
+                                                                        @foreach($project->users->take(4) as $member)
+                                                                            <div
+                                                                                class="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
+                                                                                style="background-color: #E0F2FE; color: #0369A1;"
+                                                                                title="{{ $member->name }}"
+                                                                            >
+                                                                                {{ \Illuminate\Support\Str::of($member->name)->explode(' ')->map(fn ($part) => mb_substr($part, 0, 1))->take(2)->implode('') }}
+                                                                            </div>
+                                                                        @endforeach
+                                                                        @if($project->users->count() > 4)
+                                                                            <div
+                                                                                class="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
+                                                                                style="background-color: #F3F4F6; color: #6B7280;"
+                                                                            >
+                                                                                +{{ $project->users->count() - 4 }}
+                                                                            </div>
+                                                                        @endif
+                                                                    </div>
+                                                                @else
+                                                                    <span class="text-xs" style="color: #9CA3AF;">-</span>
+                                                                @endif
+                                                            </div>
+                                                        </td>
+                                                    @endif
+
+                                                    {{-- Progress --}}
+                                                    @if(!in_array('progress', $hiddenColumns))
+                                                        <td class="py-3 px-4 text-center">
+                                                            <div class="flex items-center justify-center gap-2">
+                                                                <div class="w-16 h-1.5 rounded-full overflow-hidden" style="background-color: #E5E7EB;">
+                                                                    <div
+                                                                        class="h-full rounded-full transition-all duration-300"
+                                                                        style="width: {{ min($progress, 100) }}%; background-color: {{ $progress >= 100 ? '#10B981' : ($progress >= 50 ? '#56C078' : '#F4C571') }};"
+                                                                    ></div>
+                                                                </div>
+                                                                <span class="text-xs font-medium" style="color: #6B7280;">{{ number_format(min($progress, 100), 0) }}%</span>
+                                                            </div>
+                                                        </td>
+                                                    @endif
+
+                                                    {{-- Action --}}
+                                                    <td class="py-3 px-2">
+                                                        <div class="flex items-center justify-center">
+                                                            <svg class="w-4 h-4" style="color: #9CA3AF;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                @empty
+                    <div class="flex flex-col items-center justify-center h-40 text-gray-500 dark:text-gray-400 gap-2">
+                        <svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <p class="text-sm">No projects match your search.</p>
+                    </div>
+                @endforelse
             @endif
-        </x-filament::section>
+        </div>
     @endif
 
     @if($selectedProject)
