@@ -71,6 +71,7 @@ class ProjectBoard extends Page
 
         if ($user->hasRole(['super_admin'])) {
             $this->projects = Project::active()
+                ->whereNull('done_at')
                 ->with([
                     'users' => function ($query) {
                         $query->orderBy('name')->limit(4);
@@ -83,6 +84,7 @@ class ProjectBoard extends Page
         } else {
             $this->projects = $user->projects()
                 ->active()
+                ->whereNull('done_at')
                 ->with([
                     'users' => function ($query) {
                         $query->orderBy('name')->limit(4);
@@ -153,6 +155,7 @@ class ProjectBoard extends Page
                         'creator:id,name'
                     ])
                     ->select('id', 'project_id', 'ticket_status_id', 'priority_id', 'name', 'description', 'uuid', 'due_date', 'created_at', 'updated_at', 'created_by')
+                    ->whereNull('archived_at')
                     ->when(!empty($this->selectedUserIds), function ($query) {
                         $query->whereHas('assignees', function ($assigneeQuery) {
                             $assigneeQuery->whereIn('users.id', $this->selectedUserIds);
@@ -181,6 +184,7 @@ class ProjectBoard extends Page
 
         // Get only users who are assigned to tickets in this project
         $ticketAssigneeIds = $this->selectedProject->tickets()
+            ->whereNull('archived_at')
             ->with('assignees')
             ->get()
             ->flatMap(function ($ticket) {
