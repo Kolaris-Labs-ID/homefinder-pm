@@ -23,6 +23,9 @@ Route::prefix('auth')->group(function () {
     Route::post('/google', [AuthController::class, 'googleLogin']);
 });
 
+// Attendance photo serving (uses token query param for auth, needed by <Image> components)
+Route::get('/hris/attendance/photo', [AttendanceController::class, 'servePhoto']);
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated Routes

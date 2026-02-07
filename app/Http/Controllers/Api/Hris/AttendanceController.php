@@ -9,6 +9,7 @@ use App\Services\Hris\AttendanceService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class AttendanceController extends Controller
@@ -433,6 +434,50 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Serve an attendance photo from local storage.
+     *
+     * GET /api/hris/attendance/photo?path=...&token=...
+     *
+     * Accepts auth via either:
+     * - Standard Authorization header (Bearer token)
+     * - Query parameter "token" (for use in <Image> components)
+     *
+     * @param Request $request
+     * @return \Symfony\Component\HttpFoundation\Response
+     */
+    public function servePhoto(Request $request)
+    {
+        // Authenticate via query token (needed for <Image> components that can't send headers)
+        $token = $request->query('token');
+        if (!$token) {
+            abort(401, 'Authentication required.');
+        }
+
+        $accessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+        if (!$accessToken || !$accessToken->tokenable) {
+            abort(401, 'Invalid token.');
+        }
+
+        $path = $request->query('path');
+
+        if (!$path || !Storage::disk('local')->exists($path)) {
+            abort(404, 'Photo not found.');
+        }
+
+        // Ensure the path is within attendance-photos directory
+        if (!str_starts_with($path, 'attendance-photos/')) {
+            abort(403, 'Access denied.');
+        }
+
+        $file = Storage::disk('local')->get($path);
+        $mimeType = Storage::disk('local')->mimeType($path) ?: 'image/jpeg';
+
+        return response($file, 200)
+            ->header('Content-Type', $mimeType)
+            ->header('Cache-Control', 'private, max-age=86400');
+    }
+
+    /**
      * Format an AttendanceLog for API response.
      *
      * @param AttendanceLog $log
@@ -452,14 +497,14 @@ class AttendanceController extends Controller
                 'latitude' => $log->check_in_latitude,
                 'longitude' => $log->check_in_longitude,
                 'address' => $log->check_in_address,
-                'photo_path' => $log->check_in_photo_path,
+                'photo_path' => $this->resolvePhotoUrl($log->check_in_photo_path),
             ],
             'check_out' => [
                 'time' => $log->check_out_time?->toIso8601String(),
                 'latitude' => $log->check_out_latitude,
                 'longitude' => $log->check_out_longitude,
                 'address' => $log->check_out_address,
-                'photo_path' => $log->check_out_photo_path,
+                'photo_path' => $this->resolvePhotoUrl($log->check_out_photo_path),
             ],
             'break' => [
                 'start_time' => $log->break_start_time?->utc()->toIso8601String(),
@@ -470,5 +515,29 @@ class AttendanceController extends Controller
             'created_at' => $log->created_at->toIso8601String(),
             'updated_at' => $log->updated_at->toIso8601String(),
         ];
+    }
+
+    /**
+     * Resolve a photo path to a full URL.
+     *
+     * If the path is already a full URL (e.g. Supabase), return as-is.
+     * If it's a local storage path, generate an API URL to serve it.
+     *
+     * @param string|null $path
+     * @return string|null
+     */
+    protected function resolvePhotoUrl(?string $path): ?string
+    {
+        if ($path === null) {
+            return null;
+        }
+
+        // Already a full URL (Supabase or other external storage)
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        // Local path — generate API URL to serve it
+        return url('/api/hris/attendance/photo') . '?' . http_build_query(['path' => $path]);
     }
 }
