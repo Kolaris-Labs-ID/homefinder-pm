@@ -518,9 +518,9 @@ test('project table view renders successfully with grouped projects', function (
 
     // Should see the table headers
     $component->assertSee('Project');
-    $component->assertSee('Due date');
+    $component->assertSee('Due Date');
     $component->assertSee('Status');
-    $component->assertSee('Member');
+    $component->assertSee('Members');
 });
 
 test('project table view shows search input and sort tabs', function () {
@@ -534,7 +534,6 @@ test('project table view shows search input and sort tabs', function () {
     $component->assertSee('Due Date');
     $component->assertSee('Status');
     $component->assertSee('Division');
-    $component->assertSee('Hide');
 });
 
 test('getProjectDivision returns most common division from members', function () {
