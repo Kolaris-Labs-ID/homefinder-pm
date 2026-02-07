@@ -30,10 +30,6 @@ Route::prefix('external')->name('external.')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
-    Route::get('/chat', function () {
-        return view('chat');
-    })->name('chat');
-
     Route::post('/locale/switch', function (\Illuminate\Http\Request $request) {
         $locale = $request->input('locale');
         if (in_array($locale, ['en', 'id'])) {

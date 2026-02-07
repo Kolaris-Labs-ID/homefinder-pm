@@ -4,7 +4,6 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\Login;
-use App\Filament\Pages\Chat;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use CraftForge\FilamentLanguageSwitcher\FilamentLanguageSwitcherPlugin;
 use Ffhs\Approvals\ApprovalsPlugin;
@@ -23,7 +22,6 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
-use Monzer\FilamentChatifyIntegration\ChatifyPlugin;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -67,8 +65,6 @@ class AdminPanelProvider extends PanelProvider
                         ['code' => 'en', 'name' => 'English', 'flag' => 'gb'],
                         ['code' => 'id', 'name' => 'Indonesia', 'flag' => 'id'],
                     ]),
-                ChatifyPlugin::make()
-                    ->customPage(Chat::class),
                 ApprovalsPlugin::make(),
             ])
             ->authMiddleware([
