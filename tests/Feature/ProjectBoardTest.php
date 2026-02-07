@@ -519,7 +519,7 @@ test('project table view renders successfully with grouped projects', function (
     // Should see the table headers
     $component->assertSee('Project');
     $component->assertSee('Due Date');
-    $component->assertSee('Status');
+    $component->assertSee('Division');
     $component->assertSee('Members');
 });
 
@@ -532,7 +532,6 @@ test('project table view shows search input and sort tabs', function () {
     $component->assertSee('Search');
     $component->assertSee('Name');
     $component->assertSee('Due Date');
-    $component->assertSee('Status');
     $component->assertSee('Division');
 });
 

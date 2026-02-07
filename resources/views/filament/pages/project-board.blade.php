@@ -18,24 +18,24 @@
                     @endcan
 
                     {{-- Search --}}
-                    <div class="fi-ta-search-field">
-                        <div class="relative">
-                            <div class="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3">
-                                <x-heroicon-m-magnifying-glass class="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                            </div>
+                    <div class="fi-ta-search-field w-64">
+                        <label class="relative block">
+                            <span class="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3">
+                                <x-heroicon-m-magnifying-glass class="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                            </span>
                             <input
                                 type="search"
                                 wire:model.live.debounce.300ms="projectSearch"
                                 placeholder="Search projects..."
-                                class="block w-full rounded-lg border-none bg-gray-50 py-2 pe-3 ps-10 text-sm text-gray-900 outline-none transition duration-75 placeholder:text-gray-400 focus:ring-2 focus:ring-primary-500 dark:bg-white/5 dark:text-white dark:placeholder:text-gray-500"
+                                class="block w-full rounded-lg border-gray-300 bg-gray-50 py-2 pe-3 ps-9 text-sm text-gray-900 outline-none transition duration-75 placeholder:text-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-gray-600 dark:bg-white/5 dark:text-white dark:placeholder:text-gray-400"
                             />
-                        </div>
+                        </label>
                     </div>
                 </div>
 
                 {{-- Sort Tabs --}}
                 <div class="flex items-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
-                    @foreach(['name' => 'Name', 'end_date' => 'Due Date', 'status' => 'Status', 'division' => 'Division'] as $field => $label)
+                    @foreach(['name' => 'Name', 'end_date' => 'Due Date', 'division' => 'Division'] as $field => $label)
                         <button
                             wire:click="sortProjectsBy('{{ $field }}')"
                             class="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition {{ $projectSortField === $field ? 'bg-white text-primary-600 shadow-sm dark:bg-gray-700 dark:text-primary-400' : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white' }}"
@@ -83,8 +83,8 @@
                                             @if(!in_array('due_date', $hiddenColumns))
                                                 <th class="fi-ta-header-cell px-3 py-3.5 text-start text-sm font-semibold text-gray-950 dark:text-white">Due Date</th>
                                             @endif
-                                            @if(!in_array('status', $hiddenColumns))
-                                                <th class="fi-ta-header-cell px-3 py-3.5 text-start text-sm font-semibold text-gray-950 dark:text-white">Status</th>
+                                            @if(!in_array('division', $hiddenColumns))
+                                                <th class="fi-ta-header-cell px-3 py-3.5 text-start text-sm font-semibold text-gray-950 dark:text-white">Division</th>
                                             @endif
                                             @if(!in_array('owner', $hiddenColumns))
                                                 <th class="fi-ta-header-cell px-3 py-3.5 text-start text-sm font-semibold text-gray-950 dark:text-white">Owner</th>
@@ -113,17 +113,10 @@
                                                 {{-- Project Name --}}
                                                 <td class="fi-ta-cell p-0 first-of-type:ps-1 last-of-type:pe-1 sm:first-of-type:ps-3 sm:last-of-type:pe-3">
                                                     <div class="fi-ta-col-wrp px-3 py-4">
-                                                        <div class="flex items-center gap-3">
-                                                            <div class="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold bg-primary-500">
-                                                                {{ strtoupper(substr($project->name, 0, 1)) }}
-                                                            </div>
-                                                            <div>
-                                                                <div class="font-medium text-gray-950 dark:text-white">{{ $project->name }}</div>
-                                                                @if($project->ticket_prefix)
-                                                                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ $project->ticket_prefix }}</div>
-                                                                @endif
-                                                            </div>
-                                                        </div>
+                                                        <div class="font-medium text-gray-950 dark:text-white">{{ $project->name }}</div>
+                                                        @if($project->ticket_prefix)
+                                                            <div class="text-xs text-gray-500 dark:text-gray-400">{{ $project->ticket_prefix }}</div>
+                                                        @endif
                                                     </div>
                                                 </td>
 
@@ -143,13 +136,11 @@
                                                     </td>
                                                 @endif
 
-                                                {{-- Status --}}
-                                                @if(!in_array('status', $hiddenColumns))
+                                                {{-- Division --}}
+                                                @if(!in_array('division', $hiddenColumns))
                                                     <td class="fi-ta-cell p-0 first-of-type:ps-1 last-of-type:pe-1 sm:first-of-type:ps-3 sm:last-of-type:pe-3">
-                                                        <div class="fi-ta-col-wrp px-3 py-4">
-                                                            <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset" style="background-color: {{ $status['bg'] }}; color: {{ $status['text'] }}; --tw-ring-color: {{ $status['text'] }}20;">
-                                                                {{ $status['label'] }}
-                                                            </span>
+                                                        <div class="fi-ta-col-wrp px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+                                                            {{ $owner?->division ?? '—' }}
                                                         </div>
                                                     </td>
                                                 @endif
