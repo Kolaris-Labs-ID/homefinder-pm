@@ -523,15 +523,62 @@ test('project table view renders successfully with grouped projects', function (
     $component->assertSee('Member');
 });
 
-test('project table view shows search input', function () {
+test('project table view shows search input and sort tabs', function () {
     auth()->login($this->user);
 
     $component = Livewire::test(ProjectBoard::class);
 
-    // Should see the search placeholder
+    // Should see the search placeholder and sort tabs
     $component->assertSee('Search');
-    $component->assertSee('Sort');
+    $component->assertSee('Name');
+    $component->assertSee('Due Date');
+    $component->assertSee('Status');
+    $component->assertSee('Division');
     $component->assertSee('Hide');
+});
+
+test('getProjectDivision returns most common division from members', function () {
+    $project = Project::factory()->create();
+
+    $user1 = User::factory()->create(['division' => 'Engineering']);
+    $user2 = User::factory()->create(['division' => 'Engineering']);
+    $user3 = User::factory()->create(['division' => 'Marketing']);
+
+    $project->users()->attach([$user1->id, $user2->id, $user3->id]);
+    $project->load('users');
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+    $division = $component->instance()->getProjectDivision($project);
+
+    expect($division)->toBe('Engineering');
+});
+
+test('getProjectDivision returns No Division when project has no members', function () {
+    $project = Project::factory()->create();
+
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+    $division = $component->instance()->getProjectDivision($project);
+
+    expect($division)->toBe('No Division');
+});
+
+test('sortProjectsBy division sorts projects by member division', function () {
+    auth()->login($this->user);
+
+    $component = Livewire::test(ProjectBoard::class);
+
+    $component->call('sortProjectsBy', 'division');
+
+    expect($component->get('projectSortField'))->toBe('division');
+    expect($component->get('projectSortDirection'))->toBe('asc');
+
+    // Click again to toggle direction
+    $component->call('sortProjectsBy', 'division');
+    expect($component->get('projectSortDirection'))->toBe('desc');
 });
 
 test('collapsedGroups and hiddenColumns are initialized on mount', function () {

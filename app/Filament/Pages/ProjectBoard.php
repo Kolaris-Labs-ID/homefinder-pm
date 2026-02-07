@@ -190,6 +190,21 @@ class ProjectBoard extends Page
         return ['dot' => '#10B981', 'icon' => 'success'];
     }
 
+    public function getProjectDivision(Project $project): string
+    {
+        if (!$project->relationLoaded('users') || $project->users->isEmpty()) {
+            return 'No Division';
+        }
+
+        $divisions = $project->users
+            ->pluck('division')
+            ->filter()
+            ->countBy()
+            ->sortDesc();
+
+        return $divisions->keys()->first() ?? 'No Division';
+    }
+
     public function getGroupedProjects(): Collection
     {
         $filtered = $this->projects;
@@ -210,6 +225,7 @@ class ProjectBoard extends Page
                 'name' => strtolower($project->name),
                 'end_date' => $project->end_date ? $project->end_date->format('Y-m-d') : '9999-12-31',
                 'status' => $this->getProjectStatus($project)['label'],
+                'division' => strtolower($this->getProjectDivision($project)),
                 default => strtolower($project->name),
             };
         }, SORT_REGULAR, $direction === 'desc');

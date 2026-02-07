@@ -4,12 +4,12 @@
     @if (! $selectedProject)
         <div class="pb-board" style="font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
             {{-- Toolbar --}}
-            <div class="flex flex-wrap items-center gap-3 mb-6">
+            <div class="flex flex-wrap items-center gap-3 px-2 py-4 mb-8 border-b" style="border-color: #E5E7EB;">
                 {{-- New Project Button --}}
                 @can('create', \App\Models\Project::class)
                     <a
                         href="{{ \App\Filament\Resources\ProjectResource::getUrl('create') }}"
-                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-md text-white text-sm font-medium transition-colors"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-medium transition-all shadow-sm"
                         style="background-color: #56C078;"
                         onmouseover="this.style.backgroundColor='#4CAF6A'"
                         onmouseout="this.style.backgroundColor='#56C078'"
@@ -19,6 +19,9 @@
                     </a>
                 @endcan
 
+                {{-- Divider --}}
+                <div class="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+
                 {{-- Search --}}
                 <div class="relative">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -27,70 +30,59 @@
                     <input
                         type="text"
                         wire:model.live.debounce.300ms="projectSearch"
-                        placeholder="Search"
-                        class="pl-9 pr-4 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-gray-600"
+                        placeholder="Search projects..."
+                        class="w-52 pl-9 pr-4 py-2 text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-200 dark:focus:ring-gray-600 focus:border-green-400"
                         style="border-color: #E5E7EB; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);"
                     />
                 </div>
 
-                {{-- Sort --}}
-                <div class="relative" x-data="{ open: false }">
-                    <button
-                        @click="open = !open"
-                        class="inline-flex items-center gap-1.5 px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                        style="border-color: #E5E7EB; color: #111827;"
-                    >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg>
-                        Sort
-                    </button>
-                    <div
-                        x-show="open"
-                        @click.away="open = false"
-                        x-transition
-                        class="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-1"
-                        style="display: none;"
-                    >
-                        <button wire:click="sortProjectsBy('name')" @click="open = false" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between">
-                            Project Name
-                            @if($projectSortField === 'name')
-                                <svg class="w-3 h-3 {{ $projectSortDirection === 'asc' ? '' : 'rotate-180' }}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 4.414l-3.293 3.293a1 1 0 01-1.414 0z"/></svg>
+                {{-- Divider --}}
+                <div class="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+
+                {{-- Sort Tabs --}}
+                <div class="flex items-center gap-1 p-1 rounded-lg" style="background-color: #F3F4F6;">
+                    @foreach(['name' => 'Name', 'end_date' => 'Due Date', 'status' => 'Status', 'division' => 'Division'] as $field => $label)
+                        <button
+                            wire:click="sortProjectsBy('{{ $field }}')"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-150 {{ $projectSortField === $field ? 'text-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/60 dark:text-gray-300 dark:hover:text-white' }}"
+                            style="{{ $projectSortField === $field ? 'background-color: #56C078;' : '' }}"
+                        >
+                            {{ $label }}
+                            @if($projectSortField === $field)
+                                <svg class="w-3 h-3 transition-transform {{ $projectSortDirection === 'desc' ? 'rotate-180' : '' }}" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 4.414l-3.293 3.293a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+                                </svg>
                             @endif
                         </button>
-                        <button wire:click="sortProjectsBy('end_date')" @click="open = false" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between">
-                            Due Date
-                            @if($projectSortField === 'end_date')
-                                <svg class="w-3 h-3 {{ $projectSortDirection === 'asc' ? '' : 'rotate-180' }}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 4.414l-3.293 3.293a1 1 0 01-1.414 0z"/></svg>
-                            @endif
-                        </button>
-                        <button wire:click="sortProjectsBy('status')" @click="open = false" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between">
-                            Status
-                            @if($projectSortField === 'status')
-                                <svg class="w-3 h-3 {{ $projectSortDirection === 'asc' ? '' : 'rotate-180' }}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 4.414l-3.293 3.293a1 1 0 01-1.414 0z"/></svg>
-                            @endif
-                        </button>
-                    </div>
+                    @endforeach
                 </div>
+
+                {{-- Divider --}}
+                <div class="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1"></div>
 
                 {{-- Hide Columns --}}
                 <div class="relative" x-data="{ open: false }">
                     <button
                         @click="open = !open"
-                        class="inline-flex items-center gap-1.5 px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                        style="border-color: #E5E7EB; color: #111827;"
+                        class="inline-flex items-center gap-2 px-4 py-2 text-sm border rounded-lg bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        style="border-color: #E5E7EB; color: #374151;"
                     >
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
+                        <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
                         Hide
                     </button>
                     <div
                         x-show="open"
                         @click.away="open = false"
                         x-transition
-                        class="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-1"
+                        class="absolute top-full left-0 mt-2 w-52 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 py-2"
                         style="display: none;"
                     >
+                        <div class="px-3 pb-2 mb-1 border-b" style="border-color: #F3F4F6;">
+                            <span class="text-xs font-semibold uppercase tracking-wider" style="color: #9CA3AF;">Toggle columns</span>
+                        </div>
                         @foreach(['due_date' => 'Due Date', 'status' => 'Status', 'members' => 'Members', 'progress' => 'Progress'] as $col => $label)
-                            <button wire:click="toggleColumn('{{ $col }}')" @click.stop class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2">
-                                <span class="w-4 h-4 border rounded flex items-center justify-center {{ in_array($col, $hiddenColumns) ? 'border-gray-300 dark:border-gray-600' : 'bg-green-500 border-green-500' }}" style="{{ !in_array($col, $hiddenColumns) ? 'background-color: #56C078; border-color: #56C078;' : '' }}">
+                            <button wire:click="toggleColumn('{{ $col }}')" @click.stop class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3">
+                                <span class="w-4 h-4 border rounded flex items-center justify-center flex-shrink-0 {{ in_array($col, $hiddenColumns) ? 'border-gray-300 dark:border-gray-600' : '' }}" style="{{ !in_array($col, $hiddenColumns) ? 'background-color: #56C078; border-color: #56C078;' : '' }}">
                                     @if(!in_array($col, $hiddenColumns))
                                         <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
                                     @endif
@@ -103,7 +95,7 @@
             </div>
 
             @if ($projects->isEmpty())
-                <div class="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400 gap-4">
+                <div class="flex flex-col items-center justify-center py-20 text-gray-500 dark:text-gray-400 gap-4">
                     <div class="flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 p-6">
                         <x-heroicon-o-folder class="w-16 h-16 text-gray-400 dark:text-gray-500" />
                     </div>
@@ -115,54 +107,55 @@
             @else
                 @php $groupedProjects = $this->getGroupedProjects(); @endphp
 
+                <div class="space-y-10">
                 @forelse ($groupedProjects as $groupName => $groupProjects)
-                    <div class="mb-6">
+                    <div>
                         {{-- Group Header --}}
                         <button
                             wire:click="toggleGroup('{{ $groupName }}')"
-                            class="flex items-center gap-2 mb-3 group cursor-pointer"
+                            class="flex items-center gap-2.5 mb-4 px-1 group cursor-pointer"
                         >
                             <svg
-                                class="w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform duration-200 {{ in_array($groupName, $collapsedGroups) ? '-rotate-90' : '' }}"
+                                class="w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 {{ in_array($groupName, $collapsedGroups) ? '-rotate-90' : '' }}"
                                 fill="currentColor" viewBox="0 0 20 20"
                             >
                                 <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
                             </svg>
-                            <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ $groupName }}</span>
-                            <span class="text-xs text-gray-400 dark:text-gray-500">({{ $groupProjects->count() }})</span>
+                            <span class="text-sm font-bold text-gray-800 dark:text-gray-200">{{ $groupName }}</span>
+                            <span class="text-xs font-medium px-2 py-0.5 rounded-full" style="background-color: #F3F4F6; color: #6B7280;">{{ $groupProjects->count() }}</span>
                         </button>
 
                         {{-- Table --}}
                         @if (!in_array($groupName, $collapsedGroups))
-                            <div class="rounded-lg border overflow-hidden" style="border-color: #E5E7EB; background-color: #F7F8FA;">
+                            <div class="rounded-xl border overflow-hidden shadow-sm" style="border-color: #E5E7EB;">
                                 <div class="overflow-x-auto">
                                     <table class="w-full" style="min-width: 700px;">
                                         <thead>
-                                            <tr style="border-bottom: 1px solid #E5E7EB;">
-                                                <th class="text-left py-3 px-4 text-sm font-semibold" style="color: #111827; width: 30%;">Project</th>
+                                            <tr style="background-color: #FAFBFC; border-bottom: 2px solid #E5E7EB;">
+                                                <th class="text-left py-3.5 px-6 text-xs font-bold uppercase tracking-wider" style="color: #6B7280; width: 30%;">Project</th>
                                                 @if(!in_array('due_date', $hiddenColumns))
-                                                    <th class="text-left py-3 px-4 text-sm font-semibold" style="color: #111827; width: 18%;">
-                                                        <span class="inline-flex items-center gap-1">
+                                                    <th class="text-left py-3.5 px-6 text-xs font-bold uppercase tracking-wider" style="color: #6B7280; width: 18%;">
+                                                        <span class="inline-flex items-center gap-1.5">
                                                             Due date
                                                             <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                                         </span>
                                                     </th>
                                                 @endif
                                                 @if(!in_array('status', $hiddenColumns))
-                                                    <th class="text-center py-3 px-4 text-sm font-semibold" style="color: #111827; width: 18%;">
-                                                        <span class="inline-flex items-center gap-1">
+                                                    <th class="text-center py-3.5 px-6 text-xs font-bold uppercase tracking-wider" style="color: #6B7280; width: 18%;">
+                                                        <span class="inline-flex items-center gap-1.5">
                                                             Status
                                                             <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                                         </span>
                                                     </th>
                                                 @endif
                                                 @if(!in_array('members', $hiddenColumns))
-                                                    <th class="text-center py-3 px-4 text-sm font-semibold" style="color: #111827; width: 18%;">Member</th>
+                                                    <th class="text-center py-3.5 px-6 text-xs font-bold uppercase tracking-wider" style="color: #6B7280; width: 18%;">Member</th>
                                                 @endif
                                                 @if(!in_array('progress', $hiddenColumns))
-                                                    <th class="text-center py-3 px-4 text-sm font-semibold" style="color: #111827; width: 12%;">Progress</th>
+                                                    <th class="text-center py-3.5 px-6 text-xs font-bold uppercase tracking-wider" style="color: #6B7280; width: 12%;">Progress</th>
                                                 @endif
-                                                <th style="width: 40px;"></th>
+                                                <th style="width: 48px;"></th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -174,19 +167,21 @@
                                                 @endphp
                                                 <tr
                                                     wire:click="selectProject({{ $project->id }})"
-                                                    class="cursor-pointer transition-colors hover:bg-blue-50/50 dark:hover:bg-gray-700/50"
-                                                    style="background-color: #FFFFFF; border-bottom: 1px solid #F7F8FA; height: 64px;"
+                                                    class="cursor-pointer transition-all duration-150 group"
+                                                    style="background-color: #FFFFFF; border-bottom: 1px solid #F3F4F6;"
+                                                    onmouseover="this.style.backgroundColor='#F8FAFC'"
+                                                    onmouseout="this.style.backgroundColor='#FFFFFF'"
                                                 >
                                                     {{-- Project Name --}}
-                                                    <td class="py-3 px-4">
-                                                        <div class="flex items-center gap-3">
-                                                            <div class="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold" style="background-color: #56C078;">
+                                                    <td class="py-5 px-6">
+                                                        <div class="flex items-center gap-4">
+                                                            <div class="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-sm" style="background-color: #56C078;">
                                                                 {{ strtoupper(substr($project->name, 0, 1)) }}
                                                             </div>
                                                             <div class="min-w-0">
-                                                                <span class="text-sm font-medium truncate block" style="color: #111827;">{{ $project->name }}</span>
+                                                                <span class="text-sm font-semibold truncate block group-hover:text-green-700 dark:group-hover:text-green-400 transition-colors" style="color: #111827;">{{ $project->name }}</span>
                                                                 @if($project->ticket_prefix)
-                                                                    <span class="text-xs" style="color: #6B7280;">{{ $project->ticket_prefix }}</span>
+                                                                    <span class="text-xs mt-0.5 block" style="color: #9CA3AF;">{{ $project->ticket_prefix }}</span>
                                                                 @endif
                                                             </div>
                                                         </div>
@@ -194,24 +189,24 @@
 
                                                     {{-- Due Date --}}
                                                     @if(!in_array('due_date', $hiddenColumns))
-                                                        <td class="py-3 px-4">
+                                                        <td class="py-5 px-6">
                                                             @if($project->end_date)
-                                                                <div class="flex items-center gap-2">
-                                                                    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: {{ $dueDateIndicator['dot'] }};"></span>
-                                                                    <span class="text-sm" style="color: #6B7280;">{{ $project->end_date->format('d M Y') }}</span>
+                                                                <div class="flex items-center gap-2.5">
+                                                                    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-sm" style="background-color: {{ $dueDateIndicator['dot'] }};"></span>
+                                                                    <span class="text-sm" style="color: #4B5563;">{{ $project->end_date->format('d M Y') }}</span>
                                                                 </div>
                                                             @else
-                                                                <span class="text-sm" style="color: #9CA3AF;">No date</span>
+                                                                <span class="text-sm italic" style="color: #D1D5DB;">No date</span>
                                                             @endif
                                                         </td>
                                                     @endif
 
                                                     {{-- Status Badge --}}
                                                     @if(!in_array('status', $hiddenColumns))
-                                                        <td class="py-3 px-4 text-center">
+                                                        <td class="py-5 px-6 text-center">
                                                             <span
-                                                                class="inline-flex items-center justify-center px-4 py-1.5 rounded-md text-sm font-medium whitespace-nowrap"
-                                                                style="background-color: {{ $status['bg'] }}; color: {{ $status['text'] }}; min-width: 110px;"
+                                                                class="inline-flex items-center justify-center px-5 py-1.5 rounded-md text-sm font-semibold whitespace-nowrap shadow-sm"
+                                                                style="background-color: {{ $status['bg'] }}; color: {{ $status['text'] }}; min-width: 120px;"
                                                             >
                                                                 {{ $status['label'] }}
                                                             </span>
@@ -220,13 +215,13 @@
 
                                                     {{-- Members --}}
                                                     @if(!in_array('members', $hiddenColumns))
-                                                        <td class="py-3 px-4">
+                                                        <td class="py-5 px-6">
                                                             <div class="flex items-center justify-center">
                                                                 @if($project->users && $project->users->isNotEmpty())
                                                                     <div class="flex -space-x-2">
                                                                         @foreach($project->users->take(4) as $member)
                                                                             <div
-                                                                                class="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
+                                                                                class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm"
                                                                                 style="background-color: #E0F2FE; color: #0369A1;"
                                                                                 title="{{ $member->name }}"
                                                                             >
@@ -235,7 +230,7 @@
                                                                         @endforeach
                                                                         @if($project->users->count() > 4)
                                                                             <div
-                                                                                class="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
+                                                                                class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm"
                                                                                 style="background-color: #F3F4F6; color: #6B7280;"
                                                                             >
                                                                                 +{{ $project->users->count() - 4 }}
@@ -243,7 +238,7 @@
                                                                         @endif
                                                                     </div>
                                                                 @else
-                                                                    <span class="text-xs" style="color: #9CA3AF;">-</span>
+                                                                    <span class="text-xs" style="color: #D1D5DB;">—</span>
                                                                 @endif
                                                             </div>
                                                         </td>
@@ -251,22 +246,22 @@
 
                                                     {{-- Progress --}}
                                                     @if(!in_array('progress', $hiddenColumns))
-                                                        <td class="py-3 px-4 text-center">
-                                                            <div class="flex items-center justify-center gap-2">
-                                                                <div class="w-16 h-1.5 rounded-full overflow-hidden" style="background-color: #E5E7EB;">
+                                                        <td class="py-5 px-6 text-center">
+                                                            <div class="flex items-center justify-center gap-2.5">
+                                                                <div class="w-20 h-2 rounded-full overflow-hidden" style="background-color: #E5E7EB;">
                                                                     <div
                                                                         class="h-full rounded-full transition-all duration-300"
                                                                         style="width: {{ min($progress, 100) }}%; background-color: {{ $progress >= 100 ? '#10B981' : ($progress >= 50 ? '#56C078' : '#F4C571') }};"
                                                                     ></div>
                                                                 </div>
-                                                                <span class="text-xs font-medium" style="color: #6B7280;">{{ number_format(min($progress, 100), 0) }}%</span>
+                                                                <span class="text-xs font-semibold tabular-nums" style="color: #6B7280;">{{ number_format(min($progress, 100), 0) }}%</span>
                                                             </div>
                                                         </td>
                                                     @endif
 
                                                     {{-- Action --}}
-                                                    <td class="py-3 px-2">
-                                                        <div class="flex items-center justify-center">
+                                                    <td class="py-5 px-4">
+                                                        <div class="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <svg class="w-4 h-4" style="color: #9CA3AF;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                                                         </div>
                                                     </td>
@@ -279,11 +274,12 @@
                         @endif
                     </div>
                 @empty
-                    <div class="flex flex-col items-center justify-center h-40 text-gray-500 dark:text-gray-400 gap-2">
-                        <svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                        <p class="text-sm">No projects match your search.</p>
+                    <div class="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400 gap-3">
+                        <svg class="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <p class="text-sm font-medium">No projects match your search.</p>
                     </div>
                 @endforelse
+                </div>
             @endif
         </div>
     @endif
