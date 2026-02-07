@@ -138,57 +138,18 @@ class ProjectResource extends Resource
                             ? ($record->is_auto_done ? '✓ Auto-completed' : '✓ Manually completed')
                             : null
                     ),
-                // Done status badge - Requirements: 2.2
-                Tables\Columns\TextColumn::make('done_status')
-                    ->label('Status')
-                    ->getStateUsing(fn (Project $record): ?string =>
-                        $record->is_done
-                            ? ($record->is_auto_done ? 'Auto Done' : 'Done')
-                            : null
-                    )
-                    ->badge()
-                    ->color(fn (Project $record): ?string =>
-                        $record->is_done
-                            ? ($record->is_auto_done ? 'info' : 'success')
-                            : null
-                    )
-                    ->placeholder('-'),
                 Tables\Columns\TextColumn::make('ticket_prefix')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('progress_percentage')
-                    ->label('Progress')
-                    ->getStateUsing(function (Project $record): string {
-                        return $record->progress_percentage . '%';
-                    })
-                    ->badge()
-                    ->color(fn (Project $record): string =>
-                        $record->progress_percentage >= 100 ? 'success' :
-                        ($record->progress_percentage >= 75 ? 'info' :
-                        ($record->progress_percentage >= 50 ? 'warning' :
-                        ($record->progress_percentage >= 25 ? 'gray' : 'danger')))
-                    )
+                Tables\Columns\TextColumn::make('owner.name')
+                    ->label('Owner')
+                    ->placeholder('-')
+                    ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('start_date')
-                    ->date('d/m/Y')
+                Tables\Columns\TextColumn::make('owner.division')
+                    ->label('Division')
+                    ->placeholder('-')
+                    ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('end_date')
-                    ->date('d/m/Y')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('remaining_days')
-                    ->label('Remaining Days')
-                    ->getStateUsing(function (Project $record): ?string {
-                        if (!$record->end_date) {
-                            return null;
-                        }
-
-                        return $record->remaining_days . ' days';
-                    })
-                    ->badge()
-                    ->color(fn (Project $record): string =>
-                        !$record->end_date ? 'gray' :
-                        ($record->remaining_days <= 0 ? 'danger' :
-                        ($record->remaining_days <= 7 ? 'warning' : 'success'))
-                    ),
                 Tables\Columns\ToggleColumn::make('is_pinned')
                     ->label('Pinned')
                     ->updateStateUsing(function ($record, $state) {

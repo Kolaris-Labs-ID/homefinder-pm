@@ -24,6 +24,7 @@ class Project extends Model
         'archived_by',
         'done_at',
         'is_auto_done',
+        'created_by',
     ];
 
     protected $casts = [
@@ -57,6 +58,11 @@ class Project extends Model
     public function archivedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class, 'archived_by');
+    }
+
+    public function owner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     // Helper method to pin project

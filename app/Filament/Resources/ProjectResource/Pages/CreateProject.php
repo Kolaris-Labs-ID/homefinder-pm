@@ -12,6 +12,12 @@ class CreateProject extends CreateRecord
 {
     protected static string $resource = ProjectResource::class;
 
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        $data['created_by'] = auth()->id();
+        return $data;
+    }
+
     protected function afterCreate(): void
     {
         $createDefaultStatuses = $this->data['create_default_statuses'] ?? true;
