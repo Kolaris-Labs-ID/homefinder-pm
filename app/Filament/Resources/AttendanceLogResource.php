@@ -13,7 +13,6 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Storage;
 
 class AttendanceLogResource extends Resource
 {
@@ -200,7 +199,7 @@ class AttendanceLogResource extends Resource
                             ->formatStateUsing(function (?string $state): ?string {
                                 if (!$state) return null;
                                 if (str_starts_with($state, 'http')) return $state;
-                                return Storage::disk('local')->url($state);
+                                return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
                             }),
                     ]),
 
@@ -251,7 +250,7 @@ class AttendanceLogResource extends Resource
                             ->formatStateUsing(function (?string $state): ?string {
                                 if (!$state) return null;
                                 if (str_starts_with($state, 'http')) return $state;
-                                return Storage::disk('local')->url($state);
+                                return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
                             }),
                     ]),
             ]);
@@ -290,7 +289,7 @@ class AttendanceLogResource extends Resource
                     ->formatStateUsing(function (?string $state): ?string {
                         if (!$state) return null;
                         if (str_starts_with($state, 'http')) return $state;
-                        return Storage::disk('local')->url($state);
+                        return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
                     }),
                 Tables\Columns\TextColumn::make('check_out_time')
                     ->label('Check-Out')
@@ -304,7 +303,7 @@ class AttendanceLogResource extends Resource
                     ->formatStateUsing(function (?string $state): ?string {
                         if (!$state) return null;
                         if (str_starts_with($state, 'http')) return $state;
-                        return Storage::disk('local')->url($state);
+                        return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
                     }),
                 Tables\Columns\BadgeColumn::make('status')
                     ->colors([

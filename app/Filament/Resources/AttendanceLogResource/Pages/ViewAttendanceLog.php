@@ -11,7 +11,6 @@ use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
-use Illuminate\Support\Facades\Storage;
 
 class ViewAttendanceLog extends ViewRecord
 {
@@ -131,7 +130,7 @@ class ViewAttendanceLog extends ViewRecord
                             ->formatStateUsing(function (?string $state): ?string {
                                 if (!$state) return null;
                                 if (str_starts_with($state, 'http')) return $state;
-                                return Storage::disk('local')->url($state);
+                                return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
                             })
                             ->visible(fn (AttendanceLog $record): bool => filled($record->check_in_photo_path)),
                     ]),
@@ -179,7 +178,7 @@ class ViewAttendanceLog extends ViewRecord
                             ->formatStateUsing(function (?string $state): ?string {
                                 if (!$state) return null;
                                 if (str_starts_with($state, 'http')) return $state;
-                                return Storage::disk('local')->url($state);
+                                return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
                             })
                             ->visible(fn (AttendanceLog $record): bool => filled($record->check_out_photo_path)),
                     ]),

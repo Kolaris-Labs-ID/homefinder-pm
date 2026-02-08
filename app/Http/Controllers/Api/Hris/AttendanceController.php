@@ -88,7 +88,7 @@ class AttendanceController extends Controller
         } catch (\Exception $e) {
             // Business logic errors (duplicate check-in, WFH quota exhausted) should return 422
             $businessErrors = [
-                'Employee has already checked in for today.',
+                'Employee has already checked in and has not checked out yet.',
                 'WFH quota exhausted for this week.',
             ];
 
@@ -306,8 +306,7 @@ class AttendanceController extends Controller
         } catch (\Exception $e) {
             // Business logic errors should return 422
             $businessErrors = [
-                'Employee has not checked in for today.',
-                'Employee has already checked out for today.',
+                'Employee has no active check-in session for today.',
             ];
 
             if (in_array($e->getMessage(), $businessErrors)) {
