@@ -286,7 +286,8 @@ class AttendanceLogResource extends Resource
                     ->circular()
                     ->size(40)
                     ->defaultImageUrl(fn () => null)
-                    ->formatStateUsing(function (?string $state): ?string {
+                    ->getStateUsing(function ($record): ?string {
+                        $state = $record->check_in_photo_path;
                         if (!$state) return null;
                         if (str_starts_with($state, 'http')) return $state;
                         return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
@@ -300,7 +301,8 @@ class AttendanceLogResource extends Resource
                     ->circular()
                     ->size(40)
                     ->defaultImageUrl(fn () => null)
-                    ->formatStateUsing(function (?string $state): ?string {
+                    ->getStateUsing(function ($record): ?string {
+                        $state = $record->check_out_photo_path;
                         if (!$state) return null;
                         if (str_starts_with($state, 'http')) return $state;
                         return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);

@@ -123,15 +123,14 @@ class AttendanceService
         $today = Carbon::today('Asia/Jakarta');
         $mode = $data['mode'] ?? AttendanceLog::MODE_OFFICE;
 
-        // Validate employee does not have an active (un-checked-out) session today
-        $activeLog = AttendanceLog::forEmployee($employee->id)
+        // Validate employee not already checked in for today
+        $existingLog = AttendanceLog::forEmployee($employee->id)
             ->forDate($today)
             ->whereNotNull('check_in_time')
-            ->whereNull('check_out_time')
             ->first();
 
-        if ($activeLog) {
-            throw new \Exception('Employee has already checked in and has not checked out yet.');
+        if ($existingLog) {
+            throw new \Exception('Employee has already checked in for today.');
         }
 
         // Validate WFH quota if WFH mode is selected
@@ -224,16 +223,18 @@ class AttendanceService
     {
         $today = Carbon::today('Asia/Jakarta');
 
-        // Find the latest active (un-checked-out) attendance log for today
+        // Find today's attendance log with check-in
         $attendanceLog = AttendanceLog::forEmployee($employee->id)
             ->forDate($today)
             ->whereNotNull('check_in_time')
-            ->whereNull('check_out_time')
-            ->latest('check_in_time')
             ->first();
 
         if (!$attendanceLog) {
-            throw new \Exception('Employee has no active check-in session for today.');
+            throw new \Exception('Employee has not checked in for today.');
+        }
+
+        if ($attendanceLog->hasCheckedOut()) {
+            throw new \Exception('Employee has already checked out for today.');
         }
 
         // If employee is on break, end the break first
@@ -320,16 +321,18 @@ class AttendanceService
     {
         $today = Carbon::today('Asia/Jakarta');
 
-        // Find the latest active (un-checked-out) attendance log for today
+        // Find today's attendance log with check-in
         $attendanceLog = AttendanceLog::forEmployee($employee->id)
             ->forDate($today)
             ->whereNotNull('check_in_time')
-            ->whereNull('check_out_time')
-            ->latest('check_in_time')
             ->first();
 
         if (!$attendanceLog) {
-            throw new \Exception('Employee has no active check-in session for today.');
+            throw new \Exception('Employee has not checked in for today.');
+        }
+
+        if ($attendanceLog->hasCheckedOut()) {
+            throw new \Exception('Employee has already checked out for today.');
         }
 
         if ($attendanceLog->isOnBreak()) {
@@ -360,16 +363,14 @@ class AttendanceService
     {
         $today = Carbon::today('Asia/Jakarta');
 
-        // Find the latest active (un-checked-out) attendance log for today
+        // Find today's attendance log with check-in
         $attendanceLog = AttendanceLog::forEmployee($employee->id)
             ->forDate($today)
             ->whereNotNull('check_in_time')
-            ->whereNull('check_out_time')
-            ->latest('check_in_time')
             ->first();
 
         if (!$attendanceLog) {
-            throw new \Exception('Employee has no active check-in session for today.');
+            throw new \Exception('Employee has not checked in for today.');
         }
 
         if (!$attendanceLog->isOnBreak()) {
@@ -402,7 +403,6 @@ class AttendanceService
 
         return AttendanceLog::forEmployee($employee->id)
             ->forDate($date)
-            ->latest('check_in_time')
             ->first();
     }
 
