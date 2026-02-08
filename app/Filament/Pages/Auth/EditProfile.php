@@ -96,7 +96,7 @@ class EditProfile extends BaseEditProfile
         $data = $this->mobilePasswordForm->getState();
 
         $user = $this->getUser();
-        $user->password = Hash::make($data['mobile_password']);
+        $user->password = $data['mobile_password'];
         $user->save();
 
         $this->mobilePasswordData = [];
@@ -117,7 +117,6 @@ class EditProfile extends BaseEditProfile
             ->rule(Password::default())
             ->autocomplete('new-password')
             ->dehydrated(fn ($state): bool => filled($state))
-            ->dehydrateStateUsing(fn ($state): string => Hash::make($state))
             ->live(debounce: 500)
             ->same('passwordConfirmation');
     }
