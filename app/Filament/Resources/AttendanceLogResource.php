@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 
 class AttendanceLogResource extends Resource
 {
@@ -195,7 +196,12 @@ class AttendanceLogResource extends Resource
                             ->extraImgAttributes(['class' => 'rounded-lg shadow-md'])
                             ->placeholder('No photo')
                             ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string => $record->check_in_photo_path),
+                            ->url(fn (AttendanceLog $record): ?string => $record->check_in_photo_path)
+                            ->formatStateUsing(function (?string $state): ?string {
+                                if (!$state) return null;
+                                if (str_starts_with($state, 'http')) return $state;
+                                return Storage::disk('local')->url($state);
+                            }),
                     ]),
 
                 Infolists\Components\Section::make('Check-Out Details')
@@ -241,7 +247,12 @@ class AttendanceLogResource extends Resource
                             ->extraImgAttributes(['class' => 'rounded-lg shadow-md'])
                             ->placeholder('No photo')
                             ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string => $record->check_out_photo_path),
+                            ->url(fn (AttendanceLog $record): ?string => $record->check_out_photo_path)
+                            ->formatStateUsing(function (?string $state): ?string {
+                                if (!$state) return null;
+                                if (str_starts_with($state, 'http')) return $state;
+                                return Storage::disk('local')->url($state);
+                            }),
                     ]),
             ]);
     }
@@ -275,7 +286,12 @@ class AttendanceLogResource extends Resource
                     ->label('In Photo')
                     ->circular()
                     ->size(40)
-                    ->defaultImageUrl(fn () => null),
+                    ->defaultImageUrl(fn () => null)
+                    ->formatStateUsing(function (?string $state): ?string {
+                        if (!$state) return null;
+                        if (str_starts_with($state, 'http')) return $state;
+                        return Storage::disk('local')->url($state);
+                    }),
                 Tables\Columns\TextColumn::make('check_out_time')
                     ->label('Check-Out')
                     ->dateTime('H:i')
@@ -284,7 +300,12 @@ class AttendanceLogResource extends Resource
                     ->label('Out Photo')
                     ->circular()
                     ->size(40)
-                    ->defaultImageUrl(fn () => null),
+                    ->defaultImageUrl(fn () => null)
+                    ->formatStateUsing(function (?string $state): ?string {
+                        if (!$state) return null;
+                        if (str_starts_with($state, 'http')) return $state;
+                        return Storage::disk('local')->url($state);
+                    }),
                 Tables\Columns\BadgeColumn::make('status')
                     ->colors([
                         'success' => AttendanceLog::STATUS_PRESENT,
