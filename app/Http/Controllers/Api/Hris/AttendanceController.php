@@ -493,28 +493,52 @@ class AttendanceController extends Controller
             'source' => $log->source,
             'status' => $log->status,
             'check_in' => [
-                'time' => $log->check_in_time?->toIso8601String(),
+                'time' => $this->formatAsJakartaIso($log->check_in_time),
                 'latitude' => $log->check_in_latitude,
                 'longitude' => $log->check_in_longitude,
                 'address' => $log->check_in_address,
                 'photo_path' => $this->resolvePhotoUrl($log->check_in_photo_path),
             ],
             'check_out' => [
-                'time' => $log->check_out_time?->toIso8601String(),
+                'time' => $this->formatAsJakartaIso($log->check_out_time),
                 'latitude' => $log->check_out_latitude,
                 'longitude' => $log->check_out_longitude,
                 'address' => $log->check_out_address,
                 'photo_path' => $this->resolvePhotoUrl($log->check_out_photo_path),
             ],
             'break' => [
-                'start_time' => $log->break_start_time?->utc()->toIso8601String(),
-                'end_time' => $log->break_end_time?->utc()->toIso8601String(),
+                'start_time' => $this->formatAsJakartaIso($log->break_start_time),
+                'end_time' => $this->formatAsJakartaIso($log->break_end_time),
                 'total_minutes' => $log->total_break_minutes,
                 'is_on_break' => $log->isOnBreak(),
             ],
             'created_at' => $log->created_at->toIso8601String(),
             'updated_at' => $log->updated_at->toIso8601String(),
         ];
+    }
+
+    /**
+     * Format a datetime as ISO 8601 in Asia/Jakarta timezone.
+     *
+     * The DB stores Jakarta local times, but if APP_TIMEZONE is UTC,
+     * Eloquent reads them back as UTC (wrong). This helper re-interprets
+     * the raw datetime values as Jakarta, producing correct ISO output
+     * regardless of APP_TIMEZONE setting.
+     *
+     * @param \Carbon\Carbon|null $time
+     * @return string|null
+     */
+    protected function formatAsJakartaIso(?\Carbon\Carbon $time): ?string
+    {
+        if ($time === null) {
+            return null;
+        }
+
+        return Carbon::createFromFormat(
+            'Y-m-d H:i:s',
+            $time->format('Y-m-d H:i:s'),
+            'Asia/Jakarta'
+        )->toIso8601String();
     }
 
     /**
