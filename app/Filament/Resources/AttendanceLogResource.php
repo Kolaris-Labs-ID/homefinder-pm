@@ -101,6 +101,20 @@ class AttendanceLogResource extends Resource
                             ->label('Longitude')
                             ->disabled(),
                     ]),
+
+                Forms\Components\Section::make('Break Details')
+                    ->columns(3)
+                    ->schema([
+                        Forms\Components\DateTimePicker::make('break_start_time')
+                            ->label('Break Start Time')
+                            ->disabled(),
+                        Forms\Components\DateTimePicker::make('break_end_time')
+                            ->label('Break End Time')
+                            ->disabled(),
+                        Forms\Components\TextInput::make('total_break_minutes')
+                            ->label('Total Break (minutes)')
+                            ->disabled(),
+                    ]),
             ]);
     }
 
@@ -117,15 +131,15 @@ class AttendanceLogResource extends Resource
                             ->date(),
                         Infolists\Components\TextEntry::make('mode')
                             ->badge()
-                            ->color(fn (string $state): string => match ($state) {
+                            ->color(fn (?string $state): string => match ($state) {
                                 AttendanceLog::MODE_OFFICE => 'primary',
                                 AttendanceLog::MODE_WFH => 'success',
                                 default => 'gray',
                             })
-                            ->formatStateUsing(fn (string $state): string => match ($state) {
+                            ->formatStateUsing(fn (?string $state): string => match ($state) {
                                 AttendanceLog::MODE_OFFICE => 'Office',
                                 AttendanceLog::MODE_WFH => 'Work From Home',
-                                default => $state,
+                                default => $state ?? '-',
                             }),
                         Infolists\Components\TextEntry::make('status')
                             ->badge()
@@ -195,8 +209,15 @@ class AttendanceLogResource extends Resource
                             ->extraImgAttributes(['class' => 'rounded-lg shadow-md'])
                             ->placeholder('No photo')
                             ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string => $record->check_in_photo_path)
-                            ->formatStateUsing(function (?string $state): ?string {
+                            ->url(fn (AttendanceLog $record): ?string => 
+                                $record->check_in_photo_path 
+                                    ? (str_starts_with($record->check_in_photo_path, 'http') 
+                                        ? $record->check_in_photo_path 
+                                        : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_in_photo_path]))
+                                    : null
+                            )
+                            ->getStateUsing(function (AttendanceLog $record): ?string {
+                                $state = $record->check_in_photo_path;
                                 if (!$state) return null;
                                 if (str_starts_with($state, 'http')) return $state;
                                 return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
@@ -246,11 +267,41 @@ class AttendanceLogResource extends Resource
                             ->extraImgAttributes(['class' => 'rounded-lg shadow-md'])
                             ->placeholder('No photo')
                             ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string => $record->check_out_photo_path)
-                            ->formatStateUsing(function (?string $state): ?string {
+                            ->url(fn (AttendanceLog $record): ?string => 
+                                $record->check_out_photo_path 
+                                    ? (str_starts_with($record->check_out_photo_path, 'http') 
+                                        ? $record->check_out_photo_path 
+                                        : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_out_photo_path]))
+                                    : null
+                            )
+                            ->getStateUsing(function (AttendanceLog $record): ?string {
+                                $state = $record->check_out_photo_path;
                                 if (!$state) return null;
                                 if (str_starts_with($state, 'http')) return $state;
                                 return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
+                            }),
+                    ]),
+
+                Infolists\Components\Section::make('Break Details')
+                    ->columns(3)
+                    ->schema([
+                        Infolists\Components\TextEntry::make('break_start_time')
+                            ->label('Break Started')
+                            ->dateTime('d M Y, H:i:s')
+                            ->placeholder('No break taken'),
+                        Infolists\Components\TextEntry::make('break_end_time')
+                            ->label('Break Ended')
+                            ->dateTime('d M Y, H:i:s')
+                            ->placeholder('Not ended'),
+                        Infolists\Components\TextEntry::make('total_break_minutes')
+                            ->label('Total Break Time')
+                            ->formatStateUsing(fn (?int $state): string => $state ? "{$state} minutes" : 'N/A')
+                            ->badge()
+                            ->color(fn (?int $state): string => match (true) {
+                                $state === null => 'gray',
+                                $state <= 60 => 'success',
+                                $state <= 90 => 'warning',
+                                default => 'danger',
                             }),
                     ]),
             ]);
@@ -307,6 +358,21 @@ class AttendanceLogResource extends Resource
                         if (str_starts_with($state, 'http')) return $state;
                         return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
                     }),
+                Tables\Columns\TextColumn::make('break_start_time')
+                    ->label('Break Start')
+                    ->dateTime('H:i')
+                    ->sortable()
+                    ->placeholder('-'),
+                Tables\Columns\TextColumn::make('break_end_time')
+                    ->label('Break End')
+                    ->dateTime('H:i')
+                    ->sortable()
+                    ->placeholder('-'),
+                Tables\Columns\TextColumn::make('total_break_minutes')
+                    ->label('Break (min)')
+                    ->sortable()
+                    ->placeholder('-')
+                    ->formatStateUsing(fn (?int $state): string => $state ? "{$state} min" : '-'),
                 Tables\Columns\BadgeColumn::make('status')
                     ->colors([
                         'success' => AttendanceLog::STATUS_PRESENT,

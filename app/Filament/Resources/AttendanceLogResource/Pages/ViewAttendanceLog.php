@@ -29,15 +29,15 @@ class ViewAttendanceLog extends ViewRecord
                             ->date(),
                         TextEntry::make('mode')
                             ->badge()
-                            ->color(fn (string $state): string => match ($state) {
+                            ->color(fn (?string $state): string => match ($state) {
                                 'office' => 'primary',
                                 'wfh' => 'success',
                                 default => 'gray',
                             })
-                            ->formatStateUsing(fn (string $state): string => match ($state) {
+                            ->formatStateUsing(fn (?string $state): string => match ($state) {
                                 'office' => 'Office',
                                 'wfh' => 'Work From Home',
-                                default => $state,
+                                default => $state ?? '-',
                             }),
                         TextEntry::make('source')
                             ->badge()
@@ -126,8 +126,15 @@ class ViewAttendanceLog extends ViewRecord
                             ])
                             ->placeholder('No photo captured')
                             ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string => $record->check_in_photo_path)
-                            ->formatStateUsing(function (?string $state): ?string {
+                            ->url(fn (AttendanceLog $record): ?string => 
+                                $record->check_in_photo_path 
+                                    ? (str_starts_with($record->check_in_photo_path, 'http') 
+                                        ? $record->check_in_photo_path 
+                                        : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_in_photo_path]))
+                                    : null
+                            )
+                            ->getStateUsing(function (AttendanceLog $record): ?string {
+                                $state = $record->check_in_photo_path;
                                 if (!$state) return null;
                                 if (str_starts_with($state, 'http')) return $state;
                                 return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
@@ -174,8 +181,15 @@ class ViewAttendanceLog extends ViewRecord
                             ])
                             ->placeholder('No photo captured')
                             ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string => $record->check_out_photo_path)
-                            ->formatStateUsing(function (?string $state): ?string {
+                            ->url(fn (AttendanceLog $record): ?string => 
+                                $record->check_out_photo_path 
+                                    ? (str_starts_with($record->check_out_photo_path, 'http') 
+                                        ? $record->check_out_photo_path 
+                                        : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_out_photo_path]))
+                                    : null
+                            )
+                            ->getStateUsing(function (AttendanceLog $record): ?string {
+                                $state = $record->check_out_photo_path;
                                 if (!$state) return null;
                                 if (str_starts_with($state, 'http')) return $state;
                                 return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
