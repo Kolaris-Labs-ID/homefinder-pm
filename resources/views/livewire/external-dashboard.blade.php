@@ -355,7 +355,18 @@
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @forelse($this->tickets as $ticket)
-                                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                                    <tr class="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+                                        onclick='openTicketFromTable(@json([
+                                            "uuid" => $ticket->uuid,
+                                            "name" => $ticket->name,
+                                            "description" => $ticket->description ?? "No description available",
+                                            "status" => ["name" => $ticket->status->name ?? "Unknown", "color" => $ticket->status->color ?? "#6B7280"],
+                                            "priority" => ["name" => $ticket->priority->name ?? "Normal", "color" => $ticket->priority->color ?? "#6B7280"],
+                                            "start_date" => $ticket->start_date ? $ticket->start_date->format("M d, Y") : "Not set",
+                                            "due_date" => $ticket->due_date ? $ticket->due_date->format("M d, Y") : "Not set",
+                                            "is_overdue" => $ticket->isOverdue(),
+                                            "progress_percentage" => 0,
+                                        ]))'>
                                         <td
                                             class="px-4 lg:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                             {{ $ticket->uuid }}
@@ -364,7 +375,7 @@
                                             <div class="font-medium">{{ $ticket->name }}</div>
                                             @if ($ticket->description)
                                                 <div class="text-gray-500 text-xs mt-1 truncate max-w-xs">
-                                                    {{ Str::limit($ticket->description, 100) }}
+                                                    {{ Str::limit(strip_tags($ticket->description), 100) }}
                                                 </div>
                                             @endif
                                         </td>
@@ -413,7 +424,18 @@
                         <div class="sm:hidden">
                             @forelse($this->tickets as $ticket)
                                 <div
-                                    class="border-b border-gray-200 p-4 hover:bg-gray-50 transition-colors duration-150">
+                                    class="border-b border-gray-200 p-4 hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+                                    onclick='openTicketFromTable(@json([
+                                        "uuid" => $ticket->uuid,
+                                        "name" => $ticket->name,
+                                        "description" => $ticket->description ?? "No description available",
+                                        "status" => ["name" => $ticket->status->name ?? "Unknown", "color" => $ticket->status->color ?? "#6B7280"],
+                                        "priority" => ["name" => $ticket->priority->name ?? "Normal", "color" => $ticket->priority->color ?? "#6B7280"],
+                                        "start_date" => $ticket->start_date ? $ticket->start_date->format("M d, Y") : "Not set",
+                                        "due_date" => $ticket->due_date ? $ticket->due_date->format("M d, Y") : "Not set",
+                                        "is_overdue" => $ticket->isOverdue(),
+                                        "progress_percentage" => 0,
+                                    ]))'>
                                     <div class="space-y-3">
                                         <!-- Header Row -->
                                         <div class="flex items-start justify-between">
@@ -432,7 +454,7 @@
                                         <!-- Description -->
                                         @if ($ticket->description)
                                             <p class="text-sm text-gray-600 line-clamp-2">
-                                                {{ Str::limit($ticket->description, 120) }}
+                                                {{ Str::limit(strip_tags($ticket->description), 120) }}
                                             </p>
                                         @endif
 
@@ -779,7 +801,7 @@
                                         <label
                                             class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
                                         <div id="ticket-description"
-                                            class="text-sm sm:text-base text-gray-700 bg-gray-50 rounded-lg p-3 sm:p-4 min-h-[60px] whitespace-pre-wrap break-words">
+                                            class="text-sm sm:text-base text-gray-700 bg-gray-50 rounded-lg p-3 sm:p-4 min-h-[60px] break-words prose prose-sm max-w-none prose-ul:list-disc prose-ol:list-decimal prose-li:my-0.5">
                                         </div>
                                     </div>
                                 </div>
@@ -1895,6 +1917,31 @@
             });
         }
 
+        // Open modal from task table (desktop + mobile)
+        function openTicketFromTable(ticketData) {
+            console.log('Opening modal from table for ticket:', ticketData.uuid);
+
+            // Show modal with animation
+            const modal = document.getElementById('ticket-modal');
+            const backdrop = document.getElementById('modal-backdrop');
+            const panel = document.getElementById('modal-panel');
+
+            modal.classList.remove('hidden');
+
+            setTimeout(() => {
+                backdrop.classList.remove('opacity-0');
+                backdrop.classList.add('opacity-100');
+                panel.classList.remove('scale-95', 'opacity-0');
+                panel.classList.add('scale-100', 'opacity-100');
+            }, 10);
+
+            showModalLoading();
+
+            setTimeout(() => {
+                populateTicketModal(ticketData);
+            }, 300);
+        }
+
         // Modal Functions - Optimized without Livewire API calls
         function showTicketModal(ticketId) {
             console.log('Opening modal for ticket:', ticketId);
@@ -1951,7 +1998,8 @@
             // Populate basic fields
             document.getElementById('ticket-code').textContent = ticket.uuid;
             document.getElementById('ticket-name').textContent = ticket.name;
-            document.getElementById('ticket-description').textContent = ticket.description;
+            const descEl = document.getElementById('ticket-description');
+            descEl.innerHTML = ticket.description || 'No description available';
 
             // Status badge with animation
             const statusElement = document.getElementById('ticket-status');
