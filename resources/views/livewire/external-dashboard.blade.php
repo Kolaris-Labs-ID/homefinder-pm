@@ -124,8 +124,7 @@
             <div class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
                 <div class="flex items-center">
                     <div class="p-2 bg-purple-50 rounded-lg">
-                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z">
                             </path>
@@ -145,7 +144,7 @@
                 <h3 class="text-lg font-semibold text-gray-900">Project Calendar</h3>
                 <p class="text-sm text-gray-600 mt-1">View project tickets and timeline in calendar view</p>
             </div>
-            
+
             <div class="calendar-wrapper" wire:ignore>
                 <div id="external-calendar" class="calendar-container"></div>
             </div>
@@ -241,8 +240,7 @@
                                     class="mobile-tab-option w-full px-4 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
                                     data-tab="tasks">
                                     <span class="flex items-center space-x-2">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor"
-                                            viewBox="0 0 24 24">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                 d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
                                             </path>
@@ -254,8 +252,7 @@
                                     class="mobile-tab-option w-full px-4 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
                                     data-tab="timeline">
                                     <span class="flex items-center space-x-2">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor"
-                                            viewBox="0 0 24 24">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                 d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z">
                                             </path>
@@ -267,8 +264,7 @@
                                     class="mobile-tab-option w-full px-4 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
                                     data-tab="activity">
                                     <span class="flex items-center space-x-2">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor"
-                                            viewBox="0 0 24 24">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                 d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                                         </svg>
@@ -370,8 +366,7 @@
                                     @endphp
                                     <tr class="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
                                         onclick='openTicketFromTable({!! e(json_encode($ticketData)) !!})'>
-                                        <td
-                                            class="px-4 lg:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        <td class="px-4 lg:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                             {{ $ticket->uuid }}
                                         </td>
                                         <td class="px-4 lg:px-6 py-4 text-sm text-gray-900">
@@ -384,11 +379,17 @@
                                         </td>
                                         <td class="px-4 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                             @if ($ticket->due_date)
+                                                @php
+                                                    $isCompleted = $ticket->status && $ticket->status->is_completed;
+                                                    $isOverdue = $ticket->isOverdue();
+                                                @endphp
                                                 <span
-                                                    class="{{ \Carbon\Carbon::parse($ticket->due_date)->isPast() ? 'text-red-600 font-medium' : '' }}">
+                                                    class="{{ $isCompleted ? 'text-green-600 font-medium' : ($isOverdue ? 'text-red-600 font-medium' : '') }}">
                                                     {{ \Carbon\Carbon::parse($ticket->due_date)->format('M d, Y') }}
                                                 </span>
-                                                @if (\Carbon\Carbon::parse($ticket->due_date)->isPast())
+                                                @if ($isCompleted)
+                                                    <div class="text-green-500 text-xs">Completed</div>
+                                                @elseif ($isOverdue)
                                                     <div class="text-red-500 text-xs">Overdue</div>
                                                 @endif
                                             @else
@@ -407,10 +408,9 @@
                                     <tr>
                                         <td colspan="4" class="px-4 lg:px-6 py-12 text-center">
                                             <div class="text-gray-500">
-                                                <svg class="w-12 h-12 mx-auto mb-4" fill="none"
-                                                    stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2"
+                                                <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                         d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
                                                     </path>
                                                 </svg>
@@ -439,8 +439,7 @@
                                         'progress_percentage' => 0,
                                     ];
                                 @endphp
-                                <div
-                                    class="border-b border-gray-200 p-4 hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+                                <div class="border-b border-gray-200 p-4 hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
                                     onclick='openTicketFromTable({!! e(json_encode($mobileTicketData)) !!})'>
                                     <div class="space-y-3">
                                         <!-- Header Row -->
@@ -466,18 +465,24 @@
 
                                         <!-- Due Date -->
                                         <div class="flex items-center text-sm">
-                                            <svg class="w-4 h-4 text-gray-400 mr-2" fill="none"
-                                                stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg class="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                     d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z">
                                                 </path>
                                             </svg>
                                             @if ($ticket->due_date)
+                                                @php
+                                                    $mobileIsCompleted = $ticket->status && $ticket->status->is_completed;
+                                                    $mobileIsOverdue = $ticket->isOverdue();
+                                                @endphp
                                                 <span
-                                                    class="{{ \Carbon\Carbon::parse($ticket->due_date)->isPast() ? 'text-red-600 font-medium' : 'text-gray-600' }}">
+                                                    class="{{ $mobileIsCompleted ? 'text-green-600 font-medium' : ($mobileIsOverdue ? 'text-red-600 font-medium' : 'text-gray-600') }}">
                                                     Due:
                                                     {{ \Carbon\Carbon::parse($ticket->due_date)->format('M d, Y') }}
-                                                    @if (\Carbon\Carbon::parse($ticket->due_date)->isPast())
+                                                    @if ($mobileIsCompleted)
+                                                        <span class="text-green-500 text-xs ml-1">(Completed)</span>
+                                                    @elseif ($mobileIsOverdue)
                                                         <span class="text-red-500 text-xs ml-1">(Overdue)</span>
                                                     @endif
                                                 </span>
@@ -489,8 +494,8 @@
                                 </div>
                             @empty
                                 <div class="p-8 text-center">
-                                    <svg class="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none"
-                                        stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
                                         </path>
@@ -561,8 +566,7 @@
                                                     <div class="w-3 h-3 rounded flex-shrink-0"
                                                         style="background-color: {{ $status->color ?? '#6B7280' }}">
                                                     </div>
-                                                    <span
-                                                        class="text-sm text-gray-600 truncate">{{ $status->name }}</span>
+                                                    <span class="text-sm text-gray-600 truncate">{{ $status->name }}</span>
                                                 </div>
                                             @endforeach
                                             <div class="flex items-center gap-2">
@@ -616,19 +620,17 @@
                                     <div
                                         class="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg transition-colors duration-150">
                                         <div class="flex-shrink-0">
-                                            <div
-                                                class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                                                <svg class="w-4 h-4 text-gray-600" fill="none"
-                                                    stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                                        stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                            <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                        d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                                                 </svg>
                                             </div>
                                         </div>
                                         <div class="flex-1 min-w-0">
                                             <p class="text-sm text-gray-900">
-                                                <span
-                                                    class="font-medium">{{ $activity->ticket->name ?? 'Unknown Task' }}</span>
+                                                <span class="font-medium">{{ $activity->ticket->name ?? 'Unknown Task' }}</span>
                                                 @if ($activity->status)
                                                     moved to <span class="font-medium"
                                                         style="color: {{ $activity->status->color ?? '#6B7280' }}">{{ $activity->status->name }}</span>
@@ -637,7 +639,8 @@
                                                 @endif
                                             </p>
                                             <p class="text-xs text-gray-500">
-                                                {{ $activity->created_at->diffForHumans() }}</p>
+                                                {{ $activity->created_at->diffForHumans() }}
+                                            </p>
                                         </div>
                                     </div>
                                 @endforeach
@@ -649,12 +652,11 @@
                                     <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                                         <div class="flex items-start space-x-3">
                                             <div class="flex-shrink-0">
-                                                <div
-                                                    class="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
-                                                    <svg class="w-3 h-3 text-gray-600" fill="none"
-                                                        stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                                            stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                                <div class="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+                                                    <svg class="w-3 h-3 text-gray-600" fill="none" stroke="currentColor"
+                                                        viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                            d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                                                     </svg>
                                                 </div>
                                             </div>
@@ -664,8 +666,7 @@
                                                 </p>
                                                 @if ($activity->status)
                                                     <p class="text-sm text-gray-600 mt-1">
-                                                        Moved to <span
-                                                            class="font-medium px-2 py-0.5 rounded text-xs text-white"
+                                                        Moved to <span class="font-medium px-2 py-0.5 rounded text-xs text-white"
                                                             style="background-color: {{ $activity->status->color ?? '#6B7280' }}">{{ $activity->status->name }}</span>
                                                     </p>
                                                 @else
@@ -688,8 +689,8 @@
                             @endif
                         @else
                             <div class="text-center py-12">
-                                <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none"
-                                    stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                                 </svg>
@@ -726,8 +727,8 @@
                                 <div class="flex-shrink-0">
                                     <div
                                         class="w-8 sm:w-10 h-8 sm:h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                                        <svg class="h-5 sm:h-6 w-5 sm:w-6 text-white" fill="none"
-                                            stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg class="h-5 sm:h-6 w-5 sm:w-6 text-white" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                 d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
                                             </path>
@@ -866,8 +867,7 @@
                                                     <span id="ticket-progress-percentage"
                                                         class="text-sm font-semibold text-gray-900"></span>
                                                 </div>
-                                                <div
-                                                    class="w-full bg-gray-200 rounded-full h-2 sm:h-3 overflow-hidden">
+                                                <div class="w-full bg-gray-200 rounded-full h-2 sm:h-3 overflow-hidden">
                                                     <div id="ticket-progress-bar"
                                                         class="h-2 sm:h-3 rounded-full transition-all duration-500 ease-out transform origin-left">
                                                     </div>
@@ -886,8 +886,8 @@
                             <div class="flex flex-col items-center space-y-4">
                                 <div
                                     class="w-12 sm:w-16 h-12 sm:h-16 bg-red-100 rounded-full flex items-center justify-center">
-                                    <svg class="w-6 sm:w-8 h-6 sm:h-8 text-red-600" fill="none"
-                                        stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="w-6 sm:w-8 h-6 sm:h-8 text-red-600" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                             d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                     </svg>
@@ -1238,7 +1238,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         // Auto-hide notifications
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const successMessage = document.getElementById('success-message');
             const errorMessage = document.getElementById('error-message');
 
@@ -1330,11 +1330,11 @@
             const tab = tabData[tabName];
             if (tab) {
                 selectedContainer.innerHTML = `
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${tab.icon}"></path>
-                    </svg>
-                    <span>${tab.label}</span>
-                `;
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${tab.icon}"></path>
+                        </svg>
+                        <span>${tab.label}</span>
+                    `;
             }
 
             // Update active state in dropdown options
@@ -1410,7 +1410,7 @@
         }
 
         // Initialize tabs on page load
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             console.log('DOM ready, setting up tabs...');
 
             // Get saved tab or default to 'tasks'
@@ -1426,7 +1426,7 @@
         });
 
         // Handle Livewire component updates (filtering, pagination, etc.)
-        document.addEventListener('livewire:morph', function() {
+        document.addEventListener('livewire:morph', function () {
             console.log('Livewire component morphed, restoring tab state...');
 
             // Get current saved tab state
@@ -1440,7 +1440,7 @@
         });
 
         // Handle Livewire navigation after component updates (fallback)
-        document.addEventListener('livewire:navigated', function() {
+        document.addEventListener('livewire:navigated', function () {
             console.log('Livewire navigated, maintaining tab state...');
 
             // Restore tab state after navigation
@@ -1491,14 +1491,14 @@
         }
 
         // Attach pagination handlers
-        document.addEventListener('click', function(e) {
+        document.addEventListener('click', function (e) {
             if (e.target.closest('nav[role="navigation"]') || e.target.closest('.pagination')) {
                 handlePaginationClick(e);
             }
         });
 
         // Handle filter changes to maintain tab state
-        document.addEventListener('change', function(e) {
+        document.addEventListener('change', function (e) {
             if (e.target.matches('select[wire\\:model\\.live]') || e.target.matches('input[wire\\:model\\.live]')) {
                 console.log('Filter changed, maintaining tab state...');
                 const currentTab = getCurrentTab();
@@ -1511,7 +1511,7 @@
         });
 
         // Handle search input changes
-        document.addEventListener('input', function(e) {
+        document.addEventListener('input', function (e) {
             if (e.target.matches('input[wire\\:model\\.live\\.debounce]')) {
                 console.log('Search input changed, will maintain tab state...');
                 const currentTab = getCurrentTab();
@@ -1590,17 +1590,17 @@
             const container = document.getElementById('gantt_here');
             if (container) {
                 container.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-64 text-gray-500 gap-4">
-                        <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <h3 class="text-lg font-medium">${message}</h3>
-                        <p class="text-sm">Please refresh the page or contact support</p>
-                        <button onclick="location.reload()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                            Refresh Page
-                        </button>
-                    </div>
-                `;
+                        <div class="flex flex-col items-center justify-center h-64 text-gray-500 gap-4">
+                            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h3 class="text-lg font-medium">${message}</h3>
+                            <p class="text-sm">Please refresh the page or contact support</p>
+                            <button onclick="location.reload()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+                                Refresh Page
+                            </button>
+                        </div>
+                    `;
             }
         }
 
@@ -1651,7 +1651,7 @@
                     console.log('âœ… Export API and Marker plugins enabled');
 
                     // ðŸŽ¨ Configure task class template for status-based styling
-                    gantt.templates.task_class = function(start, end, task) {
+                    gantt.templates.task_class = function (start, end, task) {
                         console.log('ðŸŽ¨ Applying task class for task:', task.text, 'status:', task.status);
 
                         let statusClass = '';
@@ -1670,7 +1670,7 @@
                     };
 
                     // ðŸ—“ï¸ Configure timeline cell class for weekend highlighting
-                    gantt.templates.timeline_cell_class = function(task, date) {
+                    gantt.templates.timeline_cell_class = function (task, date) {
                         if (date.getDay() == 0 || date.getDay() == 6) {
                             return "weekend";
                         }
@@ -1685,15 +1685,15 @@
                     const isTablet = window.innerWidth < 1024;
 
                     gantt.config.scales = [{
-                            unit: "month",
-                            step: 1,
-                            format: isMobile ? "%M %y" : "%F %Y"
-                        },
-                        {
-                            unit: "day",
-                            step: isMobile ? 2 : 1,
-                            format: "%j"
-                        }
+                        unit: "month",
+                        step: 1,
+                        format: isMobile ? "%M %y" : "%F %Y"
+                    },
+                    {
+                        unit: "day",
+                        step: isMobile ? 2 : 1,
+                        format: "%j"
+                    }
                     ];
 
                     gantt.config.readonly = true;
@@ -1711,65 +1711,65 @@
                     // Responsive columns
                     if (isMobile) {
                         gantt.config.columns = [{
-                                name: "text",
-                                label: "Task",
-                                width: 140,
-                                tree: true
-                            },
-                            {
-                                name: "status",
-                                label: "Status",
-                                width: 60,
-                                align: "center"
-                            }
+                            name: "text",
+                            label: "Task",
+                            width: 140,
+                            tree: true
+                        },
+                        {
+                            name: "status",
+                            label: "Status",
+                            width: 60,
+                            align: "center"
+                        }
                         ];
                     } else {
                         gantt.config.columns = [{
-                                name: "text",
-                                label: "Task Name",
-                                width: isTablet ? 160 : 200,
-                                tree: true
-                            },
-                            {
-                                name: "status",
-                                label: "Status",
-                                width: isTablet ? 80 : 100,
-                                align: "center"
-                            },
-                            {
-                                name: "duration",
-                                label: "Duration",
-                                width: 50,
-                                align: "center"
-                            }
+                            name: "text",
+                            label: "Task Name",
+                            width: isTablet ? 160 : 200,
+                            tree: true
+                        },
+                        {
+                            name: "status",
+                            label: "Status",
+                            width: isTablet ? 80 : 100,
+                            align: "center"
+                        },
+                        {
+                            name: "duration",
+                            label: "Duration",
+                            width: 50,
+                            align: "center"
+                        }
                         ];
                     }
 
-                    gantt.templates.task_class = function(start, end, task) {
+                    gantt.templates.task_class = function (start, end, task) {
                         return task.is_overdue ? "overdue" : "";
                     };
 
-                    gantt.templates.tooltip_text = function(start, end, task) {
+                    gantt.templates.tooltip_text = function (start, end, task) {
                         if (isMobile) {
                             return `<b>${task.text}</b><br/>
-                                    <b>Status:</b> ${task.status}<br/>
-                                    <b>Progress:</b> ${Math.round(task.progress * 100)}%<br/>
-                                    ${task.is_overdue ? '<b style="color: #ef4444;">âš ï¸ OVERDUE</b><br/>' : ''}
-                                    <i>Tap for details</i>`;
+                                        <b>Status:</b> ${task.status}<br/>
+                                        <b>Progress:</b> ${Math.round(task.progress * 100)}%<br/>
+                                        ${task.is_overdue ? '<b style="color: #ef4444;">âš ï¸ OVERDUE</b><br/>' : ''}
+                                        <i>Tap for details</i>`;
                         } else {
                             return `<b>Task:</b> ${task.text}<br/>
-                                    <b>Status:</b> ${task.status}<br/>
-                                    <b>Duration:</b> ${task.duration} day(s)<br/>
-                                    <b>Progress:</b> ${Math.round(task.progress * 100)}%<br/>
-                                    <b>Start:</b> ${gantt.templates.tooltip_date_format(start)}<br/>
-                                    <b>End:</b> ${gantt.templates.tooltip_date_format(end)}
-                                    ${task.is_overdue ? '<br/><b style="color: #ef4444;">âš ï¸ OVERDUE</b>' : ''}
-                                    <br/><i>Click to view details</i>`;
+                                        <b>Status:</b> ${task.status}<br/>
+                                        <b>Duration:</b> ${task.duration} day(s)<br/>
+                                        <b>Progress:</b> ${Math.round(task.progress * 100)}%<br/>
+                                        <b>Start:</b> ${gantt.templates.tooltip_date_format(start)}<br/>
+                                        <b>End:</b> ${gantt.templates.tooltip_date_format(end)}
+                                        ${task.is_overdue ? '<br/><b style="color: #ef4444;">âš ï¸ OVERDUE</b>' : ''}
+                                        <br/><i>Click to view details</i>`;
                         }
                     };
 
                     // Add click event handler for task bars
-                    gantt.attachEvent("onTaskClick", function(id, e) {
+                    gantt.attachEvent("onTaskClick", function (id, e) {
                         console.log('Task clicked:', id);
                         showTicketModal(id);
                         return false; // Prevent default gantt behavior
@@ -2165,12 +2165,12 @@
                 const exportButton = document.querySelector('button[onclick="exportGanttToExcel()"]');
                 const originalText = exportButton.innerHTML;
                 exportButton.innerHTML = `
-                    <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                    <span class="hidden sm:inline">Exporting...</span>
-                    <span class="sm:hidden">...</span>
-                `;
+                        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        <span class="hidden sm:inline">Exporting...</span>
+                        <span class="sm:hidden">...</span>
+                    `;
                 exportButton.disabled = true;
 
                 console.log('ðŸ“Š Exporting', ganttData.data.length, 'tasks to Excel...');
@@ -2187,44 +2187,44 @@
                     scale: "week", // ðŸ“… Use weekly scale instead of daily
                     header: {
                         title: "{{ $project->name ?? 'Project' }} - Gantt Chart Timeline (Weekly View)",
-                        subtitle: `Generated on ${new Date().toLocaleDateString('en-US', { 
-                            year: 'numeric', 
-                            month: 'long', 
+                        subtitle: `Generated on ${new Date().toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
                             day: 'numeric',
                             hour: '2-digit',
                             minute: '2-digit'
                         })}`
                     },
                     columns: [{
-                            id: "text",
-                            header: "Task Name",
-                            width: 200
-                        },
-                        {
-                            id: "start_date",
-                            header: "Start Date",
-                            width: 100
-                        },
-                        {
-                            id: "end_date",
-                            header: "End Date",
-                            width: 100
-                        },
-                        {
-                            id: "duration",
-                            header: "Duration (Days)",
-                            width: 80
-                        },
-                        {
-                            id: "status",
-                            header: "Status",
-                            width: 100
-                        },
-                        {
-                            id: "progress_percent",
-                            header: "Progress",
-                            width: 80
-                        }
+                        id: "text",
+                        header: "Task Name",
+                        width: 200
+                    },
+                    {
+                        id: "start_date",
+                        header: "Start Date",
+                        width: 100
+                    },
+                    {
+                        id: "end_date",
+                        header: "End Date",
+                        width: 100
+                    },
+                    {
+                        id: "duration",
+                        header: "Duration (Days)",
+                        width: 80
+                    },
+                    {
+                        id: "status",
+                        header: "Status",
+                        width: 100
+                    },
+                    {
+                        id: "progress_percent",
+                        header: "Progress",
+                        width: 80
+                    }
                     ]
                 };
 
@@ -2261,12 +2261,12 @@
                 const exportButton = document.querySelector('button[onclick="exportGanttToExcel()"]');
                 if (exportButton) {
                     exportButton.innerHTML = `
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                        </svg>
-                        <span class="hidden sm:inline">Export Weekly Timeline</span>
-                        <span class="sm:hidden">Weekly</span>
-                    `;
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span class="hidden sm:inline">Export Weekly Timeline</span>
+                            <span class="sm:hidden">Weekly</span>
+                        `;
                     exportButton.disabled = false;
                 }
             }
@@ -2276,30 +2276,29 @@
         function showNotification(message, type = 'info') {
             // Create notification element
             const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${
-                type === 'success' ? 'bg-green-500 text-white' : 
-                type === 'error' ? 'bg-red-500 text-white' : 
-                'bg-blue-500 text-white'
-            }`;
+            notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${type === 'success' ? 'bg-green-500 text-white' :
+                    type === 'error' ? 'bg-red-500 text-white' :
+                        'bg-blue-500 text-white'
+                }`;
 
             const icon = type === 'success' ?
                 `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                </svg>` :
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>` :
                 type === 'error' ?
-                `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>` :
-                `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>`;
+                    `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>` :
+                    `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>`;
 
             notification.innerHTML = `
-                <div class="flex items-center space-x-2">
-                    ${icon}
-                    <span>${message}</span>
-                </div>
-            `;
+                    <div class="flex items-center space-x-2">
+                        ${icon}
+                        <span>${message}</span>
+                    </div>
+                `;
 
             document.body.appendChild(notification);
 
@@ -2315,7 +2314,7 @@
         }
 
         // Close modal on Escape key
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 closeTicketModal();
             }
@@ -2327,16 +2326,16 @@
 
     <script>
         // Initialize External Calendar
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const calendarEl = document.getElementById('external-calendar');
-            
+
             if (!calendarEl) {
                 return;
             }
 
             const events = @json($this->calendarEvents);
             console.log('Calendar events:', events);
-            
+
             // Initialize calendar with FullCalendar
             const calendar = new FullCalendar.Calendar(calendarEl, {
                 headerToolbar: {
@@ -2350,28 +2349,28 @@
                 selectable: false,
                 height: 'auto',
                 aspectRatio: 1.8,
-                eventClick: function(info) {
+                eventClick: function (info) {
                     // Could add modal or navigation here if needed
                     console.log('Event clicked:', info.event.extendedProps);
                 },
-                eventDidMount: function(info) {
+                eventDidMount: function (info) {
                     // Add tooltip with event details
                     const props = info.event.extendedProps;
                     let tooltip = info.event.title;
-                    
+
                     if (props.type === 'ticket') {
                         tooltip += ` [${props.status}] [${props.priority}]`;
                     }
-                    
+
                     if (props.description) {
                         const desc = props.description.substring(0, 100);
                         tooltip += ` - ${desc}${props.description.length > 100 ? '...' : ''}`;
                     }
-                    
+
                     info.el.setAttribute('title', tooltip);
                 },
                 // Responsive breakpoints
-                windowResize: function() {
+                windowResize: function () {
                     if (window.innerWidth < 768) {
                         calendar.changeView('listWeek');
                     } else {
