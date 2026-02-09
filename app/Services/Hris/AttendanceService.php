@@ -142,13 +142,17 @@ class AttendanceService
         }
 
         // Process GPS coordinates for reverse geocoding
-        // Always use backend geocoding service for consistent, high-quality addresses
+        // Use backend geocoding when possible, fall back to frontend-provided address
         $latitude = $data['latitude'] ?? null;
         $longitude = $data['longitude'] ?? null;
-        $address = null;
+        $address = $data['address'] ?? null;
 
         if ($latitude !== null && $longitude !== null) {
-            $address = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $employee->id);
+            $geocodedAddress = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $employee->id);
+            // Only use geocoded result if it's a real address (not a coordinate fallback)
+            if (!str_starts_with($geocodedAddress, 'Location (')) {
+                $address = $geocodedAddress;
+            }
         }
 
         // Process photo with timestamp overlay
@@ -244,13 +248,17 @@ class AttendanceService
         }
 
         // Process GPS coordinates for reverse geocoding
-        // Always use backend geocoding service for consistent, high-quality addresses
+        // Use backend geocoding when possible, fall back to frontend-provided address
         $latitude = $data['latitude'] ?? null;
         $longitude = $data['longitude'] ?? null;
-        $address = null;
+        $address = $data['address'] ?? null;
 
         if ($latitude !== null && $longitude !== null) {
-            $address = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $attendanceLog->employee_id);
+            $geocodedAddress = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $attendanceLog->employee_id);
+            // Only use geocoded result if it's a real address (not a coordinate fallback)
+            if (!str_starts_with($geocodedAddress, 'Location (')) {
+                $address = $geocodedAddress;
+            }
         }
 
         // Process photo with timestamp overlay
