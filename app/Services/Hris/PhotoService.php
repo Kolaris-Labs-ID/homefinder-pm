@@ -88,17 +88,34 @@ class PhotoService
                     'image_size' => strlen($processedImage),
                 ]);
 
-                // Upload to Supabase and return the public URL
-                $url = $this->uploadToSupabase($processedImage, $filename);
+                try {
+                    // Upload to Supabase and return the public URL
+                    $url = $this->uploadToSupabase($processedImage, $filename);
 
-                Log::info('Photo uploaded successfully to Supabase', [
-                    'employee_id' => $employeeId,
-                    'url' => $url,
-                ]);
+                    Log::info('Photo uploaded successfully to Supabase', [
+                        'employee_id' => $employeeId,
+                        'url' => $url,
+                    ]);
 
-                return $url;
+                    return $url;
+                } catch (\Exception $supabaseError) {
+                    // Supabase failed — fall back to local storage
+                    Log::warning('Supabase upload failed, falling back to local storage', [
+                        'employee_id' => $employeeId,
+                        'error' => $supabaseError->getMessage(),
+                    ]);
+
+                    $path = $this->storeToLocal($processedImage, $filename);
+
+                    Log::info('Photo stored to local storage (fallback)', [
+                        'employee_id' => $employeeId,
+                        'path' => $path,
+                    ]);
+
+                    return $path;
+                }
             } else {
-                // Fallback to local storage
+                // Use local storage directly
                 Log::info('Storing to local storage', [
                     'filename' => $filename,
                     'image_size' => strlen($processedImage),
@@ -149,6 +166,12 @@ class PhotoService
     {
         $disk = Storage::disk('local');
         $path = "attendance-photos/{$filename}";
+
+        // Ensure directory exists
+        $directory = dirname($path);
+        if (!$disk->exists($directory)) {
+            $disk->makeDirectory($directory);
+        }
 
         if (!$disk->put($path, $imageData)) {
             throw new \Exception('Failed to store photo to local storage');
