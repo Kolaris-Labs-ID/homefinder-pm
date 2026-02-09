@@ -2268,12 +2268,8 @@
         });
     </script>
 
-    <!-- EventCalendar Library -->
-    <link href="https://cdn.jsdelivr.net/npm/@event-calendar/core@4.7.1/dist/index.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/@event-calendar/core@4.7.1/dist/index.global.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@event-calendar/day-grid@4.7.1/dist/index.global.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@event-calendar/time-grid@4.7.1/dist/index.global.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@event-calendar/list@4.7.1/dist/index.global.min.js"></script>
+    <!-- FullCalendar Library -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 
     <script>
         // Initialize External Calendar
@@ -2285,10 +2281,10 @@
             }
 
             const events = @json($this->calendarEvents);
+            console.log('Calendar events:', events);
             
-            // Initialize calendar with responsive configuration
-            const calendar = new EventCalendar(calendarEl, {
-                plugins: [EventCalendarDayGrid, EventCalendarTimeGrid, EventCalendarList],
+            // Initialize calendar with FullCalendar
+            const calendar = new FullCalendar.Calendar(calendarEl, {
                 headerToolbar: {
                     left: 'prev,next today',
                     center: 'title',
@@ -2307,22 +2303,18 @@
                 eventDidMount: function(info) {
                     // Add tooltip with event details
                     const props = info.event.extendedProps;
-                    let tooltip = `<div class="p-2 max-w-xs">`;
-                    tooltip += `<strong class="block mb-1">${info.event.title}</strong>`;
-                    
-                    if (props.description) {
-                        tooltip += `<p class="text-xs text-gray-600 mb-1">${props.description.substring(0, 100)}${props.description.length > 100 ? '...' : ''}</p>`;
-                    }
+                    let tooltip = info.event.title;
                     
                     if (props.type === 'ticket') {
-                        tooltip += `<div class="text-xs mt-1">`;
-                        tooltip += `<span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-700 mr-1">${props.status}</span>`;
-                        tooltip += `<span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-700">${props.priority}</span>`;
-                        tooltip += `</div>`;
+                        tooltip += ` [${props.status}] [${props.priority}]`;
                     }
                     
-                    tooltip += `</div>`;
-                    info.el.setAttribute('title', tooltip.replace(/<[^>]*>/g, ''));
+                    if (props.description) {
+                        const desc = props.description.substring(0, 100);
+                        tooltip += ` - ${desc}${props.description.length > 100 ? '...' : ''}`;
+                    }
+                    
+                    info.el.setAttribute('title', tooltip);
                 },
                 // Responsive breakpoints
                 windowResize: function() {
@@ -2335,6 +2327,8 @@
                     }
                 },
             });
+
+            calendar.render();
 
             // Store calendar instance
             window.externalCalendar = calendar;
@@ -2363,27 +2357,27 @@
             }
         }
 
-        /* Customize calendar colors */
-        .ec {
-            --ec-bg-color: #ffffff;
-            --ec-text-color: #111827;
-            --ec-border-color: #e5e7eb;
+        /* Customize FullCalendar colors */
+        .fc {
+            --fc-bg-color: #ffffff;
+            --fc-text-color: #111827;
+            --fc-border-color: #e5e7eb;
         }
 
         /* Ensure calendar doesn't break layout on scroll */
-        .calendar-wrapper .ec {
+        .calendar-wrapper .fc {
             position: relative;
             width: 100%;
             height: auto;
         }
 
         /* Calendar events styling */
-        .ec-event {
+        .fc-event {
             cursor: pointer;
             border-radius: 4px;
         }
 
-        .ec-event:hover {
+        .fc-event:hover {
             opacity: 0.9;
             transform: scale(1.02);
             transition: all 0.2s ease;
@@ -2391,12 +2385,12 @@
 
         /* Responsive calendar toolbar */
         @media (max-width: 640px) {
-            .ec-header-toolbar {
+            .fc .fc-header-toolbar {
                 flex-direction: column;
                 gap: 0.5rem;
             }
 
-            .ec-header-toolbar .ec-button-group {
+            .fc .fc-header-toolbar .fc-button-group {
                 width: 100%;
                 justify-content: center;
             }
