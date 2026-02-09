@@ -355,18 +355,21 @@
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @forelse($this->tickets as $ticket)
+                                    @php
+                                        $ticketData = [
+                                            'uuid' => $ticket->uuid,
+                                            'name' => $ticket->name,
+                                            'description' => $ticket->description ?? 'No description available',
+                                            'status' => ['name' => $ticket->status?->name ?? 'Unknown', 'color' => $ticket->status?->color ?? '#6B7280'],
+                                            'priority' => ['name' => $ticket->priority?->name ?? 'Normal', 'color' => $ticket->priority?->color ?? '#6B7280'],
+                                            'start_date' => $ticket->start_date ? $ticket->start_date->format('M d, Y') : 'Not set',
+                                            'due_date' => $ticket->due_date ? $ticket->due_date->format('M d, Y') : 'Not set',
+                                            'is_overdue' => $ticket->isOverdue(),
+                                            'progress_percentage' => 0,
+                                        ];
+                                    @endphp
                                     <tr class="hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
-                                        onclick='openTicketFromTable(@json([
-                                            "uuid" => $ticket->uuid,
-                                            "name" => $ticket->name,
-                                            "description" => $ticket->description ?? "No description available",
-                                            "status" => ["name" => $ticket->status->name ?? "Unknown", "color" => $ticket->status->color ?? "#6B7280"],
-                                            "priority" => ["name" => $ticket->priority->name ?? "Normal", "color" => $ticket->priority->color ?? "#6B7280"],
-                                            "start_date" => $ticket->start_date ? $ticket->start_date->format("M d, Y") : "Not set",
-                                            "due_date" => $ticket->due_date ? $ticket->due_date->format("M d, Y") : "Not set",
-                                            "is_overdue" => $ticket->isOverdue(),
-                                            "progress_percentage" => 0,
-                                        ]))'>
+                                        onclick='openTicketFromTable({!! e(json_encode($ticketData)) !!})'>
                                         <td
                                             class="px-4 lg:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                             {{ $ticket->uuid }}
@@ -423,19 +426,22 @@
                         <!-- Mobile Card View -->
                         <div class="sm:hidden">
                             @forelse($this->tickets as $ticket)
+                                @php
+                                    $mobileTicketData = [
+                                        'uuid' => $ticket->uuid,
+                                        'name' => $ticket->name,
+                                        'description' => $ticket->description ?? 'No description available',
+                                        'status' => ['name' => $ticket->status?->name ?? 'Unknown', 'color' => $ticket->status?->color ?? '#6B7280'],
+                                        'priority' => ['name' => $ticket->priority?->name ?? 'Normal', 'color' => $ticket->priority?->color ?? '#6B7280'],
+                                        'start_date' => $ticket->start_date ? $ticket->start_date->format('M d, Y') : 'Not set',
+                                        'due_date' => $ticket->due_date ? $ticket->due_date->format('M d, Y') : 'Not set',
+                                        'is_overdue' => $ticket->isOverdue(),
+                                        'progress_percentage' => 0,
+                                    ];
+                                @endphp
                                 <div
                                     class="border-b border-gray-200 p-4 hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
-                                    onclick='openTicketFromTable(@json([
-                                        "uuid" => $ticket->uuid,
-                                        "name" => $ticket->name,
-                                        "description" => $ticket->description ?? "No description available",
-                                        "status" => ["name" => $ticket->status->name ?? "Unknown", "color" => $ticket->status->color ?? "#6B7280"],
-                                        "priority" => ["name" => $ticket->priority->name ?? "Normal", "color" => $ticket->priority->color ?? "#6B7280"],
-                                        "start_date" => $ticket->start_date ? $ticket->start_date->format("M d, Y") : "Not set",
-                                        "due_date" => $ticket->due_date ? $ticket->due_date->format("M d, Y") : "Not set",
-                                        "is_overdue" => $ticket->isOverdue(),
-                                        "progress_percentage" => 0,
-                                    ]))'>
+                                    onclick='openTicketFromTable({!! e(json_encode($mobileTicketData)) !!})'>
                                     <div class="space-y-3">
                                         <!-- Header Row -->
                                         <div class="flex items-start justify-between">
