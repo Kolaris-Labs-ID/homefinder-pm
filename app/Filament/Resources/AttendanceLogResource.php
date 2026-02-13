@@ -54,6 +54,7 @@ class AttendanceLogResource extends Resource
                                 AttendanceLog::SOURCE_WEB => 'Web',
                                 AttendanceLog::SOURCE_MOBILE => 'Mobile',
                                 AttendanceLog::SOURCE_BIOMETRIC => 'Biometric',
+                                AttendanceLog::SOURCE_VISIT => 'Client Visit',
                             ])
                             ->disabled(),
                         Forms\Components\Select::make('status')
@@ -64,6 +65,7 @@ class AttendanceLogResource extends Resource
                                 AttendanceLog::STATUS_ABSENT => 'Absent',
                                 AttendanceLog::STATUS_LEAVE => 'Leave',
                                 AttendanceLog::STATUS_HOLIDAY => 'Holiday',
+                                AttendanceLog::STATUS_VISIT => 'Visit',
                             ])
                             ->disabled(),
                     ]),
@@ -150,6 +152,7 @@ class AttendanceLogResource extends Resource
                                 AttendanceLog::STATUS_ABSENT => 'danger',
                                 AttendanceLog::STATUS_LEAVE => 'gray',
                                 AttendanceLog::STATUS_HOLIDAY => 'primary',
+                                AttendanceLog::STATUS_VISIT => 'success',
                                 default => 'gray',
                             })
                             ->formatStateUsing(fn (?string $state): string => match ($state) {
@@ -159,6 +162,7 @@ class AttendanceLogResource extends Resource
                                 AttendanceLog::STATUS_ABSENT => 'Absent',
                                 AttendanceLog::STATUS_LEAVE => 'Leave',
                                 AttendanceLog::STATUS_HOLIDAY => 'Holiday',
+                                AttendanceLog::STATUS_VISIT => 'Visit',
                                 default => $state ?? '-',
                             }),
                         Infolists\Components\TextEntry::make('source')
@@ -167,12 +171,14 @@ class AttendanceLogResource extends Resource
                                 AttendanceLog::SOURCE_WEB => 'primary',
                                 AttendanceLog::SOURCE_MOBILE => 'success',
                                 AttendanceLog::SOURCE_BIOMETRIC => 'warning',
+                                AttendanceLog::SOURCE_VISIT => 'success',
                                 default => 'gray',
                             })
                             ->formatStateUsing(fn (?string $state): string => match ($state) {
                                 AttendanceLog::SOURCE_WEB => 'Web',
                                 AttendanceLog::SOURCE_MOBILE => 'Mobile',
                                 AttendanceLog::SOURCE_BIOMETRIC => 'Biometric',
+                                AttendanceLog::SOURCE_VISIT => 'Client Visit',
                                 default => $state ?? '-',
                             }),
                     ]),
@@ -209,10 +215,10 @@ class AttendanceLogResource extends Resource
                             ->extraImgAttributes(['class' => 'rounded-lg shadow-md'])
                             ->placeholder('No photo')
                             ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string => 
-                                $record->check_in_photo_path 
-                                    ? (str_starts_with($record->check_in_photo_path, 'http') 
-                                        ? $record->check_in_photo_path 
+                            ->url(fn (AttendanceLog $record): ?string =>
+                                $record->check_in_photo_path
+                                    ? (str_starts_with($record->check_in_photo_path, 'http')
+                                        ? $record->check_in_photo_path
                                         : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_in_photo_path]))
                                     : null
                             )
@@ -267,10 +273,10 @@ class AttendanceLogResource extends Resource
                             ->extraImgAttributes(['class' => 'rounded-lg shadow-md'])
                             ->placeholder('No photo')
                             ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string => 
-                                $record->check_out_photo_path 
-                                    ? (str_starts_with($record->check_out_photo_path, 'http') 
-                                        ? $record->check_out_photo_path 
+                            ->url(fn (AttendanceLog $record): ?string =>
+                                $record->check_out_photo_path
+                                    ? (str_starts_with($record->check_out_photo_path, 'http')
+                                        ? $record->check_out_photo_path
                                         : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_out_photo_path]))
                                     : null
                             )
@@ -381,6 +387,7 @@ class AttendanceLogResource extends Resource
                         'danger' => AttendanceLog::STATUS_ABSENT,
                         'gray' => AttendanceLog::STATUS_LEAVE,
                         'primary' => AttendanceLog::STATUS_HOLIDAY,
+                        'success' => AttendanceLog::STATUS_VISIT,
                     ])
                     ->formatStateUsing(fn (?string $state): string => match ($state) {
                         AttendanceLog::STATUS_PRESENT => 'Present',
@@ -389,6 +396,7 @@ class AttendanceLogResource extends Resource
                         AttendanceLog::STATUS_ABSENT => 'Absent',
                         AttendanceLog::STATUS_LEAVE => 'Leave',
                         AttendanceLog::STATUS_HOLIDAY => 'Holiday',
+                        AttendanceLog::STATUS_VISIT => 'Visit',
                         default => $state ?? '-',
                     }),
                 Tables\Columns\BadgeColumn::make('source')
@@ -401,6 +409,7 @@ class AttendanceLogResource extends Resource
                         AttendanceLog::SOURCE_WEB => 'Web',
                         AttendanceLog::SOURCE_MOBILE => 'Mobile',
                         AttendanceLog::SOURCE_BIOMETRIC => 'Biometric',
+                        AttendanceLog::SOURCE_VISIT => 'Client Visit',
                         default => $state ?? '-',
                     })
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -408,6 +417,11 @@ class AttendanceLogResource extends Resource
                     ->label('Location')
                     ->limit(30)
                     ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('clientVisit.client_name')
+                    ->label('Client')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: false)
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -444,6 +458,7 @@ class AttendanceLogResource extends Resource
                         AttendanceLog::STATUS_ABSENT => 'Absent',
                         AttendanceLog::STATUS_LEAVE => 'Leave',
                         AttendanceLog::STATUS_HOLIDAY => 'Holiday',
+                        AttendanceLog::STATUS_VISIT => 'Visit',
                     ]),
                 Tables\Filters\SelectFilter::make('mode')
                     ->options([

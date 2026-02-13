@@ -6,16 +6,34 @@ use App\Exports\AttendanceLogsExport;
 use App\Filament\Actions\ImportAttendanceLogsAction;
 use App\Filament\Actions\ImportGoogleSheetsAttendanceAction;
 use App\Filament\Resources\AttendanceLogResource;
+use App\Models\Hris\ClientVisit;
 use Filament\Actions;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
+use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ListAttendanceLogs extends ListRecords
 {
     protected static string $resource = AttendanceLogResource::class;
+
+    public function getTabs(): array
+    {
+        return [
+            'all' => Tab::make('All'),
+            'attendance' => Tab::make('Attendance')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('source', '!=', 'visit')),
+            'visits' => Tab::make('Visits')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('source', 'visit'))
+                ->badge(fn () => ClientVisit::whereIn('status', [
+                    ClientVisit::STATUS_IN_PROGRESS,
+                    ClientVisit::STATUS_COMPLETED,
+                ])->count()),
+        ];
+    }
 
     protected function getHeaderActions(): array
     {

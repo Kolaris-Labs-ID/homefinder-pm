@@ -19,6 +19,7 @@ class AttendanceLog extends Model
     const STATUS_ABSENT = 'absent';
     const STATUS_LEAVE = 'leave';
     const STATUS_HOLIDAY = 'holiday';
+    const STATUS_VISIT = 'visit';
 
     // Mode constants
     const MODE_OFFICE = 'office';
@@ -29,9 +30,11 @@ class AttendanceLog extends Model
     const SOURCE_MOBILE = 'mobile';
     const SOURCE_BIOMETRIC = 'biometric';
     const SOURCE_IMPORT = 'import';
+    const SOURCE_VISIT = 'visit';
 
     protected $fillable = [
         'employee_id',
+        'client_visit_id',
         'date',
         'mode',
         'check_in_time',
@@ -104,6 +107,7 @@ class AttendanceLog extends Model
             self::STATUS_ABSENT,
             self::STATUS_LEAVE,
             self::STATUS_HOLIDAY,
+            self::STATUS_VISIT,
         ];
     }
 
@@ -128,6 +132,7 @@ class AttendanceLog extends Model
             self::SOURCE_MOBILE,
             self::SOURCE_BIOMETRIC,
             self::SOURCE_IMPORT,
+            self::SOURCE_VISIT,
         ];
     }
 
@@ -137,6 +142,14 @@ class AttendanceLog extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /**
+     * Get the client visit associated with this attendance log (if source is 'visit').
+     */
+    public function clientVisit(): BelongsTo
+    {
+        return $this->belongsTo(ClientVisit::class);
     }
 
     /**

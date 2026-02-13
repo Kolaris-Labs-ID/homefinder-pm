@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Hris;
 
 use App\Http\Controllers\Controller;
+use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\ClientVisit;
 use App\Models\Hris\Employee;
 use Illuminate\Http\JsonResponse;
@@ -139,6 +140,25 @@ class ClientVisitController extends Controller
             'photo_path' => $photoPath ?? $clientVisit->photo_path,
         ]);
 
+        // Create an attendance log entry for this visit
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'client_visit_id' => $clientVisit->id,
+            'date' => $clientVisit->visit_date,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'check_in_time' => now(),
+            'check_in_latitude' => $data['latitude'] ?? null,
+            'check_in_longitude' => $data['longitude'] ?? null,
+            'check_in_address' => $clientVisit->client_address,
+            'source' => AttendanceLog::SOURCE_VISIT,
+            'status' => AttendanceLog::STATUS_VISIT,
+            'metadata' => [
+                'client_name' => $clientVisit->client_name,
+                'purpose' => $clientVisit->purpose,
+                'purpose_label' => $clientVisit->purpose_label,
+            ],
+        ]);
+
         return response()->json([
             'message' => 'Checked in to visit successfully.',
             'data' => $clientVisit->fresh(),
@@ -168,6 +188,17 @@ class ClientVisitController extends Controller
             'check_out_longitude' => $data['longitude'] ?? null,
             'visit_report' => $data['visit_report'] ?? null,
         ]);
+
+        // Update the corresponding attendance log entry
+        $attendanceLog = AttendanceLog::where('client_visit_id', $clientVisit->id)->first();
+        if ($attendanceLog) {
+            $attendanceLog->update([
+                'check_out_time' => now(),
+                'check_out_latitude' => $data['latitude'] ?? null,
+                'check_out_longitude' => $data['longitude'] ?? null,
+                'check_out_address' => $clientVisit->client_address,
+            ]);
+        }
 
         return response()->json([
             'message' => 'Checked out from visit successfully.',
@@ -199,6 +230,9 @@ class ClientVisitController extends Controller
             'cancellation_reason' => $data['reason'] ?? null,
             'photo_path' => null,
         ]);
+
+        // Remove the corresponding attendance log entry if exists
+        AttendanceLog::where('client_visit_id', $clientVisit->id)->delete();
 
         return response()->json([
             'message' => 'Visit cancelled.',

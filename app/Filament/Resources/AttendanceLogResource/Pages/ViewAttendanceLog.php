@@ -4,6 +4,7 @@ namespace App\Filament\Resources\AttendanceLogResource\Pages;
 
 use App\Filament\Resources\AttendanceLogResource;
 use App\Models\Hris\AttendanceLog;
+use App\Models\Hris\ClientVisit;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\ImageEntry;
@@ -45,12 +46,14 @@ class ViewAttendanceLog extends ViewRecord
                                 'web' => 'primary',
                                 'mobile' => 'success',
                                 'biometric' => 'warning',
+                                'visit' => 'success',
                                 default => 'gray',
                             })
                             ->formatStateUsing(fn (?string $state): string => match ($state) {
                                 'web' => 'Web',
                                 'mobile' => 'Mobile',
                                 'biometric' => 'Biometric',
+                                'visit' => 'Client Visit',
                                 default => $state ?? '-',
                             }),
                         TextEntry::make('status')
@@ -62,6 +65,7 @@ class ViewAttendanceLog extends ViewRecord
                                 'absent' => 'danger',
                                 'leave' => 'gray',
                                 'holiday' => 'primary',
+                                'visit' => 'success',
                                 default => 'gray',
                             })
                             ->formatStateUsing(fn (?string $state): string => match ($state) {
@@ -71,6 +75,7 @@ class ViewAttendanceLog extends ViewRecord
                                 'absent' => 'Absent',
                                 'leave' => 'Leave',
                                 'holiday' => 'Holiday',
+                                'visit' => 'Visit',
                                 default => $state ?? '-',
                             }),
                         TextEntry::make('working_hours')
@@ -86,6 +91,101 @@ class ViewAttendanceLog extends ViewRecord
                             ->placeholder('N/A')
                             ->badge()
                             ->color('success'),
+                    ]),
+
+                // Visit Details Section — only shown for visit-sourced records
+                Section::make('Client Visit Details')
+                    ->icon('heroicon-o-map-pin')
+                    ->iconColor('success')
+                    ->columns(2)
+                    ->visible(fn (AttendanceLog $record): bool => $record->source === 'visit' && $record->clientVisit !== null)
+                    ->schema([
+                        TextEntry::make('clientVisit.client_name')
+                            ->label('Client Name')
+                            ->icon('heroicon-o-building-office'),
+                        TextEntry::make('clientVisit.client_address')
+                            ->label('Client Address')
+                            ->icon('heroicon-o-map-pin'),
+                        TextEntry::make('clientVisit.purpose')
+                            ->label('Visit Purpose')
+                            ->badge()
+                            ->color('primary')
+                            ->formatStateUsing(fn (?string $state): string =>
+                                $state ? (ClientVisit::getPurposeLabels()[$state] ?? $state) : '-'
+                            ),
+                        TextEntry::make('clientVisit.purpose_detail')
+                            ->label('Purpose Detail')
+                            ->placeholder('N/A'),
+                        TextEntry::make('clientVisit.status')
+                            ->label('Visit Status')
+                            ->badge()
+                            ->color(fn (?string $state): string => match ($state) {
+                                'planned' => 'warning',
+                                'in_progress' => 'primary',
+                                'completed' => 'success',
+                                'cancelled' => 'danger',
+                                default => 'gray',
+                            })
+                            ->formatStateUsing(fn (?string $state): string =>
+                                $state ? (ClientVisit::getStatusLabels()[$state] ?? $state) : '-'
+                            ),
+                        TextEntry::make('clientVisit.visit_date')
+                            ->label('Visit Date')
+                            ->date(),
+                        TextEntry::make('clientVisit.planned_start_time')
+                            ->label('Planned Start')
+                            ->placeholder('Not set'),
+                        TextEntry::make('clientVisit.planned_end_time')
+                            ->label('Planned End')
+                            ->placeholder('Not set'),
+                        TextEntry::make('clientVisit.actual_check_in')
+                            ->label('Actual Check-In')
+                            ->dateTime('d M Y, H:i:s')
+                            ->placeholder('Not checked in'),
+                        TextEntry::make('clientVisit.actual_check_out')
+                            ->label('Actual Check-Out')
+                            ->dateTime('d M Y, H:i:s')
+                            ->placeholder('Not checked out'),
+                        TextEntry::make('clientVisit.notes')
+                            ->label('Notes')
+                            ->columnSpanFull()
+                            ->placeholder('No notes'),
+                        TextEntry::make('clientVisit.visit_report')
+                            ->label('Visit Report')
+                            ->columnSpanFull()
+                            ->placeholder('No report submitted'),
+                        TextEntry::make('visit_check_in_coordinates')
+                            ->label('Check-In Location')
+                            ->state(fn (AttendanceLog $record): ?string =>
+                                $record->clientVisit?->check_in_latitude && $record->clientVisit?->check_in_longitude
+                                    ? "{$record->clientVisit->check_in_latitude}, {$record->clientVisit->check_in_longitude}"
+                                    : null
+                            )
+                            ->placeholder('No GPS data')
+                            ->url(fn (AttendanceLog $record): ?string =>
+                                $record->clientVisit?->check_in_latitude && $record->clientVisit?->check_in_longitude
+                                    ? "https://www.google.com/maps?q={$record->clientVisit->check_in_latitude},{$record->clientVisit->check_in_longitude}"
+                                    : null
+                            )
+                            ->openUrlInNewTab()
+                            ->icon('heroicon-o-globe-alt')
+                            ->color('primary'),
+                        TextEntry::make('visit_check_out_coordinates')
+                            ->label('Check-Out Location')
+                            ->state(fn (AttendanceLog $record): ?string =>
+                                $record->clientVisit?->check_out_latitude && $record->clientVisit?->check_out_longitude
+                                    ? "{$record->clientVisit->check_out_latitude}, {$record->clientVisit->check_out_longitude}"
+                                    : null
+                            )
+                            ->placeholder('No GPS data')
+                            ->url(fn (AttendanceLog $record): ?string =>
+                                $record->clientVisit?->check_out_latitude && $record->clientVisit?->check_out_longitude
+                                    ? "https://www.google.com/maps?q={$record->clientVisit->check_out_latitude},{$record->clientVisit->check_out_longitude}"
+                                    : null
+                            )
+                            ->openUrlInNewTab()
+                            ->icon('heroicon-o-globe-alt')
+                            ->color('primary'),
                     ]),
 
                 Section::make('Check-In Details')
@@ -126,10 +226,10 @@ class ViewAttendanceLog extends ViewRecord
                             ])
                             ->placeholder('No photo captured')
                             ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string => 
-                                $record->check_in_photo_path 
-                                    ? (str_starts_with($record->check_in_photo_path, 'http') 
-                                        ? $record->check_in_photo_path 
+                            ->url(fn (AttendanceLog $record): ?string =>
+                                $record->check_in_photo_path
+                                    ? (str_starts_with($record->check_in_photo_path, 'http')
+                                        ? $record->check_in_photo_path
                                         : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_in_photo_path]))
                                     : null
                             )
@@ -181,10 +281,10 @@ class ViewAttendanceLog extends ViewRecord
                             ])
                             ->placeholder('No photo captured')
                             ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string => 
-                                $record->check_out_photo_path 
-                                    ? (str_starts_with($record->check_out_photo_path, 'http') 
-                                        ? $record->check_out_photo_path 
+                            ->url(fn (AttendanceLog $record): ?string =>
+                                $record->check_out_photo_path
+                                    ? (str_starts_with($record->check_out_photo_path, 'http')
+                                        ? $record->check_out_photo_path
                                         : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_out_photo_path]))
                                     : null
                             )
