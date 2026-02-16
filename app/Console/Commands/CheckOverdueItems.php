@@ -16,7 +16,7 @@ class CheckOverdueItems extends Command
      *
      * @var string
      */
-    protected $signature = 'tickets:check-overdue 
+    protected $signature = 'tickets:check-overdue
                             {--days=3 : Number of days before due date to send reminder}
                             {--overdue-only : Only check for overdue tickets, not nearing overdue}';
 
@@ -33,20 +33,20 @@ class CheckOverdueItems extends Command
     public function handle(NotificationService $notificationService): int
     {
         $this->info('Checking for overdue and nearing overdue tickets...');
-        
+
         $days = (int) $this->option('days');
         $overdueOnly = $this->option('overdue-only');
-        
+
         $notifiedCount = 0;
-        
+
         // Check overdue tickets
         $this->info('Checking for overdue tickets...');
         $overdueTickets = Ticket::with(['assignees', 'project', 'status', 'creator'])
             ->overdue()
             ->get();
-        
+
         $this->info("Found {$overdueTickets->count()} overdue ticket(s)");
-        
+
         foreach ($overdueTickets as $ticket) {
             try {
                 $notificationService->notifyTicketOverdue($ticket);
@@ -60,16 +60,16 @@ class CheckOverdueItems extends Command
                 ]);
             }
         }
-        
+
         // Check nearing overdue tickets
         if (!$overdueOnly) {
             $this->info("Checking for tickets nearing overdue (within {$days} days)...");
             $nearingOverdueTickets = Ticket::with(['assignees', 'project', 'status', 'creator'])
                 ->nearingOverdue($days)
                 ->get();
-            
+
             $this->info("Found {$nearingOverdueTickets->count()} ticket(s) nearing overdue");
-            
+
             foreach ($nearingOverdueTickets as $ticket) {
                 try {
                     $daysUntilDue = $ticket->getDaysUntilDue();
@@ -85,16 +85,18 @@ class CheckOverdueItems extends Command
                 }
             }
         }
-        
+
         // Check overdue projects
         $this->info('Checking for overdue projects...');
         $overdueProjects = Project::with(['members'])
             ->whereNotNull('end_date')
+            ->whereNull('done_at')
+            ->whereNull('archived_at')
             ->whereDate('end_date', '<', Carbon::today())
             ->get();
-        
+
         $this->info("Found {$overdueProjects->count()} overdue project(s)");
-        
+
         foreach ($overdueProjects as $project) {
             try {
                 $notificationService->notifyProjectOverdue($project);
@@ -108,21 +110,23 @@ class CheckOverdueItems extends Command
                 ]);
             }
         }
-        
+
         // Check projects nearing overdue
         if (!$overdueOnly) {
             $this->info("Checking for projects nearing overdue (within {$days} days)...");
             $today = Carbon::today();
             $warningDate = $today->copy()->addDays($days);
-            
+
             $nearingOverdueProjects = Project::with(['members'])
                 ->whereNotNull('end_date')
+                ->whereNull('done_at')
+                ->whereNull('archived_at')
                 ->whereDate('end_date', '>=', $today)
                 ->whereDate('end_date', '<=', $warningDate)
                 ->get();
-            
+
             $this->info("Found {$nearingOverdueProjects->count()} project(s) nearing overdue");
-            
+
             foreach ($nearingOverdueProjects as $project) {
                 try {
                     $daysUntilDue = $project->remaining_days;
@@ -138,9 +142,9 @@ class CheckOverdueItems extends Command
                 }
             }
         }
-        
+
         $this->info("✅ Completed! Sent {$notifiedCount} notification(s).");
-        
+
         return Command::SUCCESS;
     }
 }

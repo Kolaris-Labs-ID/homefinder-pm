@@ -23,9 +23,9 @@ class NotificationService
     {
         $ticket = $comment->ticket;
         $commenter = $comment->user;
-        
+
         $usersToNotify = $this->getUsersToNotifyForComment($ticket, $commenter);
-        
+
         foreach ($usersToNotify as $user) {
             Notification::create([
                 'user_id' => $user->id,
@@ -45,9 +45,9 @@ class NotificationService
     {
         $ticket = $comment->ticket;
         $commenter = $comment->user;
-        
+
         $usersToNotify = $this->getUsersToNotifyForComment($ticket, $commenter);
-        
+
         foreach ($usersToNotify as $user) {
             Notification::create([
                 'user_id' => $user->id,
@@ -66,14 +66,14 @@ class NotificationService
     private function getUsersToNotifyForComment(Ticket $ticket, User $commenter): Collection
     {
         $usersToNotify = collect();
-        
+
         if ($ticket->creator && $ticket->creator->id !== $commenter->id) {
             $usersToNotify->push($ticket->creator);
         }
-        
+
         $assignedUsers = $ticket->assignees()->where('users.id', '!=', $commenter->id)->get();
         $usersToNotify = $usersToNotify->merge($assignedUsers);
-        
+
         $commenters = $ticket->comments()
             ->with('user')
             ->where('user_id', '!=', $commenter->id)
@@ -81,7 +81,7 @@ class NotificationService
             ->pluck('user')
             ->unique('id');
         $usersToNotify = $usersToNotify->merge($commenters);
-        
+
         return $usersToNotify->unique('id');
     }
 
@@ -90,12 +90,12 @@ class NotificationService
         $notification = Notification::where('id', $notificationId)
             ->where('user_id', $userId)
             ->first();
-            
+
         if ($notification) {
             $notification->markAsRead();
             return true;
         }
-        
+
         return false;
     }
 
@@ -165,7 +165,12 @@ class NotificationService
         $usersToNotify = $this->getUsersToNotifyForTicket($ticket);
         $overdueDays = Carbon::parse($ticket->due_date)->diffInDays(Carbon::today());
 
-            foreach ($usersToNotify as $user) {
+        foreach ($usersToNotify as $user) {
+            // Skip if already notified today for this ticket
+            if ($this->alreadyNotifiedToday($user->id, 'ticket_overdue', $ticket->id)) {
+                continue;
+            }
+
             // Create in-app notification
             try {
                 Notification::create([
@@ -173,7 +178,7 @@ class NotificationService
                     'type' => 'ticket_overdue',
                     'title' => 'Ticket Overdue',
                     'message' => "Ticket '{$ticket->name}' ({$ticket->uuid}) is overdue by {$overdueDays} day(s)",
-                        'data' => array_merge($this->actorData(null), [
+                    'data' => array_merge($this->actorData(null), [
                         'ticket_id' => $ticket->id,
                         'ticket_uuid' => $ticket->uuid,
                         'ticket_name' => $ticket->name,
@@ -181,7 +186,7 @@ class NotificationService
                         'project_name' => $ticket->project->name ?? 'Unknown',
                         'due_date' => $ticket->due_date?->format('Y-m-d'),
                         'overdue_days' => $overdueDays,
-                        ]),
+                    ]),
                 ]);
             } catch (\Exception $e) {
                 Log::error('Failed to create overdue ticket notification: ' . $e->getMessage(), [
@@ -211,7 +216,12 @@ class NotificationService
     {
         $usersToNotify = $this->getUsersToNotifyForTicket($ticket);
 
-            foreach ($usersToNotify as $user) {
+        foreach ($usersToNotify as $user) {
+            // Skip if already notified today for this ticket
+            if ($this->alreadyNotifiedToday($user->id, 'ticket_nearing_overdue', $ticket->id)) {
+                continue;
+            }
+
             // Create in-app notification
             try {
                 Notification::create([
@@ -219,7 +229,7 @@ class NotificationService
                     'type' => 'ticket_nearing_overdue',
                     'title' => 'Ticket Due Soon',
                     'message' => "Ticket '{$ticket->name}' ({$ticket->uuid}) is due in {$daysUntilDue} day(s)",
-                        'data' => array_merge($this->actorData(null), [
+                    'data' => array_merge($this->actorData(null), [
                         'ticket_id' => $ticket->id,
                         'ticket_uuid' => $ticket->uuid,
                         'ticket_name' => $ticket->name,
@@ -227,7 +237,7 @@ class NotificationService
                         'project_name' => $ticket->project->name ?? 'Unknown',
                         'due_date' => $ticket->due_date?->format('Y-m-d'),
                         'days_until_due' => $daysUntilDue,
-                        ]),
+                    ]),
                 ]);
             } catch (\Exception $e) {
                 Log::error('Failed to create nearing overdue ticket notification: ' . $e->getMessage(), [
@@ -262,7 +272,12 @@ class NotificationService
         $usersToNotify = $project->members;
         $overdueDays = Carbon::parse($project->end_date)->diffInDays(Carbon::today());
 
-            foreach ($usersToNotify as $user) {
+        foreach ($usersToNotify as $user) {
+            // Skip if already notified today for this project
+            if ($this->alreadyNotifiedToday($user->id, 'project_overdue', null, $project->id)) {
+                continue;
+            }
+
             // Create in-app notification
             try {
                 Notification::create([
@@ -270,12 +285,12 @@ class NotificationService
                     'type' => 'project_overdue',
                     'title' => 'Project Overdue',
                     'message' => "Project '{$project->name}' is overdue by {$overdueDays} day(s)",
-                        'data' => array_merge($this->actorData(null), [
+                    'data' => array_merge($this->actorData(null), [
                         'project_id' => $project->id,
                         'project_name' => $project->name,
                         'end_date' => $project->end_date?->format('Y-m-d'),
                         'overdue_days' => $overdueDays,
-                        ]),
+                    ]),
                 ]);
             } catch (\Exception $e) {
                 Log::error('Failed to create overdue project notification: ' . $e->getMessage(), [
@@ -309,7 +324,12 @@ class NotificationService
 
         $usersToNotify = $project->members;
 
-            foreach ($usersToNotify as $user) {
+        foreach ($usersToNotify as $user) {
+            // Skip if already notified today for this project
+            if ($this->alreadyNotifiedToday($user->id, 'project_nearing_overdue', null, $project->id)) {
+                continue;
+            }
+
             // Create in-app notification
             try {
                 Notification::create([
@@ -317,12 +337,12 @@ class NotificationService
                     'type' => 'project_nearing_overdue',
                     'title' => 'Project Due Soon',
                     'message' => "Project '{$project->name}' is due in {$daysUntilDue} day(s)",
-                        'data' => array_merge($this->actorData(null), [
+                    'data' => array_merge($this->actorData(null), [
                         'project_id' => $project->id,
                         'project_name' => $project->name,
                         'end_date' => $project->end_date?->format('Y-m-d'),
                         'days_until_due' => $daysUntilDue,
-                        ]),
+                    ]),
                 ]);
             } catch (\Exception $e) {
                 Log::error('Failed to create nearing overdue project notification: ' . $e->getMessage(), [
@@ -387,5 +407,25 @@ class NotificationService
             'actor_avatar' => $user->avatar_url,
             'actor_verified' => method_exists($user, 'hasRole') ? $user->hasRole('super_admin') : false,
         ];
+    }
+
+    /**
+     * Check if a notification of the same type was already sent today for a given ticket or project.
+     */
+    private function alreadyNotifiedToday(int $userId, string $type, ?int $ticketId = null, ?int $projectId = null): bool
+    {
+        $query = Notification::where('user_id', $userId)
+            ->where('type', $type)
+            ->whereDate('created_at', Carbon::today());
+
+        if ($ticketId) {
+            $query->where('data->ticket_id', $ticketId);
+        }
+
+        if ($projectId) {
+            $query->where('data->project_id', $projectId);
+        }
+
+        return $query->exists();
     }
 }
