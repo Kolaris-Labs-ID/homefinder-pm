@@ -11,6 +11,10 @@ class ClientVisit extends Model
 {
     use HasFactory;
 
+    // Visit type constants
+    const TYPE_PLANNED = 'planned';
+    const TYPE_SUDDEN = 'sudden';
+
     // Purpose constants
     const PURPOSE_ACCOUNTING_TRAINING = 'accounting_training';
     const PURPOSE_TAX_CONSULTATION = 'tax_consultation';
@@ -47,6 +51,7 @@ class ClientVisit extends Model
         'visit_report',
         'photo_path',
         'status',
+        'visit_type',
         'cancellation_reason',
     ];
 
@@ -117,6 +122,17 @@ class ClientVisit extends Model
             self::STATUS_IN_PROGRESS => 'In Progress',
             self::STATUS_COMPLETED => 'Completed',
             self::STATUS_CANCELLED => 'Cancelled',
+        ];
+    }
+
+    /**
+     * Get visit type labels for display.
+     */
+    public static function getVisitTypeLabels(): array
+    {
+        return [
+            self::TYPE_PLANNED => 'Planned',
+            self::TYPE_SUDDEN => 'Sudden',
         ];
     }
 

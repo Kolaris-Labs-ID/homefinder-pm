@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\Hris\ClientVisit;
 use App\Models\Hris\PayrunBatch;
 use App\Models\Hris\Reimbursement;
 use App\Models\Hris\SalaryStructure;
 use App\Models\Project;
 use App\Models\Ticket;
+use App\Observers\Hris\ClientVisitObserver;
 use App\Observers\Hris\PayrollAuditObserver;
 use App\Observers\ProjectObserver;
 use App\Observers\TicketObserver;
@@ -39,6 +41,10 @@ class AppServiceProvider extends ServiceProvider
 
         // Register ProjectObserver for auto-archiving tickets when project is done/archived
         Project::observe(ProjectObserver::class);
+
+        // Register ClientVisitObserver for visit type classification and attendance update
+        // Requirements: 5.1
+        ClientVisit::observe(ClientVisitObserver::class);
 
         // Register Payroll audit observers
         $this->registerPayrollAuditObservers();
