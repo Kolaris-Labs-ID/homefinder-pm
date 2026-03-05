@@ -17,7 +17,7 @@ class PayrollAuditObserver
         Log::channel('audit')->info('Salary structure created', [
             'salary_structure_id' => $salaryStructure->id,
             'employee_id' => $salaryStructure->employee_id,
-            'effective_date' => $salaryStructure->effective_date->toDateString(),
+            'effective_date' => $salaryStructure->effective_date?->toDateString(),
             'basic_salary' => $salaryStructure->basic_salary,
             'user_id' => auth()->id(),
         ]);

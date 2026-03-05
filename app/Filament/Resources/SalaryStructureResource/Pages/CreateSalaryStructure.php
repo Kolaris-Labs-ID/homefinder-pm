@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SalaryStructureResource\Pages;
 
 use App\Filament\Resources\SalaryStructureResource;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateSalaryStructure extends CreateRecord
@@ -17,10 +18,16 @@ class CreateSalaryStructure extends CreateRecord
         $basicPlusFixed = $basicSalary + $fixedAllowances;
 
         if ($basicPlusFixed > 0 && ($basicSalary / $basicPlusFixed) < 0.75) {
-            throw new \Exception(
-                'Basic salary must be at least 75% of (basic salary + fixed allowances). ' .
-                'Current ratio: ' . number_format(($basicSalary / $basicPlusFixed) * 100, 1) . '%'
-            );
+            Notification::make()
+                ->title('Validation Error')
+                ->body(
+                    'Basic salary must be at least 75% of (basic salary + fixed allowances). ' .
+                    'Current ratio: ' . number_format(($basicSalary / $basicPlusFixed) * 100, 1) . '%'
+                )
+                ->danger()
+                ->send();
+
+            $this->halt();
         }
 
         return $data;
