@@ -68,6 +68,17 @@ This feature enables employees to record sudden (same-day) client visits through
 1. THE AppServiceProvider SHALL register the ClientVisitObserver on the ClientVisit model in its `boot` method.
 2. THE ClientVisitObserver SHALL be located at `app/Observers/Hris/ClientVisitObserver.php` following the existing observer namespace convention.
 
+### Requirement 7: Mobile App Client Visit Updates
+
+**User Story:** As an employee using the mobile app, I want to be able to schedule a same-day (sudden) client visit and see whether each visit is Planned or Sudden, so that I have the same capabilities as the admin panel.
+
+#### Acceptance Criteria
+
+1. THE `ClientVisit` TypeScript interface in `services/api.ts` SHALL include a `visit_type` field with type `'planned' | 'sudden'`.
+2. THE visit request screen SHALL default the visit date to today (not tomorrow), enabling sudden visit creation by default.
+3. THE visit history screen SHALL display a visit type badge (Planned/Sudden) on each visit card with distinct styling.
+4. THE visit type badge SHALL use a danger/red style for `sudden` and an info/blue style for `planned`.
+
 ### Requirement 6: API Validation Consistency
 
 **User Story:** As a developer, I want the API and Filament resource to use consistent validation for `visit_date`, so that both entry points allow same-day visits.
