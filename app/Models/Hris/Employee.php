@@ -88,6 +88,10 @@ class Employee extends Model
     {
         return $this->hasMany(ClientVisit::class);
     }
+    public function emergencyContacts(): HasMany
+    {
+        return $this->hasMany(EmployeeEmergencyContact::class);
+    }
 
     public function salaryStructures(): HasMany
     {

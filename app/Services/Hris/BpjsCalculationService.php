@@ -128,7 +128,62 @@ class BpjsCalculationService
     }
 
     /**
-     * Calculate all BPJS components.
+     * Calculate all BPJS components with per-component configuration.
+     *
+     * @param float $salary Base salary for calculation
+     * @param string $jkkRiskLevel JKK risk level
+     * @param array $componentConfig Per-component config from SalaryStructure::getBpjsConfig()
+     * @return array Complete BPJS breakdown
+     */
+    public function calculateAllPerComponent(float $salary, string $jkkRiskLevel, array $componentConfig): array
+    {
+        // Calculate each component (or zero if disabled)
+        $kesehatanEnabled = $componentConfig['kesehatan']['enabled'] ?? true;
+        $jhtEnabled = $componentConfig['jht']['enabled'] ?? true;
+        $jpEnabled = $componentConfig['jp']['enabled'] ?? true;
+        $jkkEnabled = $componentConfig['jkk']['enabled'] ?? true;
+        $jkmEnabled = $componentConfig['jkm']['enabled'] ?? true;
+
+        $kesehatan = $kesehatanEnabled ? $this->calculateKesehatan($salary) : ['employee' => 0.0, 'company' => 0.0];
+        $jht = $jhtEnabled ? $this->calculateJht($salary) : ['employee' => 0.0, 'company' => 0.0];
+        $jp = $jpEnabled ? $this->calculateJp($salary) : ['employee' => 0.0, 'company' => 0.0];
+        $jkk = $jkkEnabled ? $this->calculateJkk($salary, $jkkRiskLevel) : 0.0;
+        $jkm = $jkmEnabled ? $this->calculateJkm($salary) : 0.0;
+
+        // Apply per-component paid_by logic
+        $kesehatanPaidBy = $componentConfig['kesehatan']['paid_by'] ?? 'employee';
+        $jhtPaidBy = $componentConfig['jht']['paid_by'] ?? 'employee';
+        $jpPaidBy = $componentConfig['jp']['paid_by'] ?? 'employee';
+
+        // When company pays a component, shift employee portion to company
+        if ($kesehatanEnabled && $kesehatanPaidBy === 'company') {
+            $kesehatan = ['employee' => 0.0, 'company' => $kesehatan['employee'] + $kesehatan['company']];
+        }
+        if ($jhtEnabled && $jhtPaidBy === 'company') {
+            $jht = ['employee' => 0.0, 'company' => $jht['employee'] + $jht['company']];
+        }
+        if ($jpEnabled && $jpPaidBy === 'company') {
+            $jp = ['employee' => 0.0, 'company' => $jp['employee'] + $jp['company']];
+        }
+
+        $totalEmployee = $kesehatan['employee'] + $jht['employee'] + $jp['employee'];
+        $totalCompany = $kesehatan['company'] + $jht['company'] + $jp['company'] + $jkk + $jkm;
+
+        return [
+            'kesehatan' => $kesehatan,
+            'jht' => $jht,
+            'jp' => $jp,
+            'jkk' => $jkk,
+            'jkm' => $jkm,
+            'total_employee' => round($totalEmployee, 2),
+            'total_company' => round($totalCompany, 2),
+            'grand_total' => round($totalEmployee + $totalCompany, 2),
+            'component_config' => $componentConfig,
+        ];
+    }
+
+    /**
+     * Calculate all BPJS components (legacy method, kept for backward compatibility).
      *
      * @param float $salary Base salary for calculation
      * @param string $jkkRiskLevel JKK risk level

@@ -115,16 +115,17 @@ class PayrollCalculationService
         // Calculate gross income
         $grossIncome = $proratedBasicSalary + $totalFixedAllowances + $totalVariableAllowances + $dailyAllowanceTotal;
 
-        // Determine if BPJS is company paid
+        // Determine if BPJS is company paid (legacy fallback)
         $bpjsCompanyPaid = $salaryStructure->isBpjsPaidByCompany();
 
-        // Calculate BPJS components (skip if BPJS is disabled for this employee)
+        // Calculate BPJS components using per-component config
         $bpjsBaseSalary = $fullBasicSalary + $salaryStructure->total_fixed_allowances;
         if ($salaryStructure->isBpjsEnabled()) {
-            $bpjs = $this->bpjsService->calculateAll(
+            $bpjsConfig = $salaryStructure->getBpjsConfig();
+            $bpjs = $this->bpjsService->calculateAllPerComponent(
                 $bpjsBaseSalary,
                 $salaryStructure->jkk_risk_level ?? 'low',
-                $bpjsCompanyPaid
+                $bpjsConfig
             );
         } else {
             $bpjs = [
@@ -136,7 +137,7 @@ class PayrollCalculationService
                 'total_employee' => 0.0,
                 'total_company' => 0.0,
                 'grand_total' => 0.0,
-                'company_paid' => false,
+                'component_config' => [],
             ];
             $bpjsCompanyPaid = false;
         }

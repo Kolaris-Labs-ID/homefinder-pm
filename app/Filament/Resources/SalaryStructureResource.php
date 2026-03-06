@@ -57,30 +57,86 @@ class SalaryStructureResource extends Resource
                             ->required(),
                         Forms\Components\Toggle::make('bpjs_enabled')
                             ->label('Enable BPJS')
-                            ->helperText('Aktifkan perhitungan iuran BPJS untuk karyawan ini')
+                            ->helperText('Master toggle — nonaktifkan untuk menonaktifkan semua komponen BPJS')
                             ->default(true)
                             ->reactive()
                             ->columnSpanFull(),
-                        Forms\Components\Select::make('jkk_risk_level')
-                            ->label('JKK Risk Level')
-                            ->helperText('Jaminan Kecelakaan Kerja - Program BPJS untuk perlindungan risiko kecelakaan saat bekerja')
-                            ->options([
-                                'very_low' => 'Very Low (0.24%)',
-                                'low' => 'Low (0.54%)',
-                                'medium' => 'Medium (0.89%)',
-                                'high' => 'High (1.27%)',
-                                'very_high' => 'Very High (1.74%)',
+
+                        // Per-component BPJS config
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                // BPJS Kesehatan
+                                Forms\Components\Fieldset::make('BPJS Kesehatan')
+                                    ->schema([
+                                        Forms\Components\Toggle::make('bpjs_config.kesehatan.enabled')
+                                            ->label('Aktif')
+                                            ->default(true)
+                                            ->reactive(),
+                                        Forms\Components\Select::make('bpjs_config.kesehatan.paid_by')
+                                            ->label('Ditanggung')
+                                            ->options(SalaryStructure::getBpjsPaidByLabels())
+                                            ->default('employee')
+                                            ->visible(fn ($get) => $get('bpjs_config.kesehatan.enabled')),
+                                    ]),
+
+                                // BPJS JHT
+                                Forms\Components\Fieldset::make('BPJS JHT (Jaminan Hari Tua)')
+                                    ->schema([
+                                        Forms\Components\Toggle::make('bpjs_config.jht.enabled')
+                                            ->label('Aktif')
+                                            ->default(true)
+                                            ->reactive(),
+                                        Forms\Components\Select::make('bpjs_config.jht.paid_by')
+                                            ->label('Ditanggung')
+                                            ->options(SalaryStructure::getBpjsPaidByLabels())
+                                            ->default('employee')
+                                            ->visible(fn ($get) => $get('bpjs_config.jht.enabled')),
+                                    ]),
+
+                                // BPJS JP
+                                Forms\Components\Fieldset::make('BPJS JP (Jaminan Pensiun)')
+                                    ->schema([
+                                        Forms\Components\Toggle::make('bpjs_config.jp.enabled')
+                                            ->label('Aktif')
+                                            ->default(true)
+                                            ->reactive(),
+                                        Forms\Components\Select::make('bpjs_config.jp.paid_by')
+                                            ->label('Ditanggung')
+                                            ->options(SalaryStructure::getBpjsPaidByLabels())
+                                            ->default('employee')
+                                            ->visible(fn ($get) => $get('bpjs_config.jp.enabled')),
+                                    ]),
+
+                                // JKK
+                                Forms\Components\Fieldset::make('BPJS JKK (Jaminan Kecelakaan Kerja)')
+                                    ->schema([
+                                        Forms\Components\Toggle::make('bpjs_config.jkk.enabled')
+                                            ->label('Aktif')
+                                            ->default(true)
+                                            ->reactive(),
+                                        Forms\Components\Select::make('jkk_risk_level')
+                                            ->label('Risk Level')
+                                            ->options([
+                                                'very_low' => 'Very Low (0.24%)',
+                                                'low' => 'Low (0.54%)',
+                                                'medium' => 'Medium (0.89%)',
+                                                'high' => 'High (1.27%)',
+                                                'very_high' => 'Very High (1.74%)',
+                                            ])
+                                            ->default('low')
+                                            ->required(fn ($get) => $get('bpjs_config.jkk.enabled'))
+                                            ->visible(fn ($get) => $get('bpjs_config.jkk.enabled')),
+                                    ]),
+
+                                // JKM
+                                Forms\Components\Fieldset::make('BPJS JKM (Jaminan Kematian)')
+                                    ->schema([
+                                        Forms\Components\Toggle::make('bpjs_config.jkm.enabled')
+                                            ->label('Aktif')
+                                            ->default(true),
+                                    ]),
                             ])
-                            ->default('low')
-                            ->required(fn ($get) => $get('bpjs_enabled'))
                             ->visible(fn ($get) => $get('bpjs_enabled')),
-                        Forms\Components\Select::make('bpjs_paid_by')
-                            ->label('BPJS Paid By')
-                            ->options(SalaryStructure::getBpjsPaidByLabels())
-                            ->default(SalaryStructure::BPJS_PAID_BY_EMPLOYEE)
-                            ->required(fn ($get) => $get('bpjs_enabled'))
-                            ->visible(fn ($get) => $get('bpjs_enabled'))
-                            ->helperText('Who pays the employee portion of BPJS contributions'),
                     ])->columns(3),
 
                 Forms\Components\Section::make('Prorate & Daily Allowance Settings')

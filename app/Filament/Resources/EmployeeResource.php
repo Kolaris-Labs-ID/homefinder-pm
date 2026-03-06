@@ -89,9 +89,40 @@ class EmployeeResource extends Resource
                         Forms\Components\TextInput::make('phone')
                             ->tel(),
                         Forms\Components\TextInput::make('emergency_contact_name')
-                            ->maxLength(255),
+                            ->maxLength(255)
+                            ->helperText('Legacy field — use the Emergency Contacts section below for new entries'),
                         Forms\Components\TextInput::make('emergency_contact_phone')
-                            ->tel(),
+                            ->tel()
+                            ->helperText('Legacy field — use the Emergency Contacts section below for new entries'),
+                    ]),
+
+                Forms\Components\Section::make('Emergency Contacts')
+                    ->schema([
+                        Forms\Components\Repeater::make('emergencyContacts')
+                            ->relationship()
+                            ->label('')
+                            ->schema([
+                                Forms\Components\TextInput::make('name')
+                                    ->label('Contact Name')
+                                    ->required()
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('phone')
+                                    ->label('Phone')
+                                    ->tel()
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('relationship')
+                                    ->label('Relationship')
+                                    ->placeholder('e.g. Brother, Mother, Spouse')
+                                    ->maxLength(255),
+                                Forms\Components\Toggle::make('is_primary')
+                                    ->label('Primary Contact')
+                                    ->default(false),
+                            ])
+                            ->columns(4)
+                            ->defaultItems(0)
+                            ->addActionLabel('Add Emergency Contact')
+                            ->reorderable(false)
+                            ->collapsible(),
                     ]),
 
                 Forms\Components\Section::make('Financial & Government')

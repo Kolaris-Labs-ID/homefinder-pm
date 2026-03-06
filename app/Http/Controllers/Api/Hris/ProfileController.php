@@ -13,6 +13,7 @@ class ProfileController extends Controller
         $user = $request->user()->load([
             'employee.primaryPosition.department',
             'employee.primaryPosition.position',
+            'employee.emergencyContacts',
         ]);
 
         abort_if(! $user->employee, 404, 'Employee profile not found.');
@@ -48,6 +49,13 @@ class ProfileController extends Controller
             ]) + [
                 'current_position' => optional($user->employee->primaryPosition)->position?->title,
                 'current_department' => optional($user->employee->primaryPosition)->department?->name,
+                'emergency_contacts' => $user->employee->emergencyContacts->map(fn ($c) => [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'phone' => $c->phone,
+                    'relationship' => $c->relationship,
+                    'is_primary' => $c->is_primary,
+                ])->values(),
             ],
         ]);
     }

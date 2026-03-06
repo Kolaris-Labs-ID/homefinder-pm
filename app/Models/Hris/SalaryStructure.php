@@ -28,6 +28,15 @@ class SalaryStructure extends Model
     const BPJS_PAID_BY_COMPANY = 'company';
     const BPJS_PAID_BY_SHARED = 'shared';
 
+    // Default BPJS config when none is set
+    const DEFAULT_BPJS_CONFIG = [
+        'kesehatan' => ['enabled' => true, 'paid_by' => 'employee'],
+        'jht' => ['enabled' => true, 'paid_by' => 'employee'],
+        'jp' => ['enabled' => true, 'paid_by' => 'employee'],
+        'jkk' => ['enabled' => true],
+        'jkm' => ['enabled' => true],
+    ];
+
     protected $fillable = [
         'employee_id',
         'effective_date',
@@ -40,6 +49,7 @@ class SalaryStructure extends Model
         'daily_allowance_rate',
         'prorate_enabled',
         'bpjs_enabled',
+        'bpjs_config',
         'bpjs_paid_by',
         'weekly_allowance_enabled',
     ];
@@ -50,6 +60,7 @@ class SalaryStructure extends Model
         'allowances_fixed' => 'array',
         'allowances_variable' => 'array',
         'deductions' => 'array',
+        'bpjs_config' => 'array',
         'daily_allowance_rate' => 'decimal:2',
         'prorate_enabled' => 'boolean',
         'weekly_allowance_enabled' => 'boolean',
@@ -106,7 +117,7 @@ class SalaryStructure extends Model
     }
 
     /**
-     * Check if BPJS is enabled for this salary structure.
+     * Check if BPJS master toggle is enabled.
      */
     public function isBpjsEnabled(): bool
     {
@@ -114,7 +125,43 @@ class SalaryStructure extends Model
     }
 
     /**
-     * Check if BPJS is paid by company.
+     * Get the resolved BPJS config (merged with defaults).
+     */
+    public function getBpjsConfig(): array
+    {
+        $config = $this->bpjs_config ?? [];
+
+        return array_replace_recursive(self::DEFAULT_BPJS_CONFIG, $config);
+    }
+
+    /**
+     * Check if a specific BPJS component is enabled.
+     * Returns false if master toggle is off OR component is disabled.
+     */
+    public function isBpjsComponentEnabled(string $component): bool
+    {
+        if (!$this->isBpjsEnabled()) {
+            return false;
+        }
+
+        $config = $this->getBpjsConfig();
+
+        return $config[$component]['enabled'] ?? false;
+    }
+
+    /**
+     * Get paid_by for a specific BPJS component.
+     * Falls back to legacy bpjs_paid_by if not set in config.
+     */
+    public function getBpjsComponentPaidBy(string $component): string
+    {
+        $config = $this->getBpjsConfig();
+
+        return $config[$component]['paid_by'] ?? $this->bpjs_paid_by ?? self::BPJS_PAID_BY_EMPLOYEE;
+    }
+
+    /**
+     * Check if BPJS is paid by company (legacy, uses global bpjs_paid_by).
      */
     public function isBpjsPaidByCompany(): bool
     {
