@@ -3,6 +3,7 @@
 namespace App\Services\Hris;
 
 use App\Models\Hris\AttendanceLog;
+use App\Models\Hris\AttendanceSetting;
 use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeePosition;
 use App\Models\Hris\LeaveRequest;
@@ -14,30 +15,9 @@ use Illuminate\Support\Facades\DB;
 class AttendanceService
 {
     /**
-     * Maximum WFH days allowed per week.
+     * Cached attendance settings for request-scoped caching.
      */
-    const WFH_QUOTA_PER_WEEK = 1;
-
-    /**
-     * Standard work start time (configurable).
-     */
-    const WORK_START_HOUR = 9;
-    const WORK_START_MINUTE = 0;
-
-    /**
-     * Grace period in minutes for late calculation.
-     */
-    const LATE_GRACE_PERIOD_MINUTES = 15;
-
-    /**
-     * Minimum work hours for full day (8 hours).
-     */
-    const FULL_DAY_HOURS = 8;
-
-    /**
-     * Minimum work hours for half day (4 hours).
-     */
-    const HALF_DAY_HOURS = 4;
+    protected ?AttendanceSetting $settings = null;
 
     /**
      * Geocoding service for reverse geocoding GPS coordinates.
@@ -55,6 +35,19 @@ class AttendanceService
     ) {
         $this->geocodingService = $geocodingService ?? new GeocodingService();
         $this->photoService = $photoService ?? new PhotoService();
+    }
+
+    /**
+     * Get attendance settings with request-scoped caching.
+     * Loads from database once per request lifecycle.
+     */
+    protected function getSettings(): AttendanceSetting
+    {
+        if ($this->settings === null) {
+            $this->settings = AttendanceSetting::getSettings();
+        }
+
+        return $this->settings;
     }
 
     /**
@@ -107,7 +100,7 @@ class AttendanceService
             ->count();
 
         // Return remaining quota (minimum 0)
-        return max(0, self::WFH_QUOTA_PER_WEEK - $wfhDaysUsed);
+        return max(0, $this->getSettings()->wfh_quota_per_week - $wfhDaysUsed);
     }
     /**
      * Record employee check-in.
@@ -455,15 +448,16 @@ class AttendanceService
             return AttendanceLog::STATUS_ABSENT;
         }
 
-        // Calculate work start time for the day
+        // Parse work start time from settings (stored as "HH:MM" string)
+        $workStartTimeParsed = Carbon::parse($this->getSettings()->work_start_time);
         $workStartTime = $log->date->copy()->setTime(
-            self::WORK_START_HOUR,
-            self::WORK_START_MINUTE,
+            $workStartTimeParsed->hour,
+            $workStartTimeParsed->minute,
             0
         );
 
         // Add grace period
-        $lateThreshold = $workStartTime->copy()->addMinutes(self::LATE_GRACE_PERIOD_MINUTES);
+        $lateThreshold = $workStartTime->copy()->addMinutes($this->getSettings()->late_grace_period_minutes);
 
         // Check if late (check-in after work start + grace period)
         $isLate = $log->check_in_time->gt($lateThreshold);
@@ -472,14 +466,17 @@ class AttendanceService
         if ($log->hasCheckedOut()) {
             $workDurationHours = $log->check_in_time->diffInMinutes($log->check_out_time) / 60;
 
+            $fullDayHours = (float) $this->getSettings()->full_day_hours;
+            $halfDayHours = (float) $this->getSettings()->half_day_hours;
+
             // Half day if worked less than full day but at least half day hours
-            if ($workDurationHours < self::FULL_DAY_HOURS && $workDurationHours >= self::HALF_DAY_HOURS) {
+            if ($workDurationHours < $fullDayHours && $workDurationHours >= $halfDayHours) {
                 return AttendanceLog::STATUS_HALF_DAY;
             }
 
             // If worked less than half day hours, could be considered half day or absent
             // For now, we'll consider it half day if they showed up at all
-            if ($workDurationHours < self::HALF_DAY_HOURS) {
+            if ($workDurationHours < $halfDayHours) {
                 return AttendanceLog::STATUS_HALF_DAY;
             }
         }

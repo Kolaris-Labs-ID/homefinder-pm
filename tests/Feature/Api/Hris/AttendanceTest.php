@@ -1,8 +1,8 @@
 <?php
 
 use App\Models\Hris\AttendanceLog;
+use App\Models\Hris\AttendanceSetting;
 use App\Models\Hris\Employee;
-use App\Services\Hris\AttendanceService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -266,7 +266,7 @@ describe('WFH quota endpoint', function () {
                 ],
             ])
             ->assertJsonPath('data.remaining_quota', 1)
-            ->assertJsonPath('data.max_quota_per_week', AttendanceService::WFH_QUOTA_PER_WEEK);
+            ->assertJsonPath('data.max_quota_per_week', AttendanceSetting::getSettings()->wfh_quota_per_week);
     });
 
     it('returns zero quota when already used', function () {

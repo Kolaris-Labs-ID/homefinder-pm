@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Hris;
 
 use App\Http\Controllers\Controller;
 use App\Models\Hris\AttendanceLog;
+use App\Models\Hris\AttendanceSetting;
 use App\Models\Hris\Employee;
 use App\Services\Hris\AttendanceService;
 use Carbon\Carbon;
@@ -178,7 +179,7 @@ class AttendanceController extends Controller
             return response()->json([
                 'data' => [
                     'remaining_quota' => $remainingQuota,
-                    'max_quota_per_week' => AttendanceService::WFH_QUOTA_PER_WEEK,
+                    'max_quota_per_week' => AttendanceSetting::getSettings()->wfh_quota_per_week,
                 ],
             ]);
         } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
