@@ -60,7 +60,7 @@ class PayrollCalculationService
         // Calculate prorate information
         $totalWorkingDays = $attendanceSummary['total_working_days'];
         $actualDaysWorked = (int) $this->attendanceService->calculateActualDaysWorked($attendanceSummary);
-        
+
         // Calculate prorate ratio if prorate is enabled
         $prorateRatio = 1.0;
         if ($salaryStructure->prorate_enabled) {
@@ -69,7 +69,7 @@ class PayrollCalculationService
 
         // Calculate basic salary (with prorate)
         $fullBasicSalary = (float) $salaryStructure->basic_salary;
-        $proratedBasicSalary = $salaryStructure->prorate_enabled 
+        $proratedBasicSalary = $salaryStructure->prorate_enabled
             ? $this->attendanceService->calculateProratedSalary($fullBasicSalary, $prorateRatio)
             : $fullBasicSalary;
 
@@ -82,7 +82,7 @@ class PayrollCalculationService
         // Calculate variable allowances (attendance-based)
         $variableAllowancesResult = [];
         $totalVariableAllowances = 0;
-        
+
         if (!empty($salaryStructure->allowances_variable)) {
             $variableAllowancesResult = $this->attendanceService->calculateVariableAllowances(
                 $salaryStructure->allowances_variable,
@@ -118,14 +118,28 @@ class PayrollCalculationService
         // Determine if BPJS is company paid
         $bpjsCompanyPaid = $salaryStructure->isBpjsPaidByCompany();
 
-        // Calculate BPJS components (using full salary for BPJS base, not prorated)
-        // BPJS is typically calculated on full monthly salary
+        // Calculate BPJS components (skip if BPJS is disabled for this employee)
         $bpjsBaseSalary = $fullBasicSalary + $salaryStructure->total_fixed_allowances;
-        $bpjs = $this->bpjsService->calculateAll(
-            $bpjsBaseSalary,
-            $salaryStructure->jkk_risk_level ?? 'low',
-            $bpjsCompanyPaid
-        );
+        if ($salaryStructure->isBpjsEnabled()) {
+            $bpjs = $this->bpjsService->calculateAll(
+                $bpjsBaseSalary,
+                $salaryStructure->jkk_risk_level ?? 'low',
+                $bpjsCompanyPaid
+            );
+        } else {
+            $bpjs = [
+                'kesehatan' => ['employee' => 0.0, 'company' => 0.0],
+                'jht' => ['employee' => 0.0, 'company' => 0.0],
+                'jp' => ['employee' => 0.0, 'company' => 0.0],
+                'jkk' => 0.0,
+                'jkm' => 0.0,
+                'total_employee' => 0.0,
+                'total_company' => 0.0,
+                'grand_total' => 0.0,
+                'company_paid' => false,
+            ];
+            $bpjsCompanyPaid = false;
+        }
 
         // Calculate taxable income (gross - employee BPJS contributions)
         $taxableIncome = $grossIncome - $bpjs['total_employee'];

@@ -1,297 +1,297 @@
-# Payroll Workflow Documentation
+# Dokumentasi Alur Kerja Penggajian
 
-## Overview
+## Ringkasan
 
-The payroll system handles two disbursement cycles:
+Sistem penggajian menangani dua siklus pencairan:
 
-1. **Monthly Payroll** — full salary calculation per period via `PayrunBatch`
-2. **Weekly Allowance (Uang Harian)** — weekly disbursement of daily allowances via `WeeklyAllowanceBatch`
+1. **Penggajian Bulanan** — perhitungan gaji lengkap per periode melalui `PayrunBatch`
+2. **Uang Harian Mingguan** — pencairan tunjangan harian secara mingguan melalui `WeeklyAllowanceBatch`
 
-Both flows are managed through the Filament admin panel and backed by a layered service architecture.
+Kedua alur dikelola melalui panel admin Filament dan didukung oleh arsitektur service berlapis.
 
 ---
 
-## Architecture
+## Arsitektur
 
 ```
-Admin Panel (Filament)
+Panel Admin (Filament)
     └── PayrunBatchResource / WeeklyAllowanceBatchResource
             │
             ▼
     PayrollCalculationService / WeeklyAllowanceService
             │
-            ├── AttendancePayrollService   (attendance & prorate)
-            ├── BpjsCalculationService     (BPJS contributions)
-            ├── Pph21CalculationService    (income tax / PPh 21)
-            └── PayrollSettingService      (configurable rates)
+            ├── AttendancePayrollService   (kehadiran & prorata)
+            ├── BpjsCalculationService     (iuran BPJS)
+            ├── Pph21CalculationService    (pajak penghasilan / PPh 21)
+            └── PayrollSettingService      (tarif yang dapat dikonfigurasi)
             │
             ▼
-    PayrollRecord / WeeklyAllowancePayment  (persisted results)
+    PayrollRecord / WeeklyAllowancePayment  (hasil tersimpan)
 ```
 
 ---
 
-## 1. Monthly Payroll Flow
+## 1. Alur Penggajian Bulanan
 
-### 1.1 Status Lifecycle
+### 1.1 Siklus Status
 
 ```
 draft → calculated → approved → paid
 ```
 
-| Status       | Description                              |
-| ------------ | ---------------------------------------- |
-| `draft`      | Batch created, not yet calculated        |
-| `calculated` | All employee records computed            |
-| `approved`   | Reviewed and approved by authorized user |
-| `paid`       | Disbursed; batch and records are locked  |
+| Status       | Keterangan                                        |
+| ------------ | ------------------------------------------------- |
+| `draft`      | Batch dibuat, belum dihitung                      |
+| `calculated` | Semua record karyawan sudah dihitung              |
+| `approved`   | Sudah direview dan disetujui oleh pihak berwenang |
+| `paid`       | Sudah dicairkan; batch dan record terkunci        |
 
-### 1.2 Step-by-Step Process
+### 1.2 Proses Langkah demi Langkah
 
-#### Step 1 — Create PayrunBatch (Draft)
+#### Langkah 1 — Buat PayrunBatch (Draft)
 
-Admin creates a batch with:
+Admin membuat batch dengan:
 
-- `period_start_date` / `period_end_date` — payroll period
-- `pay_date` — scheduled disbursement date
+- `period_start_date` / `period_end_date` — periode penggajian
+- `pay_date` — tanggal pencairan yang dijadwalkan
 
-#### Step 2 — Calculate Payrun
+#### Langkah 2 — Hitung Payrun
 
-Triggers `PayrollCalculationService::calculatePayrun()` which iterates all active employees and calls `calculateEmployee()` for each.
+Memicu `PayrollCalculationService::calculatePayrun()` yang mengiterasi semua karyawan aktif dan memanggil `calculateEmployee()` untuk masing-masing.
 
-**Per-employee calculation order:**
+**Urutan perhitungan per karyawan:**
 
 ```
-1. Resolve active SalaryStructure (most recent effective_date ≤ period_end)
-2. Get attendance summary (AttendancePayrollService)
-3. Calculate prorate ratio (if prorate_enabled)
-4. Calculate prorated basic salary
-5. Calculate fixed allowances (prorated if enabled)
-6. Calculate variable allowances (attendance-based)
-7. Calculate daily allowance total (daily_allowance_rate × actual_days_worked)
-8. Weekly allowance reconciliation (if weekly_allowance_enabled)
-9. Sum gross income
-10. Calculate BPJS (on full salary base, not prorated)
-11. Calculate taxable income (gross − employee BPJS)
-12. Calculate PPh 21 (TER method)
-13. Calculate other deductions (prorated if enabled)
-14. Sum total deductions
-15. Net income = gross − total deductions
-16. Persist to PayrollRecord (upsert)
+1.  Ambil SalaryStructure aktif (effective_date terbaru ≤ period_end)
+2.  Ambil ringkasan kehadiran (AttendancePayrollService)
+3.  Hitung rasio prorata (jika prorate_enabled)
+4.  Hitung gaji pokok prorata
+5.  Hitung tunjangan tetap (diprorata jika diaktifkan)
+6.  Hitung tunjangan variabel (berbasis kehadiran)
+7.  Hitung total uang harian (daily_allowance_rate × hari kerja aktual)
+8.  Rekonsiliasi uang harian mingguan (jika weekly_allowance_enabled)
+9.  Jumlahkan penghasilan bruto
+10. Hitung BPJS (berdasarkan gaji penuh, bukan prorata)
+11. Hitung penghasilan kena pajak (bruto − BPJS karyawan)
+12. Hitung PPh 21 (metode TER)
+13. Hitung potongan lainnya (diprorata jika diaktifkan)
+14. Jumlahkan total potongan
+15. Gaji bersih = bruto − total potongan
+16. Simpan ke PayrollRecord (upsert)
 ```
 
-Batch status → `calculated`.
+Status batch → `calculated`.
 
-#### Step 3 — Approve
+#### Langkah 3 — Persetujuan
 
-`PayrollCalculationService::approve()` — sets status to `approved`, records `approved_by` and `approved_at`.
+`PayrollCalculationService::approve()` — mengubah status menjadi `approved`, mencatat `approved_by` dan `approved_at`.
 
-#### Step 4 — Mark as Paid
+#### Langkah 4 — Tandai Sudah Dibayar
 
-`PayrollCalculationService::markAsPaid()` — sets status to `paid`, records `paid_by` and `paid_at`. Batch and all records become **locked** (no further edits).
+`PayrollCalculationService::markAsPaid()` — mengubah status menjadi `paid`, mencatat `paid_by` dan `paid_at`. Batch dan semua record menjadi **terkunci** (tidak bisa diedit lagi).
 
-#### Step 5 — Recalculate (optional)
+#### Langkah 5 — Hitung Ulang (opsional)
 
-Only allowed while status is `draft` or `calculated`. Resets to `draft` then re-runs calculation. Idempotent.
+Hanya diperbolehkan saat status `draft` atau `calculated`. Direset ke `draft` lalu perhitungan dijalankan ulang. Bersifat idempoten.
 
 ---
 
-## 2. Salary Calculation Details
+## 2. Detail Perhitungan Gaji
 
-### 2.1 Prorate
+### 2.1 Prorata
 
-When `SalaryStructure.prorate_enabled = true`:
-
-```
-prorate_ratio = actual_days_worked / total_working_days   (capped at 1.0)
-prorated_basic_salary = full_basic_salary × prorate_ratio
-```
-
-`actual_days_worked` = `present_days` + `late_days` + (`half_days` × 0.5)
-
-`total_working_days` = weekdays (Mon–Fri) in the period, excluding weekends.
-
-### 2.2 Allowances
-
-| Type                | Calculation                                      |
-| ------------------- | ------------------------------------------------ |
-| Fixed allowances    | Sum of `allowances_fixed[]`, prorated if enabled |
-| Variable allowances | Attendance-based, configured per allowance item  |
-| Daily allowance     | `daily_allowance_rate × actual_days_worked`      |
-
-### 2.3 BPJS Contributions
-
-BPJS is calculated on **full salary base** (not prorated):
+Ketika `SalaryStructure.prorate_enabled = true`:
 
 ```
-bpjs_base = full_basic_salary + total_fixed_allowances
+rasio_prorata = hari_kerja_aktual / total_hari_kerja   (maksimal 1.0)
+gaji_pokok_prorata = gaji_pokok_penuh × rasio_prorata
 ```
 
-| Component | Employee | Company              | Ceiling       |
-| --------- | -------- | -------------------- | ------------- |
-| Kesehatan | 1%       | 4%                   | Rp 12,000,000 |
-| JHT       | 2%       | 3.7%                 | No ceiling    |
-| JP        | 1%       | 2%                   | Rp 10,547,400 |
-| JKK       | —        | 0.24–1.74% (by risk) | —             |
-| JKM       | —        | 0.3%                 | —             |
+`hari_kerja_aktual` = `hari_hadir` + `hari_terlambat` + (`hari_setengah` × 0.5)
 
-> All rates are configurable via `PayrollSetting` (not hardcoded).
+`total_hari_kerja` = hari kerja (Senin–Jumat) dalam periode, tidak termasuk akhir pekan.
 
-**BPJS paid by company** (`bpjs_paid_by = 'company'`): employee contributions become Rp 0; company absorbs the full amount.
+### 2.2 Tunjangan
 
-### 2.4 PPh 21 (Income Tax)
+| Jenis              | Perhitungan                                                 |
+| ------------------ | ----------------------------------------------------------- |
+| Tunjangan tetap    | Jumlah dari `allowances_fixed[]`, diprorata jika diaktifkan |
+| Tunjangan variabel | Berbasis kehadiran, dikonfigurasi per item tunjangan        |
+| Uang harian        | `daily_allowance_rate × hari_kerja_aktual`                  |
 
-Calculated using the **TER (Tarif Efektif Rata-rata)** method:
+### 2.3 Iuran BPJS
 
-```
-taxable_income = gross_income − employee_bpjs_total
-pph21 = taxable_income × TER_rate
-```
-
-TER brackets are configurable via `PayrollSetting`. Three methods supported:
-
-| Method     | Description                                         |
-| ---------- | --------------------------------------------------- |
-| `gross`    | Tax borne by employee, calculated on gross          |
-| `netto`    | Same as gross (employee bears tax)                  |
-| `gross_up` | Tax borne by company: `(gross × rate) / (1 − rate)` |
-
-### 2.5 Net Income
+BPJS dihitung berdasarkan **gaji penuh** (bukan prorata):
 
 ```
-gross_income = prorated_basic + fixed_allowances + variable_allowances + daily_allowance
-total_deductions = employee_bpjs + pph21 + other_deductions
-net_income = gross_income − total_deductions
+basis_bpjs = gaji_pokok_penuh + total_tunjangan_tetap
+```
+
+| Komponen  | Karyawan | Perusahaan              | Batas Atas    |
+| --------- | -------- | ----------------------- | ------------- |
+| Kesehatan | 1%       | 4%                      | Rp 12.000.000 |
+| JHT       | 2%       | 3,7%                    | Tanpa batas   |
+| JP        | 1%       | 2%                      | Rp 10.547.400 |
+| JKK       | —        | 0,24–1,74% (per risiko) | —             |
+| JKM       | —        | 0,3%                    | —             |
+
+> Semua tarif dapat dikonfigurasi melalui `PayrollSetting` (tidak di-hardcode).
+
+**BPJS ditanggung perusahaan** (`bpjs_paid_by = 'company'`): iuran karyawan menjadi Rp 0; perusahaan menanggung seluruh jumlah.
+
+### 2.4 PPh 21 (Pajak Penghasilan)
+
+Dihitung menggunakan metode **TER (Tarif Efektif Rata-rata)**:
+
+```
+penghasilan_kena_pajak = penghasilan_bruto − total_bpjs_karyawan
+pph21 = penghasilan_kena_pajak × tarif_TER
+```
+
+Bracket TER dapat dikonfigurasi melalui `PayrollSetting`. Tiga metode yang didukung:
+
+| Metode     | Keterangan                                                   |
+| ---------- | ------------------------------------------------------------ |
+| `gross`    | Pajak ditanggung karyawan, dihitung dari bruto               |
+| `netto`    | Sama dengan gross (karyawan menanggung pajak)                |
+| `gross_up` | Pajak ditanggung perusahaan: `(bruto × tarif) / (1 − tarif)` |
+
+### 2.5 Gaji Bersih
+
+```
+penghasilan_bruto = gaji_pokok_prorata + tunjangan_tetap + tunjangan_variabel + uang_harian
+total_potongan = bpjs_karyawan + pph21 + potongan_lainnya
+gaji_bersih = penghasilan_bruto − total_potongan
 ```
 
 ---
 
-## 3. Weekly Allowance Flow
+## 3. Alur Uang Harian Mingguan
 
-### 3.1 Status Lifecycle
+### 3.1 Siklus Status
 
 ```
 draft → pending_hr → pending_finance → pending_final → approved → paid
-                                                              └── cancelled (any pre-paid stage)
+                                                              └── cancelled (tahap sebelum paid)
 ```
 
-### 3.2 Step-by-Step Process
+### 3.2 Proses Langkah demi Langkah
 
-#### Step 1 — Generate Batch
+#### Langkah 1 — Generate Batch
 
 `WeeklyAllowanceService::generateBatch(weekStart, weekEnd, paymentDate)`
 
-- Covers Mon–Fri of the previous week
-- Payment date is typically the following Tuesday
-- Queries all employees with `weekly_allowance_enabled = true` on their salary structure
+- Mencakup Senin–Jumat minggu sebelumnya
+- Tanggal pembayaran biasanya Selasa berikutnya
+- Mengambil semua karyawan dengan `weekly_allowance_enabled = true` pada struktur gaji mereka
 
-#### Step 2 — Calculate Per-Employee Payment
+#### Langkah 2 — Hitung Pembayaran Per Karyawan
 
-For each eligible employee:
-
-```
-1. Resolve active SalaryStructure
-2. Get daily_allowance_rate
-3. Get attendance for Mon–Fri (present / late / WFH = counted)
-4. days_present = count of qualifying days
-5. total_amount = daily_allowance_rate × days_present
-6. Snapshot bank info (bank_name, account_number, account_holder)
-7. Flag has_bank_warning if any bank field is missing
-```
-
-#### Step 3 — HR Review (`pending_hr`)
-
-HR reviews payments, can edit individual amounts. Cannot submit to Finance if any `has_bank_warning = true`.
-
-#### Step 4 — Finance Approval (`pending_finance → pending_final`)
-
-Finance approves; all payments move to `approved` status.
-
-#### Step 5 — Final Approval (`pending_final → approved`)
-
-COO (or configured final approver) gives final sign-off.
-
-#### Step 6 — Mark as Paid
-
-All payments move to `paid`. Batch is locked.
-
-#### Step 7 — Export for Bank Transfer
-
-CSV export generated with: Bank, Account Number, Account Name, Amount, Description.
-
----
-
-## 4. Monthly Payroll Reconciliation
-
-When `weekly_allowance_enabled = true` on a salary structure, the monthly payroll reconciles weekly payments:
+Untuk setiap karyawan yang memenuhi syarat:
 
 ```
-weekly_allowance_earned   = daily_allowance_rate × actual_days_worked (monthly)
-weekly_allowance_paid     = sum of paid WeeklyAllowancePayments in the period
-weekly_allowance_adjustment = earned − paid
+1. Ambil SalaryStructure aktif
+2. Ambil daily_allowance_rate
+3. Ambil kehadiran Senin–Jumat (hadir / terlambat / WFH = dihitung)
+4. hari_hadir = jumlah hari yang memenuhi syarat
+5. total_jumlah = daily_allowance_rate × hari_hadir
+6. Snapshot info bank (bank_name, account_number, account_holder)
+7. Tandai has_bank_warning jika ada field bank yang kosong
 ```
 
-The adjustment appears on the payslip to show the net difference between what was earned and what was already disbursed weekly.
+#### Langkah 3 — Review HR (`pending_hr`)
+
+HR mereview pembayaran, dapat mengedit jumlah individual. Tidak dapat mengirim ke Finance jika ada `has_bank_warning = true`.
+
+#### Langkah 4 — Persetujuan Finance (`pending_finance → pending_final`)
+
+Finance menyetujui; semua pembayaran berpindah ke status `approved`.
+
+#### Langkah 5 — Persetujuan Akhir (`pending_final → approved`)
+
+COO (atau approver akhir yang dikonfigurasi) memberikan persetujuan final.
+
+#### Langkah 6 — Tandai Sudah Dibayar
+
+Semua pembayaran berpindah ke `paid`. Batch terkunci.
+
+#### Langkah 7 — Ekspor untuk Transfer Bank
+
+File CSV digenerate dengan: Bank, Nomor Rekening, Nama Pemilik Rekening, Jumlah, Keterangan.
 
 ---
 
-## 5. Key Models
+## 4. Rekonsiliasi Penggajian Bulanan
 
-| Model                    | Purpose                                           |
-| ------------------------ | ------------------------------------------------- |
-| `PayrunBatch`            | Monthly payroll batch container                   |
-| `PayrollRecord`          | Per-employee payroll result for a batch           |
-| `SalaryStructure`        | Employee salary config (rates, allowances, flags) |
-| `PayrollSetting`         | Configurable BPJS/tax rates stored in DB          |
-| `WeeklyAllowanceBatch`   | Weekly allowance batch container                  |
-| `WeeklyAllowancePayment` | Per-employee weekly allowance payment             |
-| `AttendanceLog`          | Daily attendance records used for calculation     |
+Ketika `weekly_allowance_enabled = true` pada struktur gaji, penggajian bulanan merekonsiliasi pembayaran mingguan:
 
----
+```
+uang_harian_diperoleh    = daily_allowance_rate × hari_kerja_aktual (bulanan)
+uang_harian_dibayar      = jumlah WeeklyAllowancePayments yang sudah dibayar dalam periode
+selisih_uang_harian      = diperoleh − dibayar
+```
 
-## 6. Key Services
-
-| Service                     | Responsibility                                       |
-| --------------------------- | ---------------------------------------------------- |
-| `PayrollCalculationService` | Orchestrates full monthly payroll calculation        |
-| `AttendancePayrollService`  | Attendance summary, prorate ratio, daily allowance   |
-| `BpjsCalculationService`    | BPJS component calculations                          |
-| `Pph21CalculationService`   | PPh 21 / TER tax calculation                         |
-| `PayrollSettingService`     | Retrieves configurable rates from `payroll_settings` |
-| `WeeklyAllowanceService`    | Weekly allowance batch generation and workflow       |
+Selisih ini ditampilkan pada slip gaji untuk menunjukkan perbedaan bersih antara yang diperoleh dan yang sudah dicairkan secara mingguan.
 
 ---
 
-## 7. SalaryStructure Configuration Flags
+## 5. Model Utama
 
-| Field                      | Type    | Effect                                               |
-| -------------------------- | ------- | ---------------------------------------------------- |
-| `prorate_enabled`          | boolean | Enables prorate calculation based on attendance      |
-| `daily_allowance_rate`     | decimal | Per-day allowance amount (Uang Harian)               |
-| `bpjs_paid_by`             | enum    | `employee` / `company` / `shared`                    |
-| `pph21_method`             | enum    | `gross` / `netto` / `gross_up`                       |
-| `jkk_risk_level`           | enum    | `very_low` to `very_high` — affects JKK rate         |
-| `weekly_allowance_enabled` | boolean | Enables weekly disbursement + monthly reconciliation |
+| Model                    | Fungsi                                                     |
+| ------------------------ | ---------------------------------------------------------- |
+| `PayrunBatch`            | Kontainer batch penggajian bulanan                         |
+| `PayrollRecord`          | Hasil penggajian per karyawan untuk sebuah batch           |
+| `SalaryStructure`        | Konfigurasi gaji karyawan (tarif, tunjangan, flag)         |
+| `PayrollSetting`         | Tarif BPJS/pajak yang dapat dikonfigurasi, tersimpan di DB |
+| `WeeklyAllowanceBatch`   | Kontainer batch uang harian mingguan                       |
+| `WeeklyAllowancePayment` | Pembayaran uang harian per karyawan                        |
+| `AttendanceLog`          | Catatan kehadiran harian yang digunakan untuk perhitungan  |
 
 ---
 
-## 8. Payslip Output (PENGHASILAN / PENGURANGAN)
+## 6. Service Utama
 
-**PENGHASILAN (Income)**
+| Service                     | Tanggung Jawab                                                   |
+| --------------------------- | ---------------------------------------------------------------- |
+| `PayrollCalculationService` | Mengorkestrasikan perhitungan penggajian bulanan lengkap         |
+| `AttendancePayrollService`  | Ringkasan kehadiran, rasio prorata, uang harian                  |
+| `BpjsCalculationService`    | Perhitungan komponen BPJS                                        |
+| `Pph21CalculationService`   | Perhitungan pajak PPh 21 / TER                                   |
+| `PayrollSettingService`     | Mengambil tarif yang dapat dikonfigurasi dari `payroll_settings` |
+| `WeeklyAllowanceService`    | Pembuatan batch dan alur kerja uang harian mingguan              |
 
-- Gaji Pokok (full)
-- Prorata Hari Kerja (if prorated)
-- Tunjangan Tetap (fixed allowances)
-- Tunjangan Variabel (variable allowances)
-- Uang Harian (daily allowance)
-- BPJS ditanggung kantor (if company-paid)
+---
 
-**PENGURANGAN (Deductions)**
+## 7. Flag Konfigurasi SalaryStructure
 
-- BPJS Kesehatan (employee share)
-- BPJS JHT (employee share)
-- BPJS JP (employee share)
+| Field                      | Tipe    | Efek                                                   |
+| -------------------------- | ------- | ------------------------------------------------------ |
+| `prorate_enabled`          | boolean | Mengaktifkan perhitungan prorata berdasarkan kehadiran |
+| `daily_allowance_rate`     | decimal | Jumlah tunjangan per hari (Uang Harian)                |
+| `bpjs_paid_by`             | enum    | `employee` / `company` / `shared`                      |
+| `pph21_method`             | enum    | `gross` / `netto` / `gross_up`                         |
+| `jkk_risk_level`           | enum    | `very_low` sampai `very_high` — mempengaruhi tarif JKK |
+| `weekly_allowance_enabled` | boolean | Mengaktifkan pencairan mingguan + rekonsiliasi bulanan |
+
+---
+
+## 8. Output Slip Gaji (PENGHASILAN / PENGURANGAN)
+
+**PENGHASILAN**
+
+- Gaji Pokok (penuh)
+- Prorata Hari Kerja (jika diprorata)
+- Tunjangan Tetap
+- Tunjangan Variabel
+- Uang Harian
+- BPJS ditanggung kantor (jika ditanggung perusahaan)
+
+**PENGURANGAN**
+
+- BPJS Kesehatan (bagian karyawan)
+- BPJS JHT (bagian karyawan)
+- BPJS JP (bagian karyawan)
 - PPh 21
-- Other deductions
+- Potongan lainnya
 
-**TAKE HOME PAY = Gross − Total Deductions**
+**TAKE HOME PAY = Penghasilan Bruto − Total Potongan**

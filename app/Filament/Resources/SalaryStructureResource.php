@@ -55,6 +55,12 @@ class SalaryStructureResource extends Resource
                             ])
                             ->default('gross')
                             ->required(),
+                        Forms\Components\Toggle::make('bpjs_enabled')
+                            ->label('Enable BPJS')
+                            ->helperText('Aktifkan perhitungan iuran BPJS untuk karyawan ini')
+                            ->default(true)
+                            ->reactive()
+                            ->columnSpanFull(),
                         Forms\Components\Select::make('jkk_risk_level')
                             ->label('JKK Risk Level')
                             ->helperText('Jaminan Kecelakaan Kerja - Program BPJS untuk perlindungan risiko kecelakaan saat bekerja')
@@ -66,12 +72,14 @@ class SalaryStructureResource extends Resource
                                 'very_high' => 'Very High (1.74%)',
                             ])
                             ->default('low')
-                            ->required(),
+                            ->required(fn ($get) => $get('bpjs_enabled'))
+                            ->visible(fn ($get) => $get('bpjs_enabled')),
                         Forms\Components\Select::make('bpjs_paid_by')
                             ->label('BPJS Paid By')
                             ->options(SalaryStructure::getBpjsPaidByLabels())
                             ->default(SalaryStructure::BPJS_PAID_BY_EMPLOYEE)
-                            ->required()
+                            ->required(fn ($get) => $get('bpjs_enabled'))
+                            ->visible(fn ($get) => $get('bpjs_enabled'))
                             ->helperText('Who pays the employee portion of BPJS contributions'),
                     ])->columns(3),
 
@@ -222,18 +230,20 @@ class SalaryStructureResource extends Resource
                     ->label('BPJS By')
                     ->tooltip('Badan Penyelenggara Jaminan Sosial - Program jaminan sosial wajib bagi pekerja di Indonesia')
                     ->badge()
-                    ->color(fn (?string $state): string => match ($state) {
-                        'employee' => 'gray',
-                        'company' => 'success',
-                        'shared' => 'warning',
+                    ->color(fn (?string $state, $record): string => match (true) {
+                        !$record->bpjs_enabled => 'danger',
+                        $state === 'company' => 'success',
+                        $state === 'shared' => 'warning',
                         default => 'gray',
                     })
-                    ->formatStateUsing(fn (?string $state): string => match ($state) {
-                        'employee' => 'Employee',
-                        'company' => 'Company',
-                        'shared' => 'Shared',
-                        default => 'Employee',
-                    })
+                    ->formatStateUsing(fn (?string $state, $record): string => !$record->bpjs_enabled
+                        ? 'Disabled'
+                        : match ($state) {
+                            'employee' => 'Employee',
+                            'company' => 'Company',
+                            'shared' => 'Shared',
+                            default => 'Employee',
+                        })
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('pph21_method')
                     ->label('PPh 21')

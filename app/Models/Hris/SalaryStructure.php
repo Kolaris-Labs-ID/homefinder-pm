@@ -39,6 +39,7 @@ class SalaryStructure extends Model
         'jkk_risk_level',
         'daily_allowance_rate',
         'prorate_enabled',
+        'bpjs_enabled',
         'bpjs_paid_by',
         'weekly_allowance_enabled',
     ];
@@ -102,6 +103,14 @@ class SalaryStructure extends Model
             self::BPJS_PAID_BY_COMPANY => 'Company (Ditanggung Perusahaan)',
             self::BPJS_PAID_BY_SHARED => 'Shared (Ditanggung Bersama)',
         ];
+    }
+
+    /**
+     * Check if BPJS is enabled for this salary structure.
+     */
+    public function isBpjsEnabled(): bool
+    {
+        return (bool) $this->bpjs_enabled;
     }
 
     /**
