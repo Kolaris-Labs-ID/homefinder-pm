@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris;
 
+use App\Models\Hris\Traits\HasPayrollApproval;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,15 +13,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class WeeklyAllowanceBatch extends Model
 {
     use HasFactory;
+    use HasPayrollApproval;
 
-    // Status constants
+    // Status constants — new 6-status set for approval workflow
     const STATUS_DRAFT = 'draft';
-    const STATUS_PENDING_HR = 'pending_hr';
+    const STATUS_CALCULATED = 'calculated';
     const STATUS_PENDING_FINANCE = 'pending_finance';
-    const STATUS_PENDING_FINAL = 'pending_final';
-    const STATUS_APPROVED = 'approved';
+    const STATUS_PENDING_COO = 'pending_coo';
+    const STATUS_REJECTED = 'rejected';
     const STATUS_PAID = 'paid';
-    const STATUS_CANCELLED = 'cancelled';
 
     protected $fillable = [
         'week_start_date',
@@ -37,6 +38,8 @@ class WeeklyAllowanceBatch extends Model
         'final_approved_at',
         'paid_by',
         'paid_at',
+        'submitted_by',
+        'submitted_at',
         'total_employees',
         'employees_with_warnings',
         'total_amount',
@@ -53,6 +56,7 @@ class WeeklyAllowanceBatch extends Model
         'finance_approved_at' => 'datetime',
         'final_approved_at' => 'datetime',
         'paid_at' => 'datetime',
+        'submitted_at' => 'datetime',
         'total_amount' => 'decimal:2',
     ];
 
@@ -63,12 +67,11 @@ class WeeklyAllowanceBatch extends Model
     {
         return [
             self::STATUS_DRAFT,
-            self::STATUS_PENDING_HR,
+            self::STATUS_CALCULATED,
             self::STATUS_PENDING_FINANCE,
-            self::STATUS_PENDING_FINAL,
-            self::STATUS_APPROVED,
+            self::STATUS_PENDING_COO,
+            self::STATUS_REJECTED,
             self::STATUS_PAID,
-            self::STATUS_CANCELLED,
         ];
     }
 
@@ -79,12 +82,11 @@ class WeeklyAllowanceBatch extends Model
     {
         return [
             self::STATUS_DRAFT => 'Draft',
-            self::STATUS_PENDING_HR => 'Pending HR Review',
+            self::STATUS_CALCULATED => 'Calculated',
             self::STATUS_PENDING_FINANCE => 'Pending Finance',
-            self::STATUS_PENDING_FINAL => 'Pending Final Approval',
-            self::STATUS_APPROVED => 'Approved',
+            self::STATUS_PENDING_COO => 'Pending COO',
+            self::STATUS_REJECTED => 'Rejected',
             self::STATUS_PAID => 'Paid',
-            self::STATUS_CANCELLED => 'Cancelled',
         ];
     }
 
@@ -95,12 +97,11 @@ class WeeklyAllowanceBatch extends Model
     {
         return [
             self::STATUS_DRAFT => 'gray',
-            self::STATUS_PENDING_HR => 'warning',
-            self::STATUS_PENDING_FINANCE => 'info',
-            self::STATUS_PENDING_FINAL => 'primary',
-            self::STATUS_APPROVED => 'success',
+            self::STATUS_CALCULATED => 'info',
+            self::STATUS_PENDING_FINANCE => 'warning',
+            self::STATUS_PENDING_COO => 'primary',
+            self::STATUS_REJECTED => 'danger',
             self::STATUS_PAID => 'success',
-            self::STATUS_CANCELLED => 'danger',
         ];
     }
 
@@ -182,18 +183,9 @@ class WeeklyAllowanceBatch extends Model
     public function scopePending(Builder $query): Builder
     {
         return $query->whereIn('status', [
-            self::STATUS_PENDING_HR,
             self::STATUS_PENDING_FINANCE,
-            self::STATUS_PENDING_FINAL,
+            self::STATUS_PENDING_COO,
         ]);
-    }
-
-    /**
-     * Scope to get approved batches.
-     */
-    public function scopeApproved(Builder $query): Builder
-    {
-        return $query->where('status', self::STATUS_APPROVED);
     }
 
     /**
@@ -226,67 +218,23 @@ class WeeklyAllowanceBatch extends Model
     // =====================
 
     /**
-     * Check if the batch is editable (draft status).
+     * Check if the batch is editable (draft or rejected status).
      */
     public function isEditable(): bool
     {
-        return $this->status === self::STATUS_DRAFT;
+        return in_array($this->status, [self::STATUS_DRAFT, self::STATUS_REJECTED]);
     }
 
     /**
-     * Check if the batch can be submitted to HR.
-     */
-    public function canSubmitToHr(): bool
-    {
-        return $this->status === self::STATUS_DRAFT;
-    }
-
-    /**
-     * Check if the batch can be submitted to Finance.
-     */
-    public function canSubmitToFinance(): bool
-    {
-        return $this->status === self::STATUS_PENDING_HR;
-    }
-
-    /**
-     * Check if the batch can be approved by Finance.
-     */
-    public function canApproveByFinance(): bool
-    {
-        return $this->status === self::STATUS_PENDING_FINANCE;
-    }
-
-    /**
-     * Check if the batch can be given final approval.
-     */
-    public function canApproveFinal(): bool
-    {
-        return $this->status === self::STATUS_PENDING_FINAL;
-    }
-
-    /**
-     * Check if the batch can be marked as paid.
-     */
-    public function canMarkAsPaid(): bool
-    {
-        return $this->status === self::STATUS_APPROVED;
-    }
-
-    /**
-     * Check if the batch is locked (approved or paid).
+     * Check if the batch is locked (in approval pipeline or paid).
      */
     public function isLocked(): bool
     {
-        return in_array($this->status, [self::STATUS_APPROVED, self::STATUS_PAID]);
-    }
-
-    /**
-     * Check if the batch can be cancelled.
-     */
-    public function canCancel(): bool
-    {
-        return !in_array($this->status, [self::STATUS_PAID, self::STATUS_CANCELLED]);
+        return in_array($this->status, [
+            self::STATUS_PENDING_FINANCE,
+            self::STATUS_PENDING_COO,
+            self::STATUS_PAID,
+        ]);
     }
 
     // =====================

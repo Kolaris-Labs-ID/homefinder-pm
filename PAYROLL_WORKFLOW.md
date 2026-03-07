@@ -15,15 +15,19 @@ Kedua alur dikelola melalui panel admin Filament dan didukung oleh arsitektur se
 
 ```
 Panel Admin (Filament)
-    └── PayrunBatchResource / WeeklyAllowanceBatchResource
-            │
-            ▼
-    PayrollCalculationService / WeeklyAllowanceService
-            │
-            ├── AttendancePayrollService   (kehadiran & prorata)
-            ├── BpjsCalculationService     (iuran BPJS)
-            ├── Pph21CalculationService    (pajak penghasilan / PPh 21)
-            └── PayrollSettingService      (tarif yang dapat dikonfigurasi)
+    ├── PayrunBatchResource / WeeklyAllowanceBatchResource
+    │       │
+    │       ├── PayrollApprovalService     (alur persetujuan)
+    │       │       ├── PayrollWorkflowConfig / PayrollWorkflowStep
+    │       │       └── PayrollApprovalLog  (audit trail)
+    │       │
+    │       └── PayrollCalculationService / WeeklyAllowanceService
+    │               ├── AttendancePayrollService   (kehadiran & prorata)
+    │               ├── BpjsCalculationService     (iuran BPJS)
+    │               ├── Pph21CalculationService    (pajak penghasilan / PPh 21)
+    │               └── PayrollSettingService      (tarif yang dapat dikonfigurasi)
+    │
+    └── PayrollApprovalConfigPage          (konfigurasi workflow per modul)
             │
             ▼
     PayrollRecord / WeeklyAllowancePayment  (hasil tersimpan)
@@ -36,15 +40,18 @@ Panel Admin (Filament)
 ### 1.1 Siklus Status
 
 ```
-draft → calculated → approved → paid
+draft → calculated → pending_finance → [pending_coo] → paid
+                                  └──── rejected ──→ pending_finance (resubmit)
 ```
 
-| Status       | Keterangan                                        |
-| ------------ | ------------------------------------------------- |
-| `draft`      | Batch dibuat, belum dihitung                      |
-| `calculated` | Semua record karyawan sudah dihitung              |
-| `approved`   | Sudah direview dan disetujui oleh pihak berwenang |
-| `paid`       | Sudah dicairkan; batch dan record terkunci        |
+| Status            | Keterangan                                                         |
+| ----------------- | ------------------------------------------------------------------ |
+| `draft`           | Batch dibuat, belum dihitung                                       |
+| `calculated`      | Semua record karyawan sudah dihitung                               |
+| `pending_finance` | Sudah disubmit oleh HR, menunggu persetujuan Finance               |
+| `pending_coo`     | Dieskalasi oleh Finance, menunggu persetujuan COO                  |
+| `rejected`        | Ditolak oleh approver (Finance/COO) dengan alasan penolakan        |
+| `paid`            | Sudah dicairkan; batch dan record terkunci, tidak bisa diubah lagi |
 
 ### 1.2 Proses Langkah demi Langkah
 
@@ -82,15 +89,34 @@ Memicu `PayrollCalculationService::calculatePayrun()` yang mengiterasi semua kar
 
 Status batch → `calculated`.
 
-#### Langkah 3 — Persetujuan
+#### Langkah 3 — Submit untuk Persetujuan
 
-`PayrollCalculationService::approve()` — mengubah status menjadi `approved`, mencatat `approved_by` dan `approved_at`.
+HR mengirim batch yang sudah dihitung ke pipeline persetujuan melalui `PayrollApprovalService::submitForApproval()`. Memvalidasi bahwa konfigurasi workflow aktif ada untuk modul ini. Status → `pending_finance`, mencatat `submitted_by` dan `submitted_at`.
 
-#### Langkah 4 — Tandai Sudah Dibayar
+#### Langkah 4 — Persetujuan Finance
 
-`PayrollCalculationService::markAsPaid()` — mengubah status menjadi `paid`, mencatat `paid_by` dan `paid_at`. Batch dan semua record menjadi **terkunci** (tidak bisa diedit lagi).
+Finance mereview batch dan memilih salah satu:
 
-#### Langkah 5 — Hitung Ulang (opsional)
+- **Approve & Pay** — `PayrollApprovalService::approveAndPay()` → status `paid`, mencatat `paid_by` dan `paid_at`
+- **Escalate to COO** — `PayrollApprovalService::escalateToCoo()` → status `pending_coo` (hanya jika step COO dikonfigurasi)
+- **Reject** — `PayrollApprovalService::reject()` → status `rejected`, wajib menyertakan alasan penolakan
+
+#### Langkah 5 — Persetujuan COO (opsional)
+
+Jika dieskalasi, COO mereview dan memilih:
+
+- **Approve & Pay** — `PayrollApprovalService::cooApproveAndPay()` → status `paid`
+- **Reject** — `PayrollApprovalService::reject()` → status `rejected`
+
+#### Langkah 6 — Penolakan & Resubmit
+
+Jika ditolak, HR dapat melihat alasan penolakan dan approver yang menolak. HR dapat mengedit catatan batch, lalu resubmit melalui `PayrollApprovalService::resubmit()` → status kembali ke `pending_finance`.
+
+#### Langkah 7 — Batch Terkunci (Paid)
+
+Setelah status `paid`, batch dan semua record menjadi **terkunci** — tidak ada transisi status, edit, atau aksi persetujuan yang diperbolehkan.
+
+#### Langkah 8 — Hitung Ulang (opsional)
 
 Hanya diperbolehkan saat status `draft` atau `calculated`. Direset ke `draft` lalu perhitungan dijalankan ulang. Bersifat idempoten.
 
@@ -173,9 +199,11 @@ gaji_bersih = penghasilan_bruto − total_potongan
 ### 3.1 Siklus Status
 
 ```
-draft → pending_hr → pending_finance → pending_final → approved → paid
-                                                              └── cancelled (tahap sebelum paid)
+draft → calculated → pending_finance → [pending_coo] → paid
+                                  └──── rejected ──→ pending_finance (resubmit)
 ```
+
+Siklus status sekarang **identik** dengan Penggajian Bulanan. Status lama (`pending_hr`, `pending_final`, `approved`, `cancelled`) sudah dihapus dan diganti dengan alur persetujuan terpadu.
 
 ### 3.2 Proses Langkah demi Langkah
 
@@ -201,23 +229,27 @@ Untuk setiap karyawan yang memenuhi syarat:
 7. Tandai has_bank_warning jika ada field bank yang kosong
 ```
 
-#### Langkah 3 — Review HR (`pending_hr`)
+#### Langkah 3 — Submit untuk Persetujuan
 
-HR mereview pembayaran, dapat mengedit jumlah individual. Tidak dapat mengirim ke Finance jika ada `has_bank_warning = true`.
+HR mengirim batch ke pipeline persetujuan melalui `PayrollApprovalService::submitForApproval()`. Status → `pending_finance`.
 
-#### Langkah 4 — Persetujuan Finance (`pending_finance → pending_final`)
+#### Langkah 4 — Persetujuan Finance
 
-Finance menyetujui; semua pembayaran berpindah ke status `approved`.
+Sama seperti Penggajian Bulanan: Finance dapat Approve & Pay, Escalate to COO, atau Reject.
 
-#### Langkah 5 — Persetujuan Akhir (`pending_final → approved`)
+#### Langkah 5 — Persetujuan COO (opsional)
 
-COO (atau approver akhir yang dikonfigurasi) memberikan persetujuan final.
+Jika dieskalasi, COO dapat Approve & Pay atau Reject.
 
-#### Langkah 6 — Tandai Sudah Dibayar
+#### Langkah 6 — Penolakan & Resubmit
+
+Jika ditolak, HR melihat alasan penolakan dan dapat resubmit.
+
+#### Langkah 7 — Tandai Sudah Dibayar
 
 Semua pembayaran berpindah ke `paid`. Batch terkunci.
 
-#### Langkah 7 — Ekspor untuk Transfer Bank
+#### Langkah 8 — Ekspor untuk Transfer Bank
 
 File CSV digenerate dengan: Bank, Nomor Rekening, Nama Pemilik Rekening, Jumlah, Keterangan.
 
@@ -239,15 +271,18 @@ Selisih ini ditampilkan pada slip gaji untuk menunjukkan perbedaan bersih antara
 
 ## 5. Model Utama
 
-| Model                    | Fungsi                                                     |
-| ------------------------ | ---------------------------------------------------------- |
-| `PayrunBatch`            | Kontainer batch penggajian bulanan                         |
-| `PayrollRecord`          | Hasil penggajian per karyawan untuk sebuah batch           |
-| `SalaryStructure`        | Konfigurasi gaji karyawan (tarif, tunjangan, flag)         |
-| `PayrollSetting`         | Tarif BPJS/pajak yang dapat dikonfigurasi, tersimpan di DB |
-| `WeeklyAllowanceBatch`   | Kontainer batch uang harian mingguan                       |
-| `WeeklyAllowancePayment` | Pembayaran uang harian per karyawan                        |
-| `AttendanceLog`          | Catatan kehadiran harian yang digunakan untuk perhitungan  |
+| Model                    | Fungsi                                                        |
+| ------------------------ | ------------------------------------------------------------- |
+| `PayrunBatch`            | Kontainer batch penggajian bulanan                            |
+| `PayrollRecord`          | Hasil penggajian per karyawan untuk sebuah batch              |
+| `SalaryStructure`        | Konfigurasi gaji karyawan (tarif, tunjangan, flag)            |
+| `PayrollSetting`         | Tarif BPJS/pajak yang dapat dikonfigurasi, tersimpan di DB    |
+| `WeeklyAllowanceBatch`   | Kontainer batch uang harian mingguan                          |
+| `WeeklyAllowancePayment` | Pembayaran uang harian per karyawan                           |
+| `AttendanceLog`          | Catatan kehadiran harian yang digunakan untuk perhitungan     |
+| `PayrollWorkflowConfig`  | Konfigurasi workflow persetujuan per modul (bulanan/mingguan) |
+| `PayrollWorkflowStep`    | Step persetujuan dalam workflow (Finance/COO) dengan assignee |
+| `PayrollApprovalLog`     | Audit trail immutable untuk setiap transisi status batch      |
 
 ---
 
@@ -256,6 +291,7 @@ Selisih ini ditampilkan pada slip gaji untuk menunjukkan perbedaan bersih antara
 | Service                     | Tanggung Jawab                                                   |
 | --------------------------- | ---------------------------------------------------------------- |
 | `PayrollCalculationService` | Mengorkestrasikan perhitungan penggajian bulanan lengkap         |
+| `PayrollApprovalService`    | Mengorkestrasikan seluruh transisi persetujuan untuk kedua modul |
 | `AttendancePayrollService`  | Ringkasan kehadiran, rasio prorata, uang harian                  |
 | `BpjsCalculationService`    | Perhitungan komponen BPJS                                        |
 | `Pph21CalculationService`   | Perhitungan pajak PPh 21 / TER                                   |
@@ -274,6 +310,54 @@ Selisih ini ditampilkan pada slip gaji untuk menunjukkan perbedaan bersih antara
 | `pph21_method`             | enum    | `gross` / `netto` / `gross_up`                         |
 | `jkk_risk_level`           | enum    | `very_low` sampai `very_high` — mempengaruhi tarif JKK |
 | `weekly_allowance_enabled` | boolean | Mengaktifkan pencairan mingguan + rekonsiliasi bulanan |
+
+---
+
+## 10. Alur Persetujuan Penggajian (Payroll Approval Workflow)
+
+### 10.1 Ringkasan
+
+Sistem persetujuan baru menggantikan tombol approve/markAsPaid ad-hoc dengan pipeline terstruktur yang dikonfigurasi per modul. Sistem ini **terpisah sepenuhnya** dari `ApprovalWorkflow`/`ApprovalStep` yang digunakan untuk Cuti, Reimbursement, dan Training.
+
+### 10.2 Konfigurasi Workflow
+
+Dikelola melalui halaman Filament `PayrollApprovalConfig` (hanya `super_admin`):
+
+- Dua konfigurasi: satu untuk Penggajian Bulanan, satu untuk Uang Harian Mingguan
+- Setiap konfigurasi memiliki **1 step Finance (wajib)** dan **1 step COO (opsional)**
+- Setiap step dapat di-assign ke user spesifik atau Spatie role
+
+### 10.3 Aksi Persetujuan
+
+| Aksi                | Dari Status                       | Ke Status         | Aktor         |
+| ------------------- | --------------------------------- | ----------------- | ------------- |
+| Submit for Approval | `calculated`                      | `pending_finance` | HR            |
+| Approve & Pay       | `pending_finance`                 | `paid`            | Finance       |
+| Approve & Pay       | `pending_coo`                     | `paid`            | COO           |
+| Escalate to COO     | `pending_finance`                 | `pending_coo`     | Finance       |
+| Reject              | `pending_finance` / `pending_coo` | `rejected`        | Finance / COO |
+| Resubmit            | `rejected`                        | `pending_finance` | HR            |
+
+### 10.4 Visibilitas Berbasis Peran
+
+| Peran                    | Batch yang Terlihat        |
+| ------------------------ | -------------------------- |
+| HR / Admin / Super Admin | Semua batch                |
+| Finance Approver         | `pending_finance` + `paid` |
+| COO Approver             | `pending_coo` + `paid`     |
+| Lainnya                  | Tidak ada akses            |
+
+### 10.5 Audit Trail
+
+Setiap transisi status menciptakan entry `PayrollApprovalLog` yang immutable, mencatat: aktor, aksi, status sebelum/sesudah, catatan opsional, dan timestamp. Timeline ditampilkan di halaman detail batch.
+
+### 10.6 Tabel Database Baru
+
+| Tabel                      | Fungsi                                             |
+| -------------------------- | -------------------------------------------------- |
+| `payroll_workflow_configs` | Konfigurasi workflow per modul                     |
+| `payroll_workflow_steps`   | Step persetujuan (Finance/COO) dengan assignee     |
+| `payroll_approval_logs`    | Audit trail immutable untuk setiap transisi status |
 
 ---
 

@@ -47,15 +47,42 @@ class PayrunBatchFactory extends Factory
     }
 
     /**
-     * Set the batch status to approved.
+     * Set the batch status to pending_finance.
      */
-    public function approved(): static
+    public function pendingFinance(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status' => PayrunBatch::STATUS_APPROVED,
+            'status' => PayrunBatch::STATUS_PENDING_FINANCE,
             'calculated_at' => now()->subHour(),
-            'approved_at' => now(),
-            'approved_by' => User::factory(),
+            'submitted_by' => User::factory(),
+            'submitted_at' => now(),
+        ]);
+    }
+
+    /**
+     * Set the batch status to pending_coo.
+     */
+    public function pendingCoo(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => PayrunBatch::STATUS_PENDING_COO,
+            'calculated_at' => now()->subHours(2),
+            'submitted_by' => User::factory(),
+            'submitted_at' => now()->subHour(),
+        ]);
+    }
+
+    /**
+     * Set the batch status to rejected.
+     */
+    public function rejected(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => PayrunBatch::STATUS_REJECTED,
+            'calculated_at' => now()->subHours(2),
+            'submitted_by' => User::factory(),
+            'submitted_at' => now()->subHour(),
+            'rejection_reason' => 'Needs correction',
         ]);
     }
 
@@ -67,8 +94,8 @@ class PayrunBatchFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'status' => PayrunBatch::STATUS_PAID,
             'calculated_at' => now()->subDays(2),
-            'approved_at' => now()->subDay(),
-            'approved_by' => User::factory(),
+            'submitted_by' => User::factory(),
+            'submitted_at' => now()->subDay(),
             'paid_at' => now(),
             'paid_by' => User::factory(),
         ]);

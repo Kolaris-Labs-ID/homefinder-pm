@@ -6,6 +6,7 @@ use App\Exports\PayrollRecordsExport;
 use App\Filament\Resources\PayrunBatchResource\Pages;
 use App\Filament\Resources\PayrunBatchResource\RelationManagers;
 use App\Models\Hris\PayrunBatch;
+use App\Services\Hris\PayrollApprovalService;
 use App\Services\Hris\PayrollCalculationService;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -55,6 +56,7 @@ class PayrunBatchResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->visibleToUser(auth()->user()))
             ->columns([
                 Tables\Columns\TextColumn::make('period_label')
                     ->label('Period')
@@ -67,8 +69,11 @@ class PayrunBatchResource extends Resource
                     ->color(fn (string $state): string => match ($state) {
                         'draft' => 'gray',
                         'calculated' => 'info',
-                        'approved' => 'warning',
+                        'pending_finance' => 'warning',
+                        'pending_coo' => 'warning',
+                        'rejected' => 'danger',
                         'paid' => 'success',
+                        default => 'gray',
                     }),
                 Tables\Columns\TextColumn::make('payroll_records_count')
                     ->label('Employees')
@@ -107,35 +112,179 @@ class PayrunBatchResource extends Resource
                             ->success()
                             ->send();
                     }),
-                Tables\Actions\Action::make('approve')
-                    ->label('Approve')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('warning')
-                    ->visible(fn (PayrunBatch $record) => $record->canApprove())
+                Tables\Actions\Action::make('submitForApproval')
+                    ->label('Submit for Approval')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('primary')
+                    ->visible(fn (PayrunBatch $record) => $record->canSubmitForApproval())
                     ->requiresConfirmation()
+                    ->modalHeading('Submit for Approval')
+                    ->modalDescription('Are you sure you want to submit this payrun batch for approval?')
                     ->action(function (PayrunBatch $record) {
-                        $service = app(PayrollCalculationService::class);
-                        $service->approve($record, auth()->user());
+                        $service = app(PayrollApprovalService::class);
 
-                        Notification::make()
-                            ->title('Payrun Approved')
-                            ->success()
-                            ->send();
+                        try {
+                            $service->submitForApproval($record, auth()->user());
+
+                            Notification::make()
+                                ->title('Submitted for Approval')
+                                ->body('The payrun batch has been submitted for finance approval.')
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Submission Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
-                Tables\Actions\Action::make('markAsPaid')
-                    ->label('Mark as Paid')
+                Tables\Actions\Action::make('approveAndPay')
+                    ->label('Approve & Pay')
                     ->icon('heroicon-o-banknotes')
                     ->color('success')
-                    ->visible(fn (PayrunBatch $record) => $record->canMarkAsPaid())
+                    ->visible(function (PayrunBatch $record) {
+                        if ($record->isPaid()) {
+                            return false;
+                        }
+                        if (! $record->canBeApprovedByFinance() && ! $record->canBeApprovedByCoo()) {
+                            return false;
+                        }
+                        $service = app(PayrollApprovalService::class);
+                        return $service->canUserActOnBatch($record, auth()->user());
+                    })
                     ->requiresConfirmation()
+                    ->modalHeading('Approve & Pay')
+                    ->modalDescription('Are you sure you want to approve this payrun batch and mark it as paid?')
                     ->action(function (PayrunBatch $record) {
-                        $service = app(PayrollCalculationService::class);
-                        $service->markAsPaid($record, auth()->user());
+                        $service = app(PayrollApprovalService::class);
 
-                        Notification::make()
-                            ->title('Payrun Marked as Paid')
-                            ->success()
-                            ->send();
+                        try {
+                            if ($record->canBeApprovedByCoo()) {
+                                $service->cooApproveAndPay($record, auth()->user());
+                            } else {
+                                $service->approveAndPay($record, auth()->user());
+                            }
+
+                            Notification::make()
+                                ->title('Approved & Paid')
+                                ->body('The payrun batch has been approved and marked as paid.')
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Approval Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                Tables\Actions\Action::make('escalateToCoo')
+                    ->label('Escalate to COO')
+                    ->icon('heroicon-o-arrow-up-circle')
+                    ->color('warning')
+                    ->visible(function (PayrunBatch $record) {
+                        if (! $record->canBeEscalatedToCoo()) {
+                            return false;
+                        }
+                        $service = app(PayrollApprovalService::class);
+                        return $service->isEscalationAvailable($record)
+                            && $service->canUserActOnBatch($record, auth()->user());
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Escalate to COO')
+                    ->modalDescription('Are you sure you want to escalate this payrun batch to the COO for approval?')
+                    ->form([
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Escalation Notes')
+                            ->placeholder('Optional notes for the COO...')
+                            ->rows(3),
+                    ])
+                    ->action(function (PayrunBatch $record, array $data) {
+                        $service = app(PayrollApprovalService::class);
+
+                        try {
+                            $service->escalateToCoo($record, auth()->user(), $data['notes'] ?? null);
+
+                            Notification::make()
+                                ->title('Escalated to COO')
+                                ->body('The payrun batch has been escalated to the COO for approval.')
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Escalation Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                Tables\Actions\Action::make('reject')
+                    ->label('Reject')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(function (PayrunBatch $record) {
+                        if (! $record->canBeRejected()) {
+                            return false;
+                        }
+                        $service = app(PayrollApprovalService::class);
+                        return $service->canUserActOnBatch($record, auth()->user());
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Reject Payrun Batch')
+                    ->modalDescription('Please provide a reason for rejecting this payrun batch.')
+                    ->form([
+                        Forms\Components\Textarea::make('rejection_reason')
+                            ->label('Rejection Reason')
+                            ->required()
+                            ->placeholder('Enter the reason for rejection...')
+                            ->rows(3),
+                    ])
+                    ->action(function (PayrunBatch $record, array $data) {
+                        $service = app(PayrollApprovalService::class);
+
+                        try {
+                            $service->reject($record, auth()->user(), $data['rejection_reason']);
+
+                            Notification::make()
+                                ->title('Batch Rejected')
+                                ->body('The payrun batch has been rejected.')
+                                ->warning()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Rejection Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                Tables\Actions\Action::make('resubmit')
+                    ->label('Resubmit')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('primary')
+                    ->visible(fn (PayrunBatch $record) => $record->canBeResubmitted())
+                    ->requiresConfirmation()
+                    ->modalHeading('Resubmit for Approval')
+                    ->modalDescription('Are you sure you want to resubmit this payrun batch for approval?')
+                    ->action(function (PayrunBatch $record) {
+                        $service = app(PayrollApprovalService::class);
+
+                        try {
+                            $service->resubmit($record, auth()->user());
+
+                            Notification::make()
+                                ->title('Resubmitted for Approval')
+                                ->body('The payrun batch has been resubmitted for finance approval.')
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Resubmission Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
                 Tables\Actions\Action::make('export')
                     ->label('Export')

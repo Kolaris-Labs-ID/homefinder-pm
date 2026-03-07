@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\WeeklyAllowanceBatchResource\Pages;
 use App\Filament\Resources\WeeklyAllowanceBatchResource\RelationManagers;
 use App\Models\Hris\WeeklyAllowanceBatch;
+use App\Services\Hris\PayrollApprovalService;
 use App\Services\Hris\WeeklyAllowanceService;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -72,6 +73,7 @@ class WeeklyAllowanceBatchResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->visibleToUser(auth()->user()))
             ->columns([
                 Tables\Columns\TextColumn::make('week_label')
                     ->label('Week Period')
@@ -82,7 +84,15 @@ class WeeklyAllowanceBatchResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
-                    ->color(fn (string $state): string => WeeklyAllowanceBatch::getStatusColors()[$state] ?? 'gray'),
+                    ->color(fn (string $state): string => match ($state) {
+                        'draft' => 'gray',
+                        'calculated' => 'info',
+                        'pending_finance' => 'warning',
+                        'pending_coo' => 'warning',
+                        'rejected' => 'danger',
+                        'paid' => 'success',
+                        default => 'gray',
+                    }),
                 Tables\Columns\TextColumn::make('total_employees')
                     ->label('Employees')
                     ->alignCenter(),
@@ -95,13 +105,8 @@ class WeeklyAllowanceBatchResource extends Resource
                     ->label('Total Amount')
                     ->money('IDR')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('hr_reviewed_at')
-                    ->label('HR Reviewed')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('finance_approved_at')
-                    ->label('Finance Approved')
+                Tables\Columns\TextColumn::make('submitted_at')
+                    ->label('Submitted')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -117,126 +122,180 @@ class WeeklyAllowanceBatchResource extends Resource
                     ->options(WeeklyAllowanceBatch::getStatusLabels()),
             ])
             ->actions([
-                // HR: Submit to HR (after generation)
-                Tables\Actions\Action::make('submit_to_hr')
-                    ->label('Submit for Review')
+                Tables\Actions\Action::make('submitForApproval')
+                    ->label('Submit for Approval')
                     ->icon('heroicon-o-paper-airplane')
-                    ->color('info')
-                    ->visible(fn (WeeklyAllowanceBatch $record) => $record->canSubmitToHr())
+                    ->color('primary')
+                    ->visible(fn (WeeklyAllowanceBatch $record) => $record->canSubmitForApproval())
                     ->requiresConfirmation()
+                    ->modalHeading('Submit for Approval')
+                    ->modalDescription('Are you sure you want to submit this weekly allowance batch for approval?')
                     ->action(function (WeeklyAllowanceBatch $record) {
-                        $service = app(WeeklyAllowanceService::class);
-                        $service->submitToHr($record);
+                        $service = app(PayrollApprovalService::class);
 
-                        Notification::make()
-                            ->title('Submitted for HR Review')
-                            ->success()
-                            ->send();
-                    }),
-
-                // HR: Submit to Finance
-                Tables\Actions\Action::make('submit_to_finance')
-                    ->label('Submit to Finance')
-                    ->icon('heroicon-o-banknotes')
-                    ->color('info')
-                    ->visible(fn (WeeklyAllowanceBatch $record) => $record->canSubmitToFinance())
-                    ->requiresConfirmation()
-                    ->modalDescription(fn (WeeklyAllowanceBatch $record) => $record->employees_with_warnings > 0
-                        ? "Warning: {$record->employees_with_warnings} employee(s) have missing bank information. Please update their data first."
-                        : 'Are you sure you want to submit this batch to Finance?')
-                    ->action(function (WeeklyAllowanceBatch $record) {
                         try {
-                            $service = app(WeeklyAllowanceService::class);
-                            $service->submitToFinance($record);
+                            $service->submitForApproval($record, auth()->user());
 
                             Notification::make()
-                                ->title('Submitted to Finance')
+                                ->title('Submitted for Approval')
+                                ->body('The weekly allowance batch has been submitted for finance approval.')
                                 ->success()
                                 ->send();
                         } catch (\Exception $e) {
                             Notification::make()
-                                ->title('Cannot Submit')
+                                ->title('Submission Failed')
                                 ->body($e->getMessage())
                                 ->danger()
                                 ->send();
                         }
                     }),
-
-                // Finance: Approve
-                Tables\Actions\Action::make('approve_finance')
-                    ->label('Finance Approve')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('warning')
-                    ->visible(fn (WeeklyAllowanceBatch $record) => $record->canApproveByFinance())
-                    ->requiresConfirmation()
-                    ->action(function (WeeklyAllowanceBatch $record) {
-                        $service = app(WeeklyAllowanceService::class);
-                        $service->approveByFinance($record);
-
-                        Notification::make()
-                            ->title('Approved by Finance')
-                            ->body('Batch sent for final approval.')
-                            ->success()
-                            ->send();
-                    }),
-
-                // COO/Final: Approve
-                Tables\Actions\Action::make('approve_final')
-                    ->label('Final Approve')
-                    ->icon('heroicon-o-shield-check')
-                    ->color('success')
-                    ->visible(fn (WeeklyAllowanceBatch $record) => $record->canApproveFinal())
-                    ->requiresConfirmation()
-                    ->action(function (WeeklyAllowanceBatch $record) {
-                        $service = app(WeeklyAllowanceService::class);
-                        $service->approveFinal($record);
-
-                        Notification::make()
-                            ->title('Final Approval Complete')
-                            ->body('Batch is ready for payment.')
-                            ->success()
-                            ->send();
-                    }),
-
-                // Mark as Paid
-                Tables\Actions\Action::make('mark_paid')
-                    ->label('Mark as Paid')
+                Tables\Actions\Action::make('approveAndPay')
+                    ->label('Approve & Pay')
                     ->icon('heroicon-o-banknotes')
                     ->color('success')
-                    ->visible(fn (WeeklyAllowanceBatch $record) => $record->canMarkAsPaid())
+                    ->visible(function (WeeklyAllowanceBatch $record) {
+                        if ($record->isPaid()) {
+                            return false;
+                        }
+                        if (! $record->canBeApprovedByFinance() && ! $record->canBeApprovedByCoo()) {
+                            return false;
+                        }
+                        $service = app(PayrollApprovalService::class);
+                        return $service->canUserActOnBatch($record, auth()->user());
+                    })
                     ->requiresConfirmation()
+                    ->modalHeading('Approve & Pay')
+                    ->modalDescription('Are you sure you want to approve this weekly allowance batch and mark it as paid?')
                     ->action(function (WeeklyAllowanceBatch $record) {
-                        $service = app(WeeklyAllowanceService::class);
-                        $service->markAsPaid($record);
+                        $service = app(PayrollApprovalService::class);
 
-                        Notification::make()
-                            ->title('Marked as Paid')
-                            ->success()
-                            ->send();
+                        try {
+                            if ($record->canBeApprovedByCoo()) {
+                                $service->cooApproveAndPay($record, auth()->user());
+                            } else {
+                                $service->approveAndPay($record, auth()->user());
+                            }
+
+                            Notification::make()
+                                ->title('Approved & Paid')
+                                ->body('The weekly allowance batch has been approved and marked as paid.')
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Approval Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
-
-                // Cancel
-                Tables\Actions\Action::make('cancel')
-                    ->label('Cancel')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('danger')
-                    ->visible(fn (WeeklyAllowanceBatch $record) => $record->canCancel())
+                Tables\Actions\Action::make('escalateToCoo')
+                    ->label('Escalate to COO')
+                    ->icon('heroicon-o-arrow-up-circle')
+                    ->color('warning')
+                    ->visible(function (WeeklyAllowanceBatch $record) {
+                        if (! $record->canBeEscalatedToCoo()) {
+                            return false;
+                        }
+                        $service = app(PayrollApprovalService::class);
+                        return $service->isEscalationAvailable($record)
+                            && $service->canUserActOnBatch($record, auth()->user());
+                    })
                     ->requiresConfirmation()
+                    ->modalHeading('Escalate to COO')
+                    ->modalDescription('Are you sure you want to escalate this weekly allowance batch to the COO for approval?')
                     ->form([
-                        Forms\Components\Textarea::make('reason')
-                            ->label('Cancellation Reason')
-                            ->required(),
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Escalation Notes')
+                            ->placeholder('Optional notes for the COO...')
+                            ->rows(3),
                     ])
                     ->action(function (WeeklyAllowanceBatch $record, array $data) {
-                        $service = app(WeeklyAllowanceService::class);
-                        $service->cancelBatch($record, $data['reason']);
+                        $service = app(PayrollApprovalService::class);
 
-                        Notification::make()
-                            ->title('Batch Cancelled')
-                            ->warning()
-                            ->send();
+                        try {
+                            $service->escalateToCoo($record, auth()->user(), $data['notes'] ?? null);
+
+                            Notification::make()
+                                ->title('Escalated to COO')
+                                ->body('The weekly allowance batch has been escalated to the COO for approval.')
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Escalation Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
+                Tables\Actions\Action::make('reject')
+                    ->label('Reject')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(function (WeeklyAllowanceBatch $record) {
+                        if (! $record->canBeRejected()) {
+                            return false;
+                        }
+                        $service = app(PayrollApprovalService::class);
+                        return $service->canUserActOnBatch($record, auth()->user());
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Reject Weekly Allowance Batch')
+                    ->modalDescription('Please provide a reason for rejecting this weekly allowance batch.')
+                    ->form([
+                        Forms\Components\Textarea::make('rejection_reason')
+                            ->label('Rejection Reason')
+                            ->required()
+                            ->placeholder('Enter the reason for rejection...')
+                            ->rows(3),
+                    ])
+                    ->action(function (WeeklyAllowanceBatch $record, array $data) {
+                        $service = app(PayrollApprovalService::class);
 
+                        try {
+                            $service->reject($record, auth()->user(), $data['rejection_reason']);
+
+                            Notification::make()
+                                ->title('Batch Rejected')
+                                ->body('The weekly allowance batch has been rejected.')
+                                ->warning()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Rejection Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                Tables\Actions\Action::make('resubmit')
+                    ->label('Resubmit')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('primary')
+                    ->visible(fn (WeeklyAllowanceBatch $record) => $record->canBeResubmitted())
+                    ->requiresConfirmation()
+                    ->modalHeading('Resubmit for Approval')
+                    ->modalDescription('Are you sure you want to resubmit this weekly allowance batch for approval?')
+                    ->action(function (WeeklyAllowanceBatch $record) {
+                        $service = app(PayrollApprovalService::class);
+
+                        try {
+                            $service->resubmit($record, auth()->user());
+
+                            Notification::make()
+                                ->title('Resubmitted for Approval')
+                                ->body('The weekly allowance batch has been resubmitted for finance approval.')
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Resubmission Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make()
                     ->visible(fn (WeeklyAllowanceBatch $record) => $record->isEditable()),

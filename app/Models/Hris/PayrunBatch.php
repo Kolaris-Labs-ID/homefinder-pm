@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris;
 
+use App\Models\Hris\Traits\HasPayrollApproval;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,11 +13,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class PayrunBatch extends Model
 {
     use HasFactory;
+    use HasPayrollApproval;
 
-    // Status constants
+    // Status constants — new 6-status set for approval workflow
     const STATUS_DRAFT = 'draft';
     const STATUS_CALCULATED = 'calculated';
-    const STATUS_APPROVED = 'approved';
+    const STATUS_PENDING_FINANCE = 'pending_finance';
+    const STATUS_PENDING_COO = 'pending_coo';
+    const STATUS_REJECTED = 'rejected';
     const STATUS_PAID = 'paid';
 
     protected $fillable = [
@@ -30,6 +34,9 @@ class PayrunBatch extends Model
         'approved_by',
         'paid_at',
         'paid_by',
+        'submitted_by',
+        'submitted_at',
+        'rejection_reason',
     ];
 
     protected $casts = [
@@ -39,6 +46,7 @@ class PayrunBatch extends Model
         'calculated_at' => 'datetime',
         'approved_at' => 'datetime',
         'paid_at' => 'datetime',
+        'submitted_at' => 'datetime',
     ];
 
     /**
@@ -49,7 +57,9 @@ class PayrunBatch extends Model
         return [
             self::STATUS_DRAFT,
             self::STATUS_CALCULATED,
-            self::STATUS_APPROVED,
+            self::STATUS_PENDING_FINANCE,
+            self::STATUS_PENDING_COO,
+            self::STATUS_REJECTED,
             self::STATUS_PAID,
         ];
     }
@@ -62,7 +72,9 @@ class PayrunBatch extends Model
         return [
             self::STATUS_DRAFT => 'Draft',
             self::STATUS_CALCULATED => 'Calculated',
-            self::STATUS_APPROVED => 'Approved',
+            self::STATUS_PENDING_FINANCE => 'Pending Finance',
+            self::STATUS_PENDING_COO => 'Pending COO',
+            self::STATUS_REJECTED => 'Rejected',
             self::STATUS_PAID => 'Paid',
         ];
     }
@@ -76,7 +88,7 @@ class PayrunBatch extends Model
     }
 
     /**
-     * Get the user who approved this batch.
+     * Get the user who approved this batch (legacy — kept for historical data).
      */
     public function approvedBy(): BelongsTo
     {
@@ -116,14 +128,6 @@ class PayrunBatch extends Model
     }
 
     /**
-     * Scope to get approved batches.
-     */
-    public function scopeApproved(Builder $query): Builder
-    {
-        return $query->where('status', self::STATUS_APPROVED);
-    }
-
-    /**
      * Scope to get paid batches.
      */
     public function scopePaid(Builder $query): Builder
@@ -132,11 +136,11 @@ class PayrunBatch extends Model
     }
 
     /**
-     * Check if the batch is editable (draft status).
+     * Check if the batch is editable (draft or rejected status).
      */
     public function isEditable(): bool
     {
-        return $this->status === self::STATUS_DRAFT;
+        return in_array($this->status, [self::STATUS_DRAFT, self::STATUS_REJECTED]);
     }
 
     /**
@@ -148,27 +152,33 @@ class PayrunBatch extends Model
     }
 
     /**
-     * Check if the batch can be approved.
-     */
-    public function canApprove(): bool
-    {
-        return $this->status === self::STATUS_CALCULATED;
-    }
-
-    /**
-     * Check if the batch can be marked as paid.
-     */
-    public function canMarkAsPaid(): bool
-    {
-        return $this->status === self::STATUS_APPROVED;
-    }
-
-    /**
-     * Check if the batch is locked (approved or paid).
+     * Check if the batch is locked (in approval pipeline or paid).
      */
     public function isLocked(): bool
     {
-        return in_array($this->status, [self::STATUS_APPROVED, self::STATUS_PAID]);
+        return in_array($this->status, [
+            self::STATUS_PENDING_FINANCE,
+            self::STATUS_PENDING_COO,
+            self::STATUS_PAID,
+        ]);
+    }
+
+    /**
+     * @deprecated Use canSubmitForApproval() from HasPayrollApproval trait instead.
+     * Kept temporarily for backward compatibility with PayrollCalculationService.
+     */
+    public function canApprove(): bool
+    {
+        return $this->canSubmitForApproval();
+    }
+
+    /**
+     * @deprecated Use canBeApprovedByFinance()/canBeApprovedByCoo() from HasPayrollApproval trait instead.
+     * Kept temporarily for backward compatibility with PayrollCalculationService.
+     */
+    public function canMarkAsPaid(): bool
+    {
+        return $this->canBeApprovedByFinance() || $this->canBeApprovedByCoo();
     }
 
     /**
