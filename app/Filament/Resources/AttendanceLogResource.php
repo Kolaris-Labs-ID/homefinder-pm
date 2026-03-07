@@ -181,6 +181,13 @@ class AttendanceLogResource extends Resource
                                 AttendanceLog::SOURCE_VISIT => 'Client Visit',
                                 default => $state ?? '-',
                             }),
+                        Infolists\Components\IconEntry::make('missing_checkout')
+                            ->label('Missing Checkout')
+                            ->boolean()
+                            ->trueIcon('heroicon-o-exclamation-triangle')
+                            ->falseIcon('heroicon-o-check-circle')
+                            ->trueColor('danger')
+                            ->falseColor('success'),
                     ]),
 
                 Infolists\Components\Section::make('Check-In Details')
@@ -352,7 +359,14 @@ class AttendanceLogResource extends Resource
                 Tables\Columns\TextColumn::make('check_out_time')
                     ->label('Check-Out')
                     ->dateTime('H:i')
-                    ->sortable(),
+                    ->sortable()
+                    ->placeholder('—')
+                    ->description(fn (AttendanceLog $record): ?string =>
+                        $record->missing_checkout ? '⚠ Missing' : null
+                    )
+                    ->color(fn (AttendanceLog $record): ?string =>
+                        $record->missing_checkout ? 'danger' : null
+                    ),
                 Tables\Columns\ImageColumn::make('check_out_photo_path')
                     ->label('Out Photo')
                     ->circular()
@@ -474,6 +488,12 @@ class AttendanceLogResource extends Resource
                         }),
                         false: fn (Builder $query) => $query->whereNull('check_in_photo_path')
                             ->whereNull('check_out_photo_path'),
+                    ),
+                Tables\Filters\TernaryFilter::make('missing_checkout')
+                    ->label('Missing Checkout')
+                    ->queries(
+                        true: fn (Builder $query) => $query->where('missing_checkout', true),
+                        false: fn (Builder $query) => $query->where('missing_checkout', false),
                     ),
             ])
             ->actions([

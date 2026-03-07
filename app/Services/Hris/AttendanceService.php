@@ -305,6 +305,7 @@ class AttendanceService
                 'check_out_longitude' => $longitude,
                 'check_out_address' => $address,
                 'check_out_photo_path' => $photoPath,
+                'missing_checkout' => false,
             ]);
 
             return $attendanceLog->fresh();

@@ -109,6 +109,8 @@ gaji_pokok_prorata = gaji_pokok_penuh × rasio_prorata
 
 `hari_kerja_aktual` = `hari_hadir` + `hari_terlambat` + (`hari_setengah` × 0.5)
 
+> **Catatan:** Karyawan yang check-in tetapi lupa check-out tetap dihitung sebagai kehadiran penuh (present/late sesuai jam masuk). Record tersebut akan ditandai `missing_checkout = true` sebagai flag untuk HR dan manajemen. Flag ini **tidak mempengaruhi** perhitungan gaji.
+
 `total_hari_kerja` = hari kerja (Senin–Jumat) dalam periode, tidak termasuk akhir pekan.
 
 ### 2.2 Tunjangan
@@ -276,6 +278,23 @@ Selisih ini ditampilkan pada slip gaji untuk menunjukkan perbedaan bersih antara
 ---
 
 ## 8. Output Slip Gaji (PENGHASILAN / PENGURANGAN)
+
+---
+
+## 8a. Flag Missing Checkout
+
+Karyawan yang check-in tetapi tidak check-out akan ditandai secara otomatis:
+
+- **Perlakuan payroll:** Dihitung sebagai kehadiran penuh (present atau late). Tidak ada penalti gaji.
+- **Flag:** `missing_checkout = true` pada `attendance_logs`.
+- **Otomasi:** Command `attendance:flag-missing-checkouts` berjalan setiap hari pukul 23:55 WIB via scheduler.
+- **Self-healing:** Jika karyawan check-out setelah flag sudah terpasang, flag otomatis direset ke `false`.
+- **Visibilitas:** HR dan C-level dapat melihat badge "⚠ Missing" di kolom Check-Out pada tabel Attendance Logs, serta memfilter berdasarkan flag ini.
+- **Attendance summary:** Field `missing_checkout_days` tersedia di ringkasan kehadiran payroll untuk transparansi.
+
+---
+
+## 9. Output Slip Gaji (PENGHASILAN / PENGURANGAN)
 
 **PENGHASILAN**
 

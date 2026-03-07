@@ -36,6 +36,7 @@ class AttendancePayrollService
 
         $wfhDays = $logs->where('mode', AttendanceLog::MODE_WFH)->count();
         $officeDays = $logs->where('mode', AttendanceLog::MODE_OFFICE)->count();
+        $missingCheckoutDays = $logs->where('missing_checkout', true)->count();
 
         return [
             'total_working_days' => $this->calculateWorkingDays($periodStart, $periodEnd),
@@ -47,6 +48,7 @@ class AttendancePayrollService
             'holiday_days' => $holidayDays,
             'wfh_days' => $wfhDays,
             'office_days' => $officeDays,
+            'missing_checkout_days' => $missingCheckoutDays,
             'total_attendance_days' => $presentDays + $lateDays + $halfDays,
         ];
     }

@@ -35,3 +35,10 @@ Schedule::command('hris:check-expiring-certifications')
 //     ->weeklyOn(1, '10:00')
 //     ->timezone('Asia/Jakarta')
 //     ->description('Send weekly todo reminder to employees who have checked in on Monday');
+
+// Flag attendance records with missing checkout at end of day
+Schedule::command('attendance:flag-missing-checkouts')
+    ->daily()
+    ->at('23:55')
+    ->timezone('Asia/Jakarta')
+    ->description('Flag attendance records that have check-in but no check-out');

@@ -56,6 +56,7 @@ class AttendanceLog extends Model
         'payroll_period_name',
         'payroll_period_start',
         'payroll_period_end',
+        'missing_checkout',
     ];
 
     protected $casts = [
@@ -71,6 +72,7 @@ class AttendanceLog extends Model
         'metadata' => 'array',
         'payroll_period_start' => 'date:Y-m-d',
         'payroll_period_end' => 'date:Y-m-d',
+        'missing_checkout' => 'boolean',
     ];
 
     /**
@@ -235,4 +237,21 @@ class AttendanceLog extends Model
     {
         return $this->break_start_time !== null && $this->break_end_time !== null;
     }
+
+    /**
+     * Scope to filter records with missing checkout.
+     */
+    public function scopeMissingCheckout(Builder $query): Builder
+    {
+        return $query->where('missing_checkout', true);
+    }
+
+    /**
+     * Check if this record has a missing checkout flag.
+     */
+    public function isMissingCheckout(): bool
+    {
+        return (bool) $this->missing_checkout;
+    }
+
 }
