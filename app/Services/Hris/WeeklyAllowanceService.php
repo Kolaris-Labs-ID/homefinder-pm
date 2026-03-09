@@ -77,11 +77,12 @@ class WeeklyAllowanceService
                 }
             }
 
-            // Update batch summary
+            // Update batch summary and transition to calculated
             $batch->update([
                 'total_employees' => $batch->payments()->count(),
                 'employees_with_warnings' => $warningCount,
                 'total_amount' => $totalAmount,
+                'status' => WeeklyAllowanceBatch::STATUS_CALCULATED,
             ]);
 
             return $batch->fresh();
