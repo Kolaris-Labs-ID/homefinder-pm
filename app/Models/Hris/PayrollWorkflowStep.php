@@ -12,7 +12,6 @@ class PayrollWorkflowStep extends Model
     use HasFactory;
 
     const STEP_FINANCE = 'finance';
-    const STEP_COO = 'coo';
 
     protected $fillable = [
         'payroll_workflow_config_id',

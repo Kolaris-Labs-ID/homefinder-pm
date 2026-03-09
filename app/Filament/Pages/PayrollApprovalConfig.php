@@ -7,14 +7,12 @@ use App\Models\Hris\PayrollWorkflowStep;
 use App\Models\User;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\DB;
-use Spatie\Permission\Models\Role;
 
 class PayrollApprovalConfig extends Page implements HasForms
 {
@@ -40,27 +38,19 @@ class PayrollApprovalConfig extends Page implements HasForms
 
         if (! $config) {
             return [
-                'finance_assignee_type' => null,
-                'finance_assignee_user_id' => null,
-                'finance_assignee_role' => null,
-                'enable_coo_step' => false,
-                'coo_assignee_type' => null,
-                'coo_assignee_user_id' => null,
-                'coo_assignee_role' => null,
+                'finance_approver_user_ids' => [],
             ];
         }
 
-        $financeStep = $config->steps()->where('step_type', PayrollWorkflowStep::STEP_FINANCE)->first();
-        $cooStep = $config->steps()->where('step_type', PayrollWorkflowStep::STEP_COO)->first();
+        $financeUserIds = $config->steps()
+            ->where('step_type', PayrollWorkflowStep::STEP_FINANCE)
+            ->pluck('assignee_user_id')
+            ->filter()
+            ->values()
+            ->toArray();
 
         return [
-            'finance_assignee_type' => $financeStep?->assignee_type,
-            'finance_assignee_user_id' => $financeStep?->assignee_user_id,
-            'finance_assignee_role' => $financeStep?->assignee_role,
-            'enable_coo_step' => $cooStep !== null,
-            'coo_assignee_type' => $cooStep?->assignee_type,
-            'coo_assignee_user_id' => $cooStep?->assignee_user_id,
-            'coo_assignee_role' => $cooStep?->assignee_role,
+            'finance_approver_user_ids' => $financeUserIds,
         ];
     }
 
@@ -78,77 +68,30 @@ class PayrollApprovalConfig extends Page implements HasForms
 
     public function monthlyForm(Form $form): Form
     {
-        return $form->schema($this->buildStepSchema('monthly'));
+        return $form->schema($this->buildStepSchema());
     }
 
     public function weeklyForm(Form $form): Form
     {
-        return $form->schema($this->buildStepSchema('weekly'));
+        return $form->schema($this->buildStepSchema());
     }
 
-    protected function buildStepSchema(string $prefix): array
+    protected function buildStepSchema(): array
     {
         $userOptions = fn () => User::orderBy('name')->pluck('name', 'id')->toArray();
-        $roleOptions = fn () => Role::orderBy('name')->pluck('name', 'name')->toArray();
 
         return [
-            Section::make('Finance Approval Step')
-                ->description('Configure the Finance approver for this module. This step is required.')
+            Section::make('Finance Approvers')
+                ->description('Select the finance users who can approve and pay batches. Any one of them can approve (first wins). All will see the batch and who paid.')
                 ->schema([
-                    Select::make('finance_assignee_type')
-                        ->label('Assignee Type')
-                        ->options([
-                            'user' => 'Specific User',
-                            'role' => 'Role',
-                        ])
-                        ->required()
-                        ->live(),
-
-                    Select::make('finance_assignee_user_id')
-                        ->label('Assignee User')
+                    Select::make('finance_approver_user_ids')
+                        ->label('Finance Approvers')
                         ->options($userOptions)
+                        ->multiple()
                         ->searchable()
                         ->required()
-                        ->visible(fn ($get) => $get('finance_assignee_type') === 'user'),
-
-                    Select::make('finance_assignee_role')
-                        ->label('Assignee Role')
-                        ->options($roleOptions)
-                        ->searchable()
-                        ->required()
-                        ->visible(fn ($get) => $get('finance_assignee_type') === 'role'),
-                ]),
-
-            Section::make('COO Approval Step')
-                ->description('Optionally enable a COO escalation step. When enabled, Finance can escalate batches to COO for review.')
-                ->schema([
-                    Toggle::make('enable_coo_step')
-                        ->label('Enable COO Step')
-                        ->live(),
-
-                    Select::make('coo_assignee_type')
-                        ->label('Assignee Type')
-                        ->options([
-                            'user' => 'Specific User',
-                            'role' => 'Role',
-                        ])
-                        ->required()
-                        ->live()
-                        ->visible(fn ($get) => $get('enable_coo_step')),
-
-                    Select::make('coo_assignee_user_id')
-                        ->label('Assignee User')
-                        ->options($userOptions)
-                        ->searchable()
-                        ->required()
-                        ->visible(fn ($get) => $get('enable_coo_step') && $get('coo_assignee_type') === 'user'),
-
-                    Select::make('coo_assignee_role')
-                        ->label('Assignee Role')
-                        ->options($roleOptions)
-                        ->searchable()
-                        ->required()
-                        ->visible(fn ($get) => $get('enable_coo_step') && $get('coo_assignee_type') === 'role'),
+                        ->minItems(1)
+                        ->helperText('Select at least one finance approver. Any of them can approve, reject, or pay.'),
                 ]),
         ];
     }
@@ -176,23 +119,15 @@ class PayrollApprovalConfig extends Page implements HasForms
             // Remove existing steps and recreate
             $config->steps()->delete();
 
-            // Create finance step (always required)
-            $config->steps()->create([
-                'step_type' => PayrollWorkflowStep::STEP_FINANCE,
-                'assignee_type' => $data['finance_assignee_type'],
-                'assignee_user_id' => $data['finance_assignee_type'] === 'user' ? $data['finance_assignee_user_id'] : null,
-                'assignee_role' => $data['finance_assignee_type'] === 'role' ? $data['finance_assignee_role'] : null,
-                'order' => 1,
-            ]);
-
-            // Create COO step if enabled
-            if (! empty($data['enable_coo_step'])) {
+            // Create one finance step row per selected user
+            $userIds = $data['finance_approver_user_ids'] ?? [];
+            foreach ($userIds as $order => $userId) {
                 $config->steps()->create([
-                    'step_type' => PayrollWorkflowStep::STEP_COO,
-                    'assignee_type' => $data['coo_assignee_type'],
-                    'assignee_user_id' => $data['coo_assignee_type'] === 'user' ? $data['coo_assignee_user_id'] : null,
-                    'assignee_role' => $data['coo_assignee_type'] === 'role' ? $data['coo_assignee_role'] : null,
-                    'order' => 2,
+                    'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+                    'assignee_type' => 'user',
+                    'assignee_user_id' => $userId,
+                    'assignee_role' => null,
+                    'order' => $order + 1,
                 ]);
             }
         });

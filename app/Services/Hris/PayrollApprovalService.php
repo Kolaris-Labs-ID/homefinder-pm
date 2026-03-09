@@ -52,6 +52,7 @@ class PayrollApprovalService
 
     /**
      * Finance approves and pays (pending_finance → paid).
+     * Any of the configured finance approvers can approve.
      */
     public function approveAndPay(Model $batch, User $approver, ?string $notes = null): void
     {
@@ -80,76 +81,8 @@ class PayrollApprovalService
     }
 
     /**
-     * COO approves and pays (pending_coo → paid).
-     */
-    public function cooApproveAndPay(Model $batch, User $approver, ?string $notes = null): void
-    {
-        DB::transaction(function () use ($batch, $approver, $notes) {
-            $batch = $batch->fresh();
-            $batch->lockForUpdate()->find($batch->id);
-
-            if ($batch->isPaid()) {
-                throw new \LogicException("Cannot approve batch with status: {$batch->status}");
-            }
-
-            if (!$batch->canBeApprovedByCoo()) {
-                throw new \LogicException("Cannot approve batch with status: {$batch->status}");
-            }
-
-            $this->validateUserCanActOnStep($batch, $approver, PayrollWorkflowStep::STEP_COO);
-
-            $previousStatus = $batch->status;
-            $batch->status = 'paid';
-            $batch->paid_by = $approver->id;
-            $batch->paid_at = now();
-            $batch->save();
-
-            $this->createLog($batch, 'approved', $previousStatus, 'paid', $approver, $notes);
-        });
-    }
-
-    /**
-     * Finance escalates to COO (pending_finance → pending_coo).
-     */
-    public function escalateToCoo(Model $batch, User $escalator, ?string $notes = null): void
-    {
-        DB::transaction(function () use ($batch, $escalator, $notes) {
-            $batch = $batch->fresh();
-            $batch->lockForUpdate()->find($batch->id);
-
-            if ($batch->isPaid()) {
-                throw new \LogicException("Cannot escalate batch with status: {$batch->status}");
-            }
-
-            if (!$batch->canBeEscalatedToCoo()) {
-                throw new \LogicException("Cannot escalate batch with status: {$batch->status}");
-            }
-
-            $module = $this->getModuleForBatch($batch);
-            $config = PayrollWorkflowConfig::getActiveConfig($module);
-
-            if (!$config) {
-                throw new \LogicException("No active workflow configuration exists for module: {$module}");
-            }
-
-            $cooStep = $config->steps()->where('step_type', PayrollWorkflowStep::STEP_COO)->first();
-
-            if (!$cooStep) {
-                throw new \LogicException("No COO step configured for module: {$module}");
-            }
-
-            $this->validateUserCanActOnStep($batch, $escalator, PayrollWorkflowStep::STEP_FINANCE);
-
-            $previousStatus = $batch->status;
-            $batch->status = 'pending_coo';
-            $batch->save();
-
-            $this->createLog($batch, 'escalated', $previousStatus, 'pending_coo', $escalator, $notes);
-        });
-    }
-
-    /**
-     * Reject a batch (pending_finance|pending_coo → rejected).
+     * Reject a batch (pending_finance → rejected).
+     * Any of the configured finance approvers can reject.
      */
     public function reject(Model $batch, User $rejector, string $reason): void
     {
@@ -223,6 +156,7 @@ class PayrollApprovalService
 
     /**
      * Check if a user can act on the current step for a batch.
+     * Checks all finance step rows (multi-finance approver).
      */
     public function canUserActOnBatch(Model $batch, User $user): bool
     {
@@ -233,34 +167,14 @@ class PayrollApprovalService
             return false;
         }
 
-        $stepType = match ($batch->status) {
-            'pending_finance' => PayrollWorkflowStep::STEP_FINANCE,
-            'pending_coo' => PayrollWorkflowStep::STEP_COO,
-            default => null,
-        };
-
-        if (!$stepType) {
+        if ($batch->status !== 'pending_finance') {
             return false;
         }
 
-        $step = $config->steps()->where('step_type', $stepType)->first();
+        // Check if user matches ANY of the finance step rows
+        $financeSteps = $config->steps()->where('step_type', PayrollWorkflowStep::STEP_FINANCE)->get();
 
-        return $step && $step->canBeActedOnBy($user);
-    }
-
-    /**
-     * Check if escalation to COO is available for a batch's workflow config.
-     */
-    public function isEscalationAvailable(Model $batch): bool
-    {
-        $module = $this->getModuleForBatch($batch);
-        $config = PayrollWorkflowConfig::getActiveConfig($module);
-
-        if (!$config) {
-            return false;
-        }
-
-        return $config->steps()->where('step_type', PayrollWorkflowStep::STEP_COO)->exists();
+        return $financeSteps->contains(fn ($step) => $step->canBeActedOnBy($user));
     }
 
     /**
@@ -287,6 +201,7 @@ class PayrollApprovalService
 
     /**
      * Validate that a user can act on a specific step type for a batch.
+     * For finance steps, checks ALL finance step rows (multi-finance approver).
      */
     protected function validateUserCanActOnStep(Model $batch, User $user, string $stepType): void
     {
@@ -297,9 +212,15 @@ class PayrollApprovalService
             throw new AuthorizationException('No active workflow configuration exists.');
         }
 
-        $step = $config->steps()->where('step_type', $stepType)->first();
+        $steps = $config->steps()->where('step_type', $stepType)->get();
 
-        if (!$step || !$step->canBeActedOnBy($user)) {
+        if ($steps->isEmpty()) {
+            throw new AuthorizationException('You are not authorized to act on this batch.');
+        }
+
+        $canAct = $steps->contains(fn ($step) => $step->canBeActedOnBy($user));
+
+        if (!$canAct) {
             throw new AuthorizationException('You are not authorized to act on this batch.');
         }
     }

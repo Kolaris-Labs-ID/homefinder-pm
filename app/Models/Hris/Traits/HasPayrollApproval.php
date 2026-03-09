@@ -50,30 +50,12 @@ trait HasPayrollApproval
     }
 
     /**
-     * Check if this batch can be escalated to COO.
-     * Only batches with 'pending_finance' status can be escalated.
-     */
-    public function canBeEscalatedToCoo(): bool
-    {
-        return $this->status === 'pending_finance';
-    }
-
-    /**
-     * Check if this batch can be approved by the COO.
-     * Only batches with 'pending_coo' status can be approved by COO.
-     */
-    public function canBeApprovedByCoo(): bool
-    {
-        return $this->status === 'pending_coo';
-    }
-
-    /**
      * Check if this batch can be rejected.
-     * Batches in 'pending_finance' or 'pending_coo' status can be rejected.
+     * Batches in 'pending_finance' status can be rejected.
      */
     public function canBeRejected(): bool
     {
-        return in_array($this->status, ['pending_finance', 'pending_coo']);
+        return $this->status === 'pending_finance';
     }
 
     /**
@@ -114,8 +96,7 @@ trait HasPayrollApproval
      * and approval step assignment.
      *
      * - HR/admin/super_admin sees all batches
-     * - Finance approver sees pending_finance and paid batches
-     * - COO approver sees pending_coo and paid batches
+     * - Finance approver (any of the configured finance users) sees pending_finance and paid batches
      * - Other users see nothing
      */
     public function scopeVisibleToUser(Builder $query, User $user): Builder
@@ -134,25 +115,15 @@ trait HasPayrollApproval
             return $query->whereRaw('1 = 0');
         }
 
-        $visibleStatuses = [];
+        // Check if user is ANY of the finance approvers (multiple rows with step_type = 'finance')
+        $financeSteps = $config->steps()->where('step_type', PayrollWorkflowStep::STEP_FINANCE)->get();
+        $isFinanceApprover = $financeSteps->contains(fn ($step) => $step->canBeActedOnBy($user));
 
-        // Check if user is the finance approver
-        $financeStep = $config->steps()->where('step_type', PayrollWorkflowStep::STEP_FINANCE)->first();
-        if ($financeStep && $financeStep->canBeActedOnBy($user)) {
-            $visibleStatuses = array_merge($visibleStatuses, ['pending_finance', 'paid']);
+        if ($isFinanceApprover) {
+            return $query->whereIn('status', ['pending_finance', 'paid']);
         }
 
-        // Check if user is the COO approver
-        $cooStep = $config->steps()->where('step_type', PayrollWorkflowStep::STEP_COO)->first();
-        if ($cooStep && $cooStep->canBeActedOnBy($user)) {
-            $visibleStatuses = array_merge($visibleStatuses, ['pending_coo', 'paid']);
-        }
-
-        if (empty($visibleStatuses)) {
-            // User is not an approver — no access
-            return $query->whereRaw('1 = 0');
-        }
-
-        return $query->whereIn('status', array_unique($visibleStatuses));
+        // User is not an approver — no access
+        return $query->whereRaw('1 = 0');
     }
 }

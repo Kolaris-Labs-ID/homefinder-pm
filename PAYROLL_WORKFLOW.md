@@ -313,6 +313,62 @@ Selisih ini ditampilkan pada slip gaji untuk menunjukkan perbedaan bersih antara
 
 ---
 
+## 8. Flag Missing Checkout
+
+Karyawan yang check-in tetapi tidak check-out akan ditandai secara otomatis:
+
+- **Perlakuan payroll:** Dihitung sebagai kehadiran penuh (present atau late). Tidak ada penalti gaji.
+- **Flag:** `missing_checkout = true` pada `attendance_logs`.
+- **Otomasi:** Command `attendance:flag-missing-checkouts` berjalan setiap hari pukul 23:55 WIB via scheduler.
+- **Self-healing:** Jika karyawan check-out setelah flag sudah terpasang, flag otomatis direset ke `false`.
+- **Visibilitas:** HR dan C-level dapat melihat badge "⚠ Missing" di kolom Check-Out pada tabel Attendance Logs, serta memfilter berdasarkan flag ini.
+- **Attendance summary:** Field `missing_checkout_days` tersedia di ringkasan kehadiran payroll untuk transparansi.
+
+---
+
+## 9. Tampilan Slip Gaji (Payslip View)
+
+Setiap `PayrollRecord` dapat dilihat dalam format slip gaji melalui tombol **View** pada tabel Payroll Records di halaman detail `PayrunBatch`. Modal slip gaji diimplementasikan sebagai Filament Infolist di `PayrollRecordsRelationManager` dengan 5 bagian:
+
+### 9.1 Bagian Slip Gaji
+
+| Bagian                 | Isi                                                                                                                                            | Visibilitas                                |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| Attendance & Prorate   | Hari kerja, hari hadir, label prorata, persentase prorata                                                                                      | Hanya tampil jika `prorate_enabled = true` |
+| Earnings (Penghasilan) | Gaji pokok (penuh & prorata), tunjangan tetap (itemized), tunjangan variabel (itemized), uang harian, rekonsiliasi mingguan, penghasilan bruto | Selalu tampil                              |
+| Deductions (Potongan)  | BPJS karyawan (Kesehatan/JHT/JP), PPh 21 + metode, potongan lainnya (itemized), total potongan                                                 | Selalu tampil                              |
+| Net Income             | Take-home pay                                                                                                                                  | Selalu tampil                              |
+| Company Contributions  | BPJS perusahaan (Kesehatan/JHT/JP/JKK/JKM), total BPJS perusahaan                                                                              | Collapsible, tampil jika > 0               |
+
+### 9.2 Detail Komponen
+
+**PENGHASILAN**
+
+- Gaji Pokok Penuh (ditampilkan jika diprorata)
+- Gaji Pokok Prorata / Gaji Pokok (label dinamis)
+- Tunjangan Tetap — itemized per nama dan jumlah dari `details.allowances_fixed[]`
+- Tunjangan Variabel — itemized per nama, jumlah, hari, dan tarif dari `details.allowances_variable[]`
+- Uang Harian — tarif per hari × hari hadir (dari `details.daily_allowance_rate`)
+- Rekonsiliasi Uang Harian Mingguan — diperoleh, sudah dibayar, selisih (jika `weekly_allowance_enabled`)
+
+**PENGURANGAN**
+
+- BPJS Kesehatan (bagian karyawan)
+- BPJS JHT (bagian karyawan)
+- BPJS JP (bagian karyawan)
+- PPh 21 + metode perhitungan (dari `details.pph21_method`)
+- Potongan Lainnya — itemized dari `details.deductions[]`
+
+**TAKE HOME PAY = Penghasilan Bruto − Total Potongan**
+
+### 9.3 Catatan Teknis
+
+- Field JSON array (`details.allowances_fixed`, `details.allowances_variable`, `details.deductions`) menggunakan `getStateUsing()` untuk menghindari error "Array to string conversion"
+- Field JSON nested (`details.daily_allowance_rate`, `details.pph21_method`) juga menggunakan `getStateUsing()` karena dot-notation path tidak langsung didukung oleh Filament Infolist
+- Bagian-bagian auto-hide ketika data kosong atau bernilai nol
+
+---
+
 ## 10. Alur Persetujuan Penggajian (Payroll Approval Workflow)
 
 ### 10.1 Ringkasan
@@ -321,11 +377,14 @@ Sistem persetujuan baru menggantikan tombol approve/markAsPaid ad-hoc dengan pip
 
 ### 10.2 Konfigurasi Workflow
 
-Dikelola melalui halaman Filament `PayrollApprovalConfig` (hanya `super_admin`):
+Dikelola melalui halaman Filament `PayrollApprovalConfig` (navigasi: Payroll → Approval Configuration, hanya `super_admin`):
 
 - Dua konfigurasi: satu untuk Penggajian Bulanan, satu untuk Uang Harian Mingguan
+- Halaman menggunakan form bertab (monthly tab + weekly tab) dengan Blade view `payroll-approval-config.blade.php`
 - Setiap konfigurasi memiliki **1 step Finance (wajib)** dan **1 step COO (opsional)**
 - Setiap step dapat di-assign ke user spesifik atau Spatie role
+- Toggle untuk mengaktifkan/menonaktifkan step COO
+- Konfigurasi disimpan ke tabel `payroll_workflow_configs` + `payroll_workflow_steps`
 
 ### 10.3 Aksi Persetujuan
 
@@ -347,54 +406,28 @@ Dikelola melalui halaman Filament `PayrollApprovalConfig` (hanya `super_admin`):
 | COO Approver             | `pending_coo` + `paid`     |
 | Lainnya                  | Tidak ada akses            |
 
-### 10.5 Audit Trail
+Filtering diimplementasikan melalui scope `visibleToUser()` pada trait `HasPayrollApproval`, dipanggil via `modifyQueryUsing()` pada tabel resource.
 
-Setiap transisi status menciptakan entry `PayrollApprovalLog` yang immutable, mencatat: aktor, aksi, status sebelum/sesudah, catatan opsional, dan timestamp. Timeline ditampilkan di halaman detail batch.
+### 10.5 Akses UI untuk Finance & COO
 
-### 10.6 Tabel Database Baru
+Finance dan COO mengakses persetujuan melalui resource yang **sama** dengan HR:
+
+- **Halaman list** (`/admin/payrun-batches` atau `/admin/weekly-allowance-batches`) — tabel difilter otomatis oleh `visibleToUser()` scope. Finance hanya melihat batch `pending_finance` dan `paid`.
+- **Aksi pada tabel** — tombol Approve & Pay, Escalate to COO, dan Reject muncul sebagai row action pada setiap batch, visibility dikontrol oleh status batch DAN assignment user via `PayrollApprovalService::canUserActOnBatch()`.
+- **Halaman detail** (`/admin/payrun-batches/{id}`) — aksi yang sama muncul sebagai header action. Halaman ini juga menampilkan:
+    - Info batch (periode, tanggal bayar, status badge)
+    - Detail penolakan (jika status `rejected`): alasan, siapa yang menolak, kapan
+    - Approval Timeline: daftar kronologis semua entry `PayrollApprovalLog` (user, aksi, catatan, timestamp)
+- **Prasyarat:** Finance/COO harus memiliki akses ke panel Filament (role/permission yang sesuai) dan workflow config harus sudah dikonfigurasi oleh super_admin
+
+### 10.6 Audit Trail
+
+Setiap transisi status menciptakan entry `PayrollApprovalLog` yang immutable, mencatat: aktor, aksi, status sebelum/sesudah, catatan opsional, dan timestamp. Timeline ditampilkan di halaman detail batch dalam section "Approval Timeline" yang collapsible.
+
+### 10.7 Tabel Database Baru
 
 | Tabel                      | Fungsi                                             |
 | -------------------------- | -------------------------------------------------- |
 | `payroll_workflow_configs` | Konfigurasi workflow per modul                     |
 | `payroll_workflow_steps`   | Step persetujuan (Finance/COO) dengan assignee     |
 | `payroll_approval_logs`    | Audit trail immutable untuk setiap transisi status |
-
----
-
-## 8. Output Slip Gaji (PENGHASILAN / PENGURANGAN)
-
----
-
-## 8a. Flag Missing Checkout
-
-Karyawan yang check-in tetapi tidak check-out akan ditandai secara otomatis:
-
-- **Perlakuan payroll:** Dihitung sebagai kehadiran penuh (present atau late). Tidak ada penalti gaji.
-- **Flag:** `missing_checkout = true` pada `attendance_logs`.
-- **Otomasi:** Command `attendance:flag-missing-checkouts` berjalan setiap hari pukul 23:55 WIB via scheduler.
-- **Self-healing:** Jika karyawan check-out setelah flag sudah terpasang, flag otomatis direset ke `false`.
-- **Visibilitas:** HR dan C-level dapat melihat badge "⚠ Missing" di kolom Check-Out pada tabel Attendance Logs, serta memfilter berdasarkan flag ini.
-- **Attendance summary:** Field `missing_checkout_days` tersedia di ringkasan kehadiran payroll untuk transparansi.
-
----
-
-## 9. Output Slip Gaji (PENGHASILAN / PENGURANGAN)
-
-**PENGHASILAN**
-
-- Gaji Pokok (penuh)
-- Prorata Hari Kerja (jika diprorata)
-- Tunjangan Tetap
-- Tunjangan Variabel
-- Uang Harian
-- BPJS ditanggung kantor (jika ditanggung perusahaan)
-
-**PENGURANGAN**
-
-- BPJS Kesehatan (bagian karyawan)
-- BPJS JHT (bagian karyawan)
-- BPJS JP (bagian karyawan)
-- PPh 21
-- Potongan lainnya
-
-**TAKE HOME PAY = Penghasilan Bruto − Total Potongan**

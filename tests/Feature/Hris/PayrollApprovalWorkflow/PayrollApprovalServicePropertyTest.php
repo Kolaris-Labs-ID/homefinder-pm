@@ -20,15 +20,12 @@ beforeEach(function () {
 });
 
 /**
- * Helper: create an active workflow config with a finance step (and optional COO step).
+ * Helper: create an active workflow config with finance step(s).
  */
 function createWorkflowConfig(
     string $module,
     User $financeUser = null,
     string $financeRole = null,
-    User $cooUser = null,
-    string $cooRole = null,
-    bool $includeCoo = false
 ): PayrollWorkflowConfig {
     $config = PayrollWorkflowConfig::create([
         'module' => $module,
@@ -43,17 +40,6 @@ function createWorkflowConfig(
         'assignee_role' => $financeRole,
         'order' => 1,
     ]);
-
-    if ($includeCoo) {
-        PayrollWorkflowStep::create([
-            'payroll_workflow_config_id' => $config->id,
-            'step_type' => PayrollWorkflowStep::STEP_COO,
-            'assignee_type' => $cooUser ? 'user' : 'role',
-            'assignee_user_id' => $cooUser?->id,
-            'assignee_role' => $cooRole,
-            'order' => 2,
-        ]);
-    }
 
     return $config;
 }
@@ -183,126 +169,6 @@ test('Property 7: Approve-and-pay transitions to paid with metadata — finance 
     }
 })->group('property-test', 'payroll-approval-workflow');
 
-test('Property 7: Approve-and-pay transitions to paid with metadata — COO approve', function () {
-    $service = new PayrollApprovalService();
-
-    for ($i = 0; $i < 50; $i++) {
-        PayrollApprovalLog::query()->forceDelete();
-        PayrollWorkflowConfig::query()->delete();
-        PayrollWorkflowStep::query()->delete();
-
-        $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
-
-        $batchClass = fake()->randomElement([PayrunBatch::class, WeeklyAllowanceBatch::class]);
-
-        if ($batchClass === PayrunBatch::class) {
-            $module = PayrollWorkflowConfig::MODULE_MONTHLY;
-            $batch = PayrunBatch::factory()->pendingCoo()->create();
-        } else {
-            $module = PayrollWorkflowConfig::MODULE_WEEKLY;
-            $batch = WeeklyAllowanceBatch::create([
-                'week_start_date' => now()->startOfWeek(),
-                'week_end_date' => now()->endOfWeek(),
-                'payment_date' => now()->addDays(3),
-                'status' => 'pending_coo',
-                'submitted_by' => User::factory()->create()->id,
-                'submitted_at' => now(),
-            ]);
-        }
-
-        createWorkflowConfig($module, financeUser: $financeUser, cooUser: $cooUser, includeCoo: true);
-
-        $service->cooApproveAndPay($batch, $cooUser);
-        $batch->refresh();
-
-        expect($batch->status)->toBe('paid', "Iteration {$i}: Status should be paid");
-        expect($batch->paid_by)->toBe($cooUser->id, "Iteration {$i}: paid_by should match COO approver");
-        expect($batch->paid_at)->not->toBeNull("Iteration {$i}: paid_at should be set");
-    }
-})->group('property-test', 'payroll-approval-workflow');
-
-
-// ============================================================================
-// Property 8: Escalation transitions to pending_coo
-// ============================================================================
-
-test('Property 8: Escalation transitions to pending_coo', function () {
-    $service = new PayrollApprovalService();
-
-    for ($i = 0; $i < 50; $i++) {
-        PayrollApprovalLog::query()->forceDelete();
-        PayrollWorkflowConfig::query()->delete();
-        PayrollWorkflowStep::query()->delete();
-
-        $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
-
-        $batchClass = fake()->randomElement([PayrunBatch::class, WeeklyAllowanceBatch::class]);
-
-        if ($batchClass === PayrunBatch::class) {
-            $module = PayrollWorkflowConfig::MODULE_MONTHLY;
-            $batch = PayrunBatch::factory()->pendingFinance()->create();
-        } else {
-            $module = PayrollWorkflowConfig::MODULE_WEEKLY;
-            $batch = WeeklyAllowanceBatch::create([
-                'week_start_date' => now()->startOfWeek(),
-                'week_end_date' => now()->endOfWeek(),
-                'payment_date' => now()->addDays(3),
-                'status' => 'pending_finance',
-                'submitted_by' => User::factory()->create()->id,
-                'submitted_at' => now(),
-            ]);
-        }
-
-        createWorkflowConfig($module, financeUser: $financeUser, cooUser: $cooUser, includeCoo: true);
-
-        $notes = fake()->optional()->sentence();
-        $service->escalateToCoo($batch, $financeUser, $notes);
-        $batch->refresh();
-
-        expect($batch->status)->toBe('pending_coo', "Iteration {$i}: Status should be pending_coo");
-    }
-})->group('property-test', 'payroll-approval-workflow');
-
-// ============================================================================
-// Property 9: Escalation hidden without COO step
-// ============================================================================
-
-test('Property 9: Escalation hidden without COO step — isEscalationAvailable returns false', function () {
-    $service = new PayrollApprovalService();
-
-    for ($i = 0; $i < 50; $i++) {
-        PayrollWorkflowConfig::query()->delete();
-        PayrollWorkflowStep::query()->delete();
-
-        $financeUser = User::factory()->create();
-
-        $batchClass = fake()->randomElement([PayrunBatch::class, WeeklyAllowanceBatch::class]);
-
-        if ($batchClass === PayrunBatch::class) {
-            $module = PayrollWorkflowConfig::MODULE_MONTHLY;
-            $batch = PayrunBatch::factory()->pendingFinance()->create();
-        } else {
-            $module = PayrollWorkflowConfig::MODULE_WEEKLY;
-            $batch = WeeklyAllowanceBatch::create([
-                'week_start_date' => now()->startOfWeek(),
-                'week_end_date' => now()->endOfWeek(),
-                'payment_date' => now()->addDays(3),
-                'status' => 'pending_finance',
-                'submitted_by' => User::factory()->create()->id,
-                'submitted_at' => now(),
-            ]);
-        }
-
-        // Config WITHOUT COO step
-        createWorkflowConfig($module, financeUser: $financeUser, includeCoo: false);
-
-        expect($service->isEscalationAvailable($batch))->toBeFalse(
-            "Iteration {$i}: Escalation should not be available without COO step"
-        );
-    }
-})->group('property-test', 'payroll-approval-workflow');
 
 
 // ============================================================================
@@ -318,33 +184,29 @@ test('Property 10: Rejection with non-empty reason transitions to rejected', fun
         PayrollWorkflowStep::query()->delete();
 
         $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
 
-        // Randomly pick pending_finance or pending_coo
-        $pendingStatus = fake()->randomElement(['pending_finance', 'pending_coo']);
         $batchClass = fake()->randomElement([PayrunBatch::class, WeeklyAllowanceBatch::class]);
 
         if ($batchClass === PayrunBatch::class) {
             $module = PayrollWorkflowConfig::MODULE_MONTHLY;
-            $batch = PayrunBatch::factory()->state(['status' => $pendingStatus, 'submitted_by' => User::factory()->create()->id, 'submitted_at' => now()])->create();
+            $batch = PayrunBatch::factory()->pendingFinance()->create();
         } else {
             $module = PayrollWorkflowConfig::MODULE_WEEKLY;
             $batch = WeeklyAllowanceBatch::create([
                 'week_start_date' => now()->startOfWeek(),
                 'week_end_date' => now()->endOfWeek(),
                 'payment_date' => now()->addDays(3),
-                'status' => $pendingStatus,
+                'status' => 'pending_finance',
                 'submitted_by' => User::factory()->create()->id,
                 'submitted_at' => now(),
             ]);
         }
 
-        createWorkflowConfig($module, financeUser: $financeUser, cooUser: $cooUser, includeCoo: true);
+        createWorkflowConfig($module, financeUser: $financeUser);
 
         $reason = fake()->sentence();
-        $rejector = $pendingStatus === 'pending_finance' ? $financeUser : $cooUser;
 
-        $service->reject($batch, $rejector, $reason);
+        $service->reject($batch, $financeUser, $reason);
         $batch->refresh();
 
         expect($batch->status)->toBe('rejected', "Iteration {$i}: Status should be rejected");
@@ -471,7 +333,7 @@ test('Property 12: Resubmission transitions to pending_finance from rejected', f
 
 test('Property 12: Resubmission on non-rejected batch throws exception', function () {
     $service = new PayrollApprovalService();
-    $nonRejectedStatuses = ['draft', 'calculated', 'pending_finance', 'pending_coo', 'paid'];
+    $nonRejectedStatuses = ['draft', 'calculated', 'pending_finance', 'paid'];
 
     for ($i = 0; $i < 50; $i++) {
         $status = fake()->randomElement($nonRejectedStatuses);
@@ -507,11 +369,10 @@ test('Property 13: Every transition creates a complete log entry', function () {
         PayrollWorkflowStep::query()->delete();
 
         $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
         $hrUser = User::factory()->create();
         $module = PayrollWorkflowConfig::MODULE_MONTHLY;
 
-        createWorkflowConfig($module, financeUser: $financeUser, cooUser: $cooUser, includeCoo: true);
+        createWorkflowConfig($module, financeUser: $financeUser);
 
         // 1. Submit
         $batch = PayrunBatch::factory()->calculated()->create();
@@ -528,32 +389,19 @@ test('Property 13: Every transition creates a complete log entry', function () {
         expect($log->batch_id)->toBe($batch->id);
         expect($log->created_at)->not->toBeNull();
 
-        // 2. Escalate
+        // 2. Reject
         $logCountBefore = PayrollApprovalLog::count();
-        $service->escalateToCoo($batch, $financeUser, 'Needs COO review');
-        $batch->refresh();
-
-        $log = PayrollApprovalLog::latest('id')->first();
-        expect(PayrollApprovalLog::count())->toBe($logCountBefore + 1, "Iteration {$i}: Escalate should create 1 log");
-        expect($log->action)->toBe('escalated');
-        expect($log->previous_status)->toBe('pending_finance');
-        expect($log->new_status)->toBe('pending_coo');
-        expect($log->acted_by)->toBe($financeUser->id);
-        expect($log->notes)->toBe('Needs COO review');
-
-        // 3. Reject
-        $logCountBefore = PayrollApprovalLog::count();
-        $service->reject($batch, $cooUser, 'Incorrect amounts');
+        $service->reject($batch, $financeUser, 'Incorrect amounts');
         $batch->refresh();
 
         $log = PayrollApprovalLog::latest('id')->first();
         expect(PayrollApprovalLog::count())->toBe($logCountBefore + 1, "Iteration {$i}: Reject should create 1 log");
         expect($log->action)->toBe('rejected');
-        expect($log->previous_status)->toBe('pending_coo');
+        expect($log->previous_status)->toBe('pending_finance');
         expect($log->new_status)->toBe('rejected');
         expect($log->notes)->toBe('Incorrect amounts');
 
-        // 4. Resubmit
+        // 3. Resubmit
         $logCountBefore = PayrollApprovalLog::count();
         $service->resubmit($batch, $hrUser);
         $batch->refresh();
@@ -564,7 +412,7 @@ test('Property 13: Every transition creates a complete log entry', function () {
         expect($log->previous_status)->toBe('rejected');
         expect($log->new_status)->toBe('pending_finance');
 
-        // 5. Approve and pay
+        // 4. Approve and pay
         $logCountBefore = PayrollApprovalLog::count();
         $service->approveAndPay($batch, $financeUser, 'All good');
         $batch->refresh();
@@ -575,38 +423,6 @@ test('Property 13: Every transition creates a complete log entry', function () {
         expect($log->previous_status)->toBe('pending_finance');
         expect($log->new_status)->toBe('paid');
         expect($log->acted_by)->toBe($financeUser->id);
-    }
-})->group('property-test', 'payroll-approval-workflow');
-
-test('Property 13: COO approve-and-pay creates complete log entry', function () {
-    $service = new PayrollApprovalService();
-
-    for ($i = 0; $i < 20; $i++) {
-        PayrollApprovalLog::query()->forceDelete();
-        PayrollWorkflowConfig::query()->delete();
-        PayrollWorkflowStep::query()->delete();
-
-        $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
-        $module = PayrollWorkflowConfig::MODULE_MONTHLY;
-
-        createWorkflowConfig($module, financeUser: $financeUser, cooUser: $cooUser, includeCoo: true);
-
-        $batch = PayrunBatch::factory()->pendingCoo()->create();
-
-        $logCountBefore = PayrollApprovalLog::count();
-        $service->cooApproveAndPay($batch, $cooUser, 'Approved by COO');
-        $batch->refresh();
-
-        $log = PayrollApprovalLog::latest('id')->first();
-        expect(PayrollApprovalLog::count())->toBe($logCountBefore + 1);
-        expect($log->action)->toBe('approved');
-        expect($log->previous_status)->toBe('pending_coo');
-        expect($log->new_status)->toBe('paid');
-        expect($log->acted_by)->toBe($cooUser->id);
-        expect($log->notes)->toBe('Approved by COO');
-        expect($log->batch_type)->toBe(PayrunBatch::class);
-        expect($log->batch_id)->toBe($batch->id);
     }
 })->group('property-test', 'payroll-approval-workflow');
 
@@ -624,7 +440,6 @@ test('Property 16: Paid batch immutability — all transitions throw on paid bat
         PayrollWorkflowStep::query()->delete();
 
         $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
         $hrUser = User::factory()->create();
 
         $batchClass = fake()->randomElement([PayrunBatch::class, WeeklyAllowanceBatch::class]);
@@ -646,13 +461,11 @@ test('Property 16: Paid batch immutability — all transitions throw on paid bat
             ]);
         }
 
-        createWorkflowConfig($module, financeUser: $financeUser, cooUser: $cooUser, includeCoo: true);
+        createWorkflowConfig($module, financeUser: $financeUser);
 
         // All transitions should throw
         expect(fn () => $service->submitForApproval($batch, $hrUser))->toThrow(\LogicException::class);
         expect(fn () => $service->approveAndPay($batch, $financeUser))->toThrow(\LogicException::class);
-        expect(fn () => $service->cooApproveAndPay($batch, $cooUser))->toThrow(\LogicException::class);
-        expect(fn () => $service->escalateToCoo($batch, $financeUser))->toThrow(\LogicException::class);
         expect(fn () => $service->reject($batch, $financeUser, 'reason'))->toThrow(\LogicException::class);
         expect(fn () => $service->resubmit($batch, $hrUser))->toThrow(\LogicException::class);
 
@@ -662,8 +475,6 @@ test('Property 16: Paid batch immutability — all transitions throw on paid bat
         // Verify trait methods all return false
         expect($batch->canSubmitForApproval())->toBeFalse();
         expect($batch->canBeApprovedByFinance())->toBeFalse();
-        expect($batch->canBeEscalatedToCoo())->toBeFalse();
-        expect($batch->canBeApprovedByCoo())->toBeFalse();
         expect($batch->canBeRejected())->toBeFalse();
         expect($batch->canBeResubmitted())->toBeFalse();
         expect($batch->isPaid())->toBeTrue();

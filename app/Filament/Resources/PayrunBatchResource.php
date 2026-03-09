@@ -70,7 +70,6 @@ class PayrunBatchResource extends Resource
                         'draft' => 'gray',
                         'calculated' => 'info',
                         'pending_finance' => 'warning',
-                        'pending_coo' => 'warning',
                         'rejected' => 'danger',
                         'paid' => 'success',
                         default => 'gray',
@@ -144,10 +143,7 @@ class PayrunBatchResource extends Resource
                     ->icon('heroicon-o-banknotes')
                     ->color('success')
                     ->visible(function (PayrunBatch $record) {
-                        if ($record->isPaid()) {
-                            return false;
-                        }
-                        if (! $record->canBeApprovedByFinance() && ! $record->canBeApprovedByCoo()) {
+                        if ($record->isPaid() || ! $record->canBeApprovedByFinance()) {
                             return false;
                         }
                         $service = app(PayrollApprovalService::class);
@@ -160,11 +156,7 @@ class PayrunBatchResource extends Resource
                         $service = app(PayrollApprovalService::class);
 
                         try {
-                            if ($record->canBeApprovedByCoo()) {
-                                $service->cooApproveAndPay($record, auth()->user());
-                            } else {
-                                $service->approveAndPay($record, auth()->user());
-                            }
+                            $service->approveAndPay($record, auth()->user());
 
                             Notification::make()
                                 ->title('Approved & Paid')
@@ -174,46 +166,6 @@ class PayrunBatchResource extends Resource
                         } catch (\Exception $e) {
                             Notification::make()
                                 ->title('Approval Failed')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
-                        }
-                    }),
-                Tables\Actions\Action::make('escalateToCoo')
-                    ->label('Escalate to COO')
-                    ->icon('heroicon-o-arrow-up-circle')
-                    ->color('warning')
-                    ->visible(function (PayrunBatch $record) {
-                        if (! $record->canBeEscalatedToCoo()) {
-                            return false;
-                        }
-                        $service = app(PayrollApprovalService::class);
-                        return $service->isEscalationAvailable($record)
-                            && $service->canUserActOnBatch($record, auth()->user());
-                    })
-                    ->requiresConfirmation()
-                    ->modalHeading('Escalate to COO')
-                    ->modalDescription('Are you sure you want to escalate this payrun batch to the COO for approval?')
-                    ->form([
-                        Forms\Components\Textarea::make('notes')
-                            ->label('Escalation Notes')
-                            ->placeholder('Optional notes for the COO...')
-                            ->rows(3),
-                    ])
-                    ->action(function (PayrunBatch $record, array $data) {
-                        $service = app(PayrollApprovalService::class);
-
-                        try {
-                            $service->escalateToCoo($record, auth()->user(), $data['notes'] ?? null);
-
-                            Notification::make()
-                                ->title('Escalated to COO')
-                                ->body('The payrun batch has been escalated to the COO for approval.')
-                                ->success()
-                                ->send();
-                        } catch (\Exception $e) {
-                            Notification::make()
-                                ->title('Escalation Failed')
                                 ->body($e->getMessage())
                                 ->danger()
                                 ->send();

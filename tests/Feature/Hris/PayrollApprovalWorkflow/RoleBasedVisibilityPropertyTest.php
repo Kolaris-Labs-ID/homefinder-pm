@@ -8,7 +8,6 @@
  * For any set of batches with mixed statuses and any authenticated user:
  * - If the user has an HR/admin/super_admin role, all batches should be visible
  * - If the user is a finance approver, only batches with status pending_finance or paid should be visible
- * - If the user is a COO approver, only batches with status pending_coo or paid should be visible
  * - Users with no approver role see no batches
  *
  * **Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5**
@@ -29,15 +28,12 @@ beforeEach(function () {
 });
 
 /**
- * Helper: create an active workflow config with finance and optional COO steps.
+ * Helper: create an active workflow config with finance step(s).
  */
 function createVisibilityWorkflowConfig(
     string $module,
     User $financeUser = null,
     string $financeRole = null,
-    User $cooUser = null,
-    string $cooRole = null,
-    bool $includeCoo = false
 ): PayrollWorkflowConfig {
     $config = PayrollWorkflowConfig::create([
         'module' => $module,
@@ -53,17 +49,6 @@ function createVisibilityWorkflowConfig(
         'order' => 1,
     ]);
 
-    if ($includeCoo) {
-        PayrollWorkflowStep::create([
-            'payroll_workflow_config_id' => $config->id,
-            'step_type' => PayrollWorkflowStep::STEP_COO,
-            'assignee_type' => $cooUser ? 'user' : 'role',
-            'assignee_user_id' => $cooUser?->id,
-            'assignee_role' => $cooRole,
-            'order' => 2,
-        ]);
-    }
-
     return $config;
 }
 
@@ -73,7 +58,7 @@ function createVisibilityWorkflowConfig(
  */
 function createBatchesWithRandomStatuses(string $batchClass, int $count): array
 {
-    $statuses = ['draft', 'calculated', 'pending_finance', 'pending_coo', 'rejected', 'paid'];
+    $statuses = ['draft', 'calculated', 'pending_finance', 'rejected', 'paid'];
     $batches = [];
 
     for ($j = 0; $j < $count; $j++) {
@@ -81,7 +66,7 @@ function createBatchesWithRandomStatuses(string $batchClass, int $count): array
 
         if ($batchClass === PayrunBatch::class) {
             $state = ['status' => $status];
-            if (in_array($status, ['pending_finance', 'pending_coo', 'rejected', 'paid'])) {
+            if (in_array($status, ['pending_finance', 'rejected', 'paid'])) {
                 $state['submitted_by'] = User::factory()->create()->id;
                 $state['submitted_at'] = now()->subHour();
             }
@@ -100,7 +85,7 @@ function createBatchesWithRandomStatuses(string $batchClass, int $count): array
                 'payment_date' => now()->addDays(3),
                 'status' => $status,
             ];
-            if (in_array($status, ['pending_finance', 'pending_coo', 'rejected', 'paid'])) {
+            if (in_array($status, ['pending_finance', 'rejected', 'paid'])) {
                 $attrs['submitted_by'] = User::factory()->create()->id;
                 $attrs['submitted_at'] = now()->subHour();
             }
@@ -253,7 +238,7 @@ test('Property 15: Finance approvers see only pending_finance and paid batches',
             : PayrollWorkflowConfig::MODULE_WEEKLY;
 
         // Assign finance user directly to the finance step
-        createVisibilityWorkflowConfig($module, financeUser: $financeUser, includeCoo: true, cooUser: User::factory()->create());
+        createVisibilityWorkflowConfig($module, financeUser: $financeUser);
 
         $batchCount = fake()->numberBetween(3, 8);
         $batches = createBatchesWithRandomStatuses($batchClass, $batchCount);
@@ -272,52 +257,6 @@ test('Property 15: Finance approvers see only pending_finance and paid batches',
         foreach ($visible as $batch) {
             expect(in_array($batch->status, ['pending_finance', 'paid']))->toBeTrue(
                 "Iteration {$i}: Finance approver should not see batch with status '{$batch->status}'"
-            );
-        }
-    }
-})->group('property-test', 'payroll-approval-workflow');
-
-
-// ============================================================================
-// Property 15: Role-based visibility filtering — COO approvers see only pending_coo and paid
-// ============================================================================
-
-test('Property 15: COO approvers see only pending_coo and paid batches', function () {
-    for ($i = 0; $i < 30; $i++) {
-        PayrollApprovalLog::query()->forceDelete();
-        PayrollWorkflowStep::query()->delete();
-        PayrollWorkflowConfig::query()->delete();
-        PayrunBatch::query()->delete();
-        WeeklyAllowanceBatch::query()->delete();
-
-        $cooUser = User::factory()->create();
-        $financeUser = User::factory()->create();
-
-        $batchClass = fake()->randomElement([PayrunBatch::class, WeeklyAllowanceBatch::class]);
-        $module = $batchClass === PayrunBatch::class
-            ? PayrollWorkflowConfig::MODULE_MONTHLY
-            : PayrollWorkflowConfig::MODULE_WEEKLY;
-
-        // Assign COO user directly to the COO step
-        createVisibilityWorkflowConfig($module, financeUser: $financeUser, cooUser: $cooUser, includeCoo: true);
-
-        $batchCount = fake()->numberBetween(3, 8);
-        $batches = createBatchesWithRandomStatuses($batchClass, $batchCount);
-
-        $visible = $batchClass::visibleToUser($cooUser)->get();
-
-        // Count expected visible batches (pending_coo + paid)
-        $expectedCount = collect($batches)->filter(fn ($b) => in_array($b->status, ['pending_coo', 'paid']))->count();
-
-        expect($visible)->toHaveCount(
-            $expectedCount,
-            "Iteration {$i}: COO approver should see {$expectedCount} batches (pending_coo + paid), got {$visible->count()}"
-        );
-
-        // Assert all visible batches have expected statuses
-        foreach ($visible as $batch) {
-            expect(in_array($batch->status, ['pending_coo', 'paid']))->toBeTrue(
-                "Iteration {$i}: COO approver should not see batch with status '{$batch->status}'"
             );
         }
     }
@@ -345,7 +284,7 @@ test('Property 15: Users with no approver role see no batches', function () {
             ? PayrollWorkflowConfig::MODULE_MONTHLY
             : PayrollWorkflowConfig::MODULE_WEEKLY;
 
-        createVisibilityWorkflowConfig($module, financeUser: $financeUser, includeCoo: true, cooUser: User::factory()->create());
+        createVisibilityWorkflowConfig($module, financeUser: $financeUser);
 
         $batchCount = fake()->numberBetween(2, 6);
         createBatchesWithRandomStatuses($batchClass, $batchCount);
@@ -384,7 +323,7 @@ test('Property 15: Finance approver assigned via role sees only pending_finance 
             : PayrollWorkflowConfig::MODULE_WEEKLY;
 
         // Assign finance step via role (not direct user)
-        createVisibilityWorkflowConfig($module, financeRole: $financeRoleName, includeCoo: true, cooUser: User::factory()->create());
+        createVisibilityWorkflowConfig($module, financeRole: $financeRoleName);
 
         $batchCount = fake()->numberBetween(3, 8);
         $batches = createBatchesWithRandomStatuses($batchClass, $batchCount);

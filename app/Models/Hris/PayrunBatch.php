@@ -15,11 +15,10 @@ class PayrunBatch extends Model
     use HasFactory;
     use HasPayrollApproval;
 
-    // Status constants — new 6-status set for approval workflow
+    // Status constants — 5-status set (COO removed, multi-finance approver)
     const STATUS_DRAFT = 'draft';
     const STATUS_CALCULATED = 'calculated';
     const STATUS_PENDING_FINANCE = 'pending_finance';
-    const STATUS_PENDING_COO = 'pending_coo';
     const STATUS_REJECTED = 'rejected';
     const STATUS_PAID = 'paid';
 
@@ -58,7 +57,6 @@ class PayrunBatch extends Model
             self::STATUS_DRAFT,
             self::STATUS_CALCULATED,
             self::STATUS_PENDING_FINANCE,
-            self::STATUS_PENDING_COO,
             self::STATUS_REJECTED,
             self::STATUS_PAID,
         ];
@@ -73,7 +71,6 @@ class PayrunBatch extends Model
             self::STATUS_DRAFT => 'Draft',
             self::STATUS_CALCULATED => 'Calculated',
             self::STATUS_PENDING_FINANCE => 'Pending Finance',
-            self::STATUS_PENDING_COO => 'Pending COO',
             self::STATUS_REJECTED => 'Rejected',
             self::STATUS_PAID => 'Paid',
         ];
@@ -158,7 +155,6 @@ class PayrunBatch extends Model
     {
         return in_array($this->status, [
             self::STATUS_PENDING_FINANCE,
-            self::STATUS_PENDING_COO,
             self::STATUS_PAID,
         ]);
     }
@@ -173,12 +169,12 @@ class PayrunBatch extends Model
     }
 
     /**
-     * @deprecated Use canBeApprovedByFinance()/canBeApprovedByCoo() from HasPayrollApproval trait instead.
+     * @deprecated Use canBeApprovedByFinance() from HasPayrollApproval trait instead.
      * Kept temporarily for backward compatibility with PayrollCalculationService.
      */
     public function canMarkAsPaid(): bool
     {
-        return $this->canBeApprovedByFinance() || $this->canBeApprovedByCoo();
+        return $this->canBeApprovedByFinance();
     }
 
     /**

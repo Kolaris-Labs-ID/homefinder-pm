@@ -17,7 +17,7 @@ beforeEach(function () {
     $this->service = new PayrollApprovalService();
 });
 
-function setupWorkflow(string $module, User $financeUser, ?User $cooUser = null): PayrollWorkflowConfig
+function setupWorkflow(string $module, User $financeUser): PayrollWorkflowConfig
 {
     $config = PayrollWorkflowConfig::create([
         'module' => $module,
@@ -31,16 +31,6 @@ function setupWorkflow(string $module, User $financeUser, ?User $cooUser = null)
         'assignee_user_id' => $financeUser->id,
         'order' => 1,
     ]);
-
-    if ($cooUser) {
-        PayrollWorkflowStep::create([
-            'payroll_workflow_config_id' => $config->id,
-            'step_type' => PayrollWorkflowStep::STEP_COO,
-            'assignee_type' => 'user',
-            'assignee_user_id' => $cooUser->id,
-            'order' => 2,
-        ]);
-    }
 
     return $config;
 }
@@ -142,58 +132,40 @@ describe('PayrollApprovalService approveAndPay', function () {
         expect(fn () => $this->service->approveAndPay($batch, $financeUser))
             ->toThrow(\LogicException::class);
     });
-});
 
-describe('PayrollApprovalService escalateToCoo', function () {
-    it('transitions pending_finance to pending_coo', function () {
-        $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
-        setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser, $cooUser);
+    it('allows any of multiple finance approvers to approve', function () {
+        $financeUser1 = User::factory()->create();
+        $financeUser2 = User::factory()->create();
+
+        $config = PayrollWorkflowConfig::create([
+            'module' => PayrollWorkflowConfig::MODULE_MONTHLY,
+            'is_active' => true,
+        ]);
+
+        PayrollWorkflowStep::create([
+            'payroll_workflow_config_id' => $config->id,
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+            'assignee_type' => 'user',
+            'assignee_user_id' => $financeUser1->id,
+            'order' => 1,
+        ]);
+
+        PayrollWorkflowStep::create([
+            'payroll_workflow_config_id' => $config->id,
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+            'assignee_type' => 'user',
+            'assignee_user_id' => $financeUser2->id,
+            'order' => 2,
+        ]);
 
         $batch = PayrunBatch::factory()->pendingFinance()->create();
 
-        $this->service->escalateToCoo($batch, $financeUser);
-
-        $batch->refresh();
-        expect($batch->status)->toBe('pending_coo');
-    });
-
-    it('throws when no COO step configured', function () {
-        $financeUser = User::factory()->create();
-        setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser); // no COO
-
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
-
-        expect(fn () => $this->service->escalateToCoo($batch, $financeUser))
-            ->toThrow(\LogicException::class);
-    });
-});
-
-describe('PayrollApprovalService cooApproveAndPay', function () {
-    it('transitions pending_coo to paid', function () {
-        $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
-        setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser, $cooUser);
-
-        $batch = PayrunBatch::factory()->pendingCoo()->create();
-
-        $this->service->cooApproveAndPay($batch, $cooUser);
+        // Second user approves — should work
+        $this->service->approveAndPay($batch, $financeUser2);
 
         $batch->refresh();
         expect($batch->status)->toBe('paid')
-            ->and($batch->paid_by)->toBe($cooUser->id);
-    });
-
-    it('throws when unauthorized user tries COO approval', function () {
-        $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
-        $randomUser = User::factory()->create();
-        setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser, $cooUser);
-
-        $batch = PayrunBatch::factory()->pendingCoo()->create();
-
-        expect(fn () => $this->service->cooApproveAndPay($batch, $randomUser))
-            ->toThrow(AuthorizationException::class);
+            ->and($batch->paid_by)->toBe($financeUser2->id);
     });
 });
 
@@ -209,19 +181,6 @@ describe('PayrollApprovalService reject', function () {
         $batch->refresh();
         expect($batch->status)->toBe('rejected')
             ->and($batch->rejection_reason)->toBe('Incorrect amounts');
-    });
-
-    it('transitions pending_coo to rejected', function () {
-        $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
-        setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser, $cooUser);
-
-        $batch = PayrunBatch::factory()->pendingCoo()->create();
-
-        $this->service->reject($batch, $cooUser, 'Need review');
-
-        $batch->refresh();
-        expect($batch->status)->toBe('rejected');
     });
 
     it('throws when reason is empty', function () {
@@ -332,27 +291,6 @@ describe('PayrollApprovalService canUserActOnBatch', function () {
     });
 });
 
-describe('PayrollApprovalService isEscalationAvailable', function () {
-    it('returns true when COO step exists', function () {
-        $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
-        setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser, $cooUser);
-
-        $batch = PayrunBatch::factory()->create();
-
-        expect($this->service->isEscalationAvailable($batch))->toBeTrue();
-    });
-
-    it('returns false when no COO step', function () {
-        $financeUser = User::factory()->create();
-        setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser);
-
-        $batch = PayrunBatch::factory()->create();
-
-        expect($this->service->isEscalationAvailable($batch))->toBeFalse();
-    });
-});
-
 describe('PayrollApprovalService full workflow integration', function () {
     it('completes full approval flow: calculated → pending_finance → paid', function () {
         $financeUser = User::factory()->create();
@@ -376,31 +314,6 @@ describe('PayrollApprovalService full workflow integration', function () {
         expect($logs)->toHaveCount(2)
             ->and($logs[0]->action)->toBe('submitted')
             ->and($logs[1]->action)->toBe('approved');
-    });
-
-    it('completes escalation flow: calculated → pending_finance → pending_coo → paid', function () {
-        $financeUser = User::factory()->create();
-        $cooUser = User::factory()->create();
-        $submitter = User::factory()->create();
-        setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser, $cooUser);
-
-        $batch = PayrunBatch::factory()->calculated()->create();
-
-        // Step 1: Submit
-        $this->service->submitForApproval($batch, $submitter);
-
-        // Step 2: Escalate
-        $this->service->escalateToCoo($batch, $financeUser);
-        $batch->refresh();
-        expect($batch->status)->toBe('pending_coo');
-
-        // Step 3: COO approves
-        $this->service->cooApproveAndPay($batch, $cooUser);
-        $batch->refresh();
-        expect($batch->status)->toBe('paid');
-
-        $logs = PayrollApprovalLog::where('batch_id', $batch->id)->orderBy('id')->get();
-        expect($logs)->toHaveCount(3);
     });
 
     it('completes rejection and resubmission flow', function () {

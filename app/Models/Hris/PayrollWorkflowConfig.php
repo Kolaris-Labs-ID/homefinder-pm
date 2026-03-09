@@ -51,8 +51,8 @@ class PayrollWorkflowConfig extends Model
 
     /**
      * Validate that the config's steps meet the required structure:
-     * - Exactly one finance step
-     * - Zero or one COO steps
+     * - At least one finance step (multiple allowed for multi-finance approver)
+     * - No COO steps (COO removed)
      *
      * @return array{valid: bool, errors: string[]}
      */
@@ -60,16 +60,11 @@ class PayrollWorkflowConfig extends Model
     {
         $steps = $this->steps()->get();
         $financeCount = $steps->where('step_type', PayrollWorkflowStep::STEP_FINANCE)->count();
-        $cooCount = $steps->where('step_type', PayrollWorkflowStep::STEP_COO)->count();
 
         $errors = [];
 
-        if ($financeCount !== 1) {
-            $errors[] = "Config must have exactly 1 finance step, found {$financeCount}.";
-        }
-
-        if ($cooCount > 1) {
-            $errors[] = "Config must have at most 1 COO step, found {$cooCount}.";
+        if ($financeCount < 1) {
+            $errors[] = "Config must have at least 1 finance step, found {$financeCount}.";
         }
 
         return [

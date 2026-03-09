@@ -33,7 +33,6 @@ class ViewPayrunBatch extends ViewRecord
                                 'draft' => 'gray',
                                 'calculated' => 'info',
                                 'pending_finance' => 'warning',
-                                'pending_coo' => 'warning',
                                 'rejected' => 'danger',
                                 'paid' => 'success',
                                 default => 'gray',
@@ -155,10 +154,7 @@ class ViewPayrunBatch extends ViewRecord
                 ->icon('heroicon-o-banknotes')
                 ->color('success')
                 ->visible(function () {
-                    if ($this->record->isPaid()) {
-                        return false;
-                    }
-                    if (! $this->record->canBeApprovedByFinance() && ! $this->record->canBeApprovedByCoo()) {
+                    if ($this->record->isPaid() || ! $this->record->canBeApprovedByFinance()) {
                         return false;
                     }
                     $service = app(PayrollApprovalService::class);
@@ -171,11 +167,7 @@ class ViewPayrunBatch extends ViewRecord
                     $service = app(PayrollApprovalService::class);
 
                     try {
-                        if ($this->record->canBeApprovedByCoo()) {
-                            $service->cooApproveAndPay($this->record, auth()->user());
-                        } else {
-                            $service->approveAndPay($this->record, auth()->user());
-                        }
+                        $service->approveAndPay($this->record, auth()->user());
 
                         Notification::make()
                             ->title('Approved & Paid')
@@ -187,50 +179,6 @@ class ViewPayrunBatch extends ViewRecord
                     } catch (\Exception $e) {
                         Notification::make()
                             ->title('Approval Failed')
-                            ->body($e->getMessage())
-                            ->danger()
-                            ->send();
-                    }
-                }),
-
-            // Escalate to COO
-            Actions\Action::make('escalateToCoo')
-                ->label('Escalate to COO')
-                ->icon('heroicon-o-arrow-up-circle')
-                ->color('warning')
-                ->visible(function () {
-                    if (! $this->record->canBeEscalatedToCoo()) {
-                        return false;
-                    }
-                    $service = app(PayrollApprovalService::class);
-                    return $service->isEscalationAvailable($this->record)
-                        && $service->canUserActOnBatch($this->record, auth()->user());
-                })
-                ->requiresConfirmation()
-                ->modalHeading('Escalate to COO')
-                ->modalDescription('Are you sure you want to escalate this payrun batch to the COO for approval?')
-                ->form([
-                    \Filament\Forms\Components\Textarea::make('notes')
-                        ->label('Escalation Notes')
-                        ->placeholder('Optional notes for the COO...')
-                        ->rows(3),
-                ])
-                ->action(function (array $data) {
-                    $service = app(PayrollApprovalService::class);
-
-                    try {
-                        $service->escalateToCoo($this->record, auth()->user(), $data['notes'] ?? null);
-
-                        Notification::make()
-                            ->title('Escalated to COO')
-                            ->body('The payrun batch has been escalated to the COO for approval.')
-                            ->success()
-                            ->send();
-
-                        $this->refreshFormData(['status']);
-                    } catch (\Exception $e) {
-                        Notification::make()
-                            ->title('Escalation Failed')
                             ->body($e->getMessage())
                             ->danger()
                             ->send();

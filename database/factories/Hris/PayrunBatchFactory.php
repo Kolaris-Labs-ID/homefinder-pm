@@ -60,19 +60,6 @@ class PayrunBatchFactory extends Factory
     }
 
     /**
-     * Set the batch status to pending_coo.
-     */
-    public function pendingCoo(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'status' => PayrunBatch::STATUS_PENDING_COO,
-            'calculated_at' => now()->subHours(2),
-            'submitted_by' => User::factory(),
-            'submitted_at' => now()->subHour(),
-        ]);
-    }
-
-    /**
      * Set the batch status to rejected.
      */
     public function rejected(): static

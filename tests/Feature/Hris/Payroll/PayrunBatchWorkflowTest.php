@@ -45,26 +45,8 @@ describe('PayrunBatch status transitions', function () {
         expect($batch->canBeApprovedByFinance())->toBeTrue();
     });
 
-    it('allows escalation to COO from pending_finance', function () {
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
-
-        expect($batch->canBeEscalatedToCoo())->toBeTrue();
-    });
-
-    it('allows COO approval from pending_coo', function () {
-        $batch = PayrunBatch::factory()->pendingCoo()->create();
-
-        expect($batch->canBeApprovedByCoo())->toBeTrue();
-    });
-
     it('allows rejection from pending_finance', function () {
         $batch = PayrunBatch::factory()->pendingFinance()->create();
-
-        expect($batch->canBeRejected())->toBeTrue();
-    });
-
-    it('allows rejection from pending_coo', function () {
-        $batch = PayrunBatch::factory()->pendingCoo()->create();
 
         expect($batch->canBeRejected())->toBeTrue();
     });
@@ -96,7 +78,6 @@ describe('PayrunBatch status transitions', function () {
         expect($batch->canCalculate())->toBeFalse()
             ->and($batch->canSubmitForApproval())->toBeFalse()
             ->and($batch->canBeApprovedByFinance())->toBeFalse()
-            ->and($batch->canBeApprovedByCoo())->toBeFalse()
             ->and($batch->canBeRejected())->toBeFalse()
             ->and($batch->canBeResubmitted())->toBeFalse();
     });

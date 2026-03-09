@@ -15,11 +15,10 @@ class WeeklyAllowanceBatch extends Model
     use HasFactory;
     use HasPayrollApproval;
 
-    // Status constants — new 6-status set for approval workflow
+    // Status constants — 5-status set (COO removed, multi-finance approver)
     const STATUS_DRAFT = 'draft';
     const STATUS_CALCULATED = 'calculated';
     const STATUS_PENDING_FINANCE = 'pending_finance';
-    const STATUS_PENDING_COO = 'pending_coo';
     const STATUS_REJECTED = 'rejected';
     const STATUS_PAID = 'paid';
 
@@ -69,7 +68,6 @@ class WeeklyAllowanceBatch extends Model
             self::STATUS_DRAFT,
             self::STATUS_CALCULATED,
             self::STATUS_PENDING_FINANCE,
-            self::STATUS_PENDING_COO,
             self::STATUS_REJECTED,
             self::STATUS_PAID,
         ];
@@ -84,7 +82,6 @@ class WeeklyAllowanceBatch extends Model
             self::STATUS_DRAFT => 'Draft',
             self::STATUS_CALCULATED => 'Calculated',
             self::STATUS_PENDING_FINANCE => 'Pending Finance',
-            self::STATUS_PENDING_COO => 'Pending COO',
             self::STATUS_REJECTED => 'Rejected',
             self::STATUS_PAID => 'Paid',
         ];
@@ -99,7 +96,6 @@ class WeeklyAllowanceBatch extends Model
             self::STATUS_DRAFT => 'gray',
             self::STATUS_CALCULATED => 'info',
             self::STATUS_PENDING_FINANCE => 'warning',
-            self::STATUS_PENDING_COO => 'primary',
             self::STATUS_REJECTED => 'danger',
             self::STATUS_PAID => 'success',
         ];
@@ -182,10 +178,7 @@ class WeeklyAllowanceBatch extends Model
      */
     public function scopePending(Builder $query): Builder
     {
-        return $query->whereIn('status', [
-            self::STATUS_PENDING_FINANCE,
-            self::STATUS_PENDING_COO,
-        ]);
+        return $query->where('status', self::STATUS_PENDING_FINANCE);
     }
 
     /**
@@ -232,7 +225,6 @@ class WeeklyAllowanceBatch extends Model
     {
         return in_array($this->status, [
             self::STATUS_PENDING_FINANCE,
-            self::STATUS_PENDING_COO,
             self::STATUS_PAID,
         ]);
     }
