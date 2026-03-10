@@ -47,6 +47,7 @@ class LeaveWorkflowService
             }
         } else {
             // Fall back to simple approver assignment
+            // Always create an ApprovalStep so it appears in the Approval Dashboard
             $approver = $this->determineDefaultApprover($leaveRequest->employee);
 
             if ($approver) {
@@ -54,6 +55,26 @@ class LeaveWorkflowService
                     'current_approver_id' => $approver->id,
                 ]);
             }
+
+            // Create an ApprovalStep record for the dashboard
+            // Use specific approver if found, otherwise use role-based assignment
+            \App\Models\Hris\ApprovalStep::create([
+                'workflow_id' => null,
+                'workflow_snapshot' => [
+                    'workflow_name' => 'Default Leave Approval',
+                    'for_module' => 'leave',
+                    'steps' => [['order' => 1, 'type' => $approver ? 'user' : 'role', 'value' => $approver ? $approver->id : 'super_admin']],
+                    'snapshot_at' => now()->toIso8601String(),
+                ],
+                'approvable_type' => LeaveRequest::class,
+                'approvable_id' => $leaveRequest->id,
+                'step_order' => 1,
+                'approver_id' => $approver?->id,
+                'approver_role' => $approver ? null : 'super_admin',
+                'status' => \App\Models\Hris\ApprovalStep::STATUS_PENDING,
+                'approved_at' => null,
+                'notes' => null,
+            ]);
         }
     }
 

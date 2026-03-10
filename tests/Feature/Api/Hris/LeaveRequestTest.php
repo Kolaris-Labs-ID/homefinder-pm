@@ -55,6 +55,13 @@ it('creates leave request via api', function () {
     $leaveRequest = LeaveRequest::first();
     expect($leaveRequest->employee_id)->toBe($this->employee->id);
     expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_PENDING);
+
+    // Verify an ApprovalStep was created for the Approval Dashboard
+    $approvalStep = \App\Models\Hris\ApprovalStep::where('approvable_type', LeaveRequest::class)
+        ->where('approvable_id', $leaveRequest->id)
+        ->first();
+    expect($approvalStep)->not->toBeNull();
+    expect($approvalStep->status)->toBe('pending');
 });
 
 it('requires authentication to create leave request', function () {
@@ -235,5 +242,35 @@ it('returns active leave types', function () {
     // Should only return active leave types
     $activeTypes = collect($response->json('data'));
     expect($activeTypes->every(fn ($type) => $type['is_active'] ?? true))->toBeTrue();
+});
+
+it('allows newly hired employee to request annual leave', function () {
+    // Create a recently hired employee (1 month ago)
+    $newEmployee = Employee::factory()->create([
+        'hire_date' => now()->subMonth(),
+    ]);
+
+    // Ensure balance is created
+    app(LeaveBalanceService::class)->ensureBalance($newEmployee, $this->leaveType, now()->year);
+
+    Sanctum::actingAs($newEmployee->user);
+
+    $response = postJson('/api/hris/leave-requests', [
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => now()->addDays(2)->toDateString(),
+        'end_date' => now()->addDays(3)->toDateString(),
+        'reason' => 'Personal matters',
+    ]);
+
+    $response->assertCreated();
+
+    // Verify the leave request was created with pending status
+    $leaveRequest = LeaveRequest::where('employee_id', $newEmployee->id)->first();
+    expect($leaveRequest)->not->toBeNull();
+    expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_PENDING);
+
+    // Verify balance: starting at 12, used 2
+    $balance = $newEmployee->leaveBalances()->where('leave_type_id', $this->leaveType->id)->first();
+    expect($balance->starting_balance)->toBe(12);
 });
 

@@ -35,18 +35,6 @@ class LeaveBalanceService
     {
         $balance = $this->ensureBalance($employee, $leaveType, $startDate->year);
 
-        // Check annual leave eligibility (must be employed for at least 1 year)
-        // Skip this check for non-annual leave types
-        if ($leaveType->code === 'ANNUAL' && ! $this->hasAnnualLeaveEligibility($employee, $startDate)) {
-            \Log::info('Annual leave eligibility check failed', [
-                'employee_id' => $employee->id,
-                'hire_date' => $employee->hire_date,
-                'start_date' => $startDate,
-                'eligible_from' => $employee->hire_date?->copy()->addYear(),
-            ]);
-            return false;
-        }
-
         return $balance->remaining_days >= $days;
     }
 
@@ -56,11 +44,6 @@ class LeaveBalanceService
     public function getIneligibilityReason(Employee $employee, LeaveType $leaveType, int $days, Carbon $startDate): ?string
     {
         $balance = $this->ensureBalance($employee, $leaveType, $startDate->year);
-
-        if ($leaveType->code === 'ANNUAL' && ! $this->hasAnnualLeaveEligibility($employee, $startDate)) {
-            $eligibleFrom = $employee->hire_date?->copy()->addYear()->format('d M Y');
-            return "You are not eligible for Annual Leave yet. You will be eligible from {$eligibleFrom} (after 1 year of employment).";
-        }
 
         if ($balance->remaining_days < $days) {
             return "Insufficient leave balance. You have {$balance->remaining_days} days remaining but requested {$days} days.";
@@ -123,7 +106,7 @@ class LeaveBalanceService
     protected function determineStartingBalance(Employee $employee, LeaveType $leaveType, int $year): int
     {
         if ($leaveType->code === 'ANNUAL') {
-            return $this->hasAnnualLeaveEligibility($employee, Carbon::create($year)) ? 12 : 0;
+            return 12;
         }
 
         if ($leaveType->code === 'SICK') {
@@ -143,15 +126,8 @@ class LeaveBalanceService
 
     protected function hasAnnualLeaveEligibility(Employee $employee, Carbon $asOfDate): bool
     {
-        if (! $employee->hire_date) {
-            return false;
-        }
-
-        // Employee must be employed for at least 1 year to be eligible for annual leave
-        // For testing/development, you can set this to return true
-        // return true;
-
-        return $employee->hire_date->copy()->addYear()->startOfDay() <= $asOfDate->copy()->startOfDay();
+        // All employees are eligible for annual leave regardless of tenure
+        return true;
     }
 }
 
