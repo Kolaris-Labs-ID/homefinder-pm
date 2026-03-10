@@ -303,17 +303,21 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
             return ApprovalStep::query()->whereRaw('1 = 0');
         }
 
-        $userRoles = $user->roles->pluck('name')->toArray();
+        $query = ApprovalStep::query()
+            ->where('status', ApprovalStep::STATUS_PENDING);
 
-        return ApprovalStep::query()
-            ->where('status', ApprovalStep::STATUS_PENDING)
-            ->where(function ($query) use ($user, $userRoles) {
-                $query->where('approver_id', $user->id);
+        // Super admins see all pending approvals
+        if (!$user->hasRole('super_admin')) {
+            $userRoles = $user->roles->pluck('name')->toArray();
+            $query->where(function ($q) use ($user, $userRoles) {
+                $q->where('approver_id', $user->id);
                 if (!empty($userRoles)) {
-                    $query->orWhereIn('approver_role', $userRoles);
+                    $q->orWhereIn('approver_role', $userRoles);
                 }
-            })
-            ->with(['approvable.employee', 'workflow']);
+            });
+        }
+
+        return $query->with(['approvable.employee', 'workflow']);
     }
 
     /**
