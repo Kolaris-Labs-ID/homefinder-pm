@@ -3,6 +3,8 @@
 namespace App\Policies\Hris;
 
 use App\Models\Hris\PayrollRecord;
+use App\Models\Hris\PayrollWorkflowConfig;
+use App\Models\Hris\PayrollWorkflowStep;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
@@ -12,7 +14,7 @@ class PayrollRecordPolicy
 
     public function viewAny(User $user): bool
     {
-        return $user->can('view_any_payroll::record');
+        return $user->can('view_any_payroll::record') || $this->isFinanceApprover($user);
     }
 
     public function view(User $user, PayrollRecord $payrollRecord): bool
@@ -22,7 +24,7 @@ class PayrollRecordPolicy
             return true;
         }
 
-        return $user->can('view_payroll::record');
+        return $user->can('view_payroll::record') || $this->isFinanceApprover($user);
     }
 
     public function create(User $user): bool
@@ -74,4 +76,31 @@ class PayrollRecordPolicy
     {
         return $user->can('reorder_payroll::record');
     }
+
+    /**
+     * Check if the user is a configured finance approver in any active payroll workflow.
+     */
+    protected function isFinanceApprover(User $user): bool
+    {
+        $modules = [PayrollWorkflowConfig::MODULE_MONTHLY, PayrollWorkflowConfig::MODULE_WEEKLY];
+
+        foreach ($modules as $module) {
+            $config = PayrollWorkflowConfig::getActiveConfig($module);
+            if (!$config) {
+                continue;
+            }
+
+            $isApprover = $config->steps()
+                ->where('step_type', PayrollWorkflowStep::STEP_FINANCE)
+                ->get()
+                ->contains(fn ($step) => $step->canBeActedOnBy($user));
+
+            if ($isApprover) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
+
