@@ -22,6 +22,12 @@ class PayrollWorkflowStep extends Model
         'order',
     ];
 
+    protected $casts = [
+        'assignee_user_id' => 'integer',
+        'payroll_workflow_config_id' => 'integer',
+        'order' => 'integer',
+    ];
+
     /**
      * Get the workflow configuration that owns this step.
      */
