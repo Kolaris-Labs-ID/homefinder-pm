@@ -126,4 +126,33 @@ trait HasPayrollApproval
         // User is not an approver — no access
         return $query->whereRaw('1 = 0');
     }
+
+    /**
+     * Get the name of the current sequential approver (if pending_finance).
+     */
+    public function getCurrentApproverNameAttribute(): ?string
+    {
+        if ($this->status !== 'pending_finance' || !$this->current_finance_step_order) {
+            return null;
+        }
+
+        $module = $this->getWorkflowModule();
+        $config = PayrollWorkflowConfig::getActiveConfig($module);
+
+        if (!$config) {
+            return null;
+        }
+
+        $currentStep = $config->steps()
+            ->where('step_type', PayrollWorkflowStep::STEP_FINANCE)
+            ->orderBy('order', 'asc')
+            ->skip($this->current_finance_step_order - 1)
+            ->first();
+
+        if ($currentStep && $currentStep->assigneeUser) {
+            return $currentStep->assigneeUser->name;
+        }
+
+        return null;
+    }
 }

@@ -186,7 +186,7 @@ describe('Finance approver visibility after payroll submission', function () {
             'order' => 1,
         ]);
 
-        PayrunBatch::factory()->pendingFinance()->create();
+        PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
         PayrunBatch::factory()->paid()->create();
 
         $visibleToOutsider = PayrunBatch::visibleToUser($outsider)->count();
@@ -194,7 +194,7 @@ describe('Finance approver visibility after payroll submission', function () {
         expect($visibleToOutsider)->toBe(0);
     });
 
-    it('any assigned finance approver can approve the batch', function () {
+    it('assigned finance approvers must approve sequentially', function () {
         $finance1 = User::factory()->create();
         $finance2 = User::factory()->create();
         $finance3 = User::factory()->create();
@@ -222,15 +222,23 @@ describe('Finance approver visibility after payroll submission', function () {
         $service->submitForApproval($batch, $submitter);
         $batch->refresh();
 
-        // Finance user 2 approves (not the first one — any should work)
-        $service->approveAndPay($batch, $finance2);
+        // Finance user 1 approves
+        $service->approve($batch, $finance1);
+        $batch->refresh();
+
+        // Finance user 2 approves
+        $service->approve($batch, $finance2);
+        $batch->refresh();
+
+        // Finance user 3 approves and pays
+        $service->approveAndPay($batch, $finance3);
         $batch->refresh();
 
         expect($batch->status)->toBe('paid')
-            ->and($batch->paid_by)->toBe($finance2->id);
+            ->and($batch->paid_by)->toBe($finance3->id);
     });
 
-    it('complete flow: submit → all see it → one approves → all see paid', function () {
+    it('complete flow: submit → all see it → sequence approves → all see paid', function () {
         $finance1 = User::factory()->create();
         $finance2 = User::factory()->create();
         $submitter = User::factory()->create();
@@ -262,10 +270,17 @@ describe('Finance approver visibility after payroll submission', function () {
         expect(PayrunBatch::visibleToUser($finance1)->count())->toBe(1);
         expect(PayrunBatch::visibleToUser($finance2)->count())->toBe(1);
 
-        // Step 3: Finance1 approves and pays
-        $service->approveAndPay($batch, $finance1);
+        // Step 3: Finance1 approves
+        $service->approve($batch, $finance1);
+        
+        // Both still see it (pending)
+        expect(PayrunBatch::visibleToUser($finance1)->count())->toBe(1);
+        expect(PayrunBatch::visibleToUser($finance2)->count())->toBe(1);
 
-        // Step 4: Both can still see it (paid status is visible)
+        // Step 4: Finance2 approves and pays
+        $service->approveAndPay($batch, $finance2);
+
+        // Both can still see it (paid status is visible)
         expect(PayrunBatch::visibleToUser($finance1)->count())->toBe(1);
         expect(PayrunBatch::visibleToUser($finance2)->count())->toBe(1);
 

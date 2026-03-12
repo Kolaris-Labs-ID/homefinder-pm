@@ -31,7 +31,8 @@ class ViewWeeklyAllowanceBatch extends ViewRecord
                             ->date(),
                         TextEntry::make('status')
                             ->badge()
-                            ->color(fn (string $state): string => WeeklyAllowanceBatch::getStatusColors()[$state] ?? 'gray'),
+                            ->color(fn (string $state): string => WeeklyAllowanceBatch::getStatusColors()[$state] ?? 'gray')
+                            ->description(fn (WeeklyAllowanceBatch $record) => $record->current_approver_name ? "Waiting: {$record->current_approver_name}" : null),
                     ])->columns(3),
 
                 Section::make('Summary')
@@ -155,7 +156,44 @@ class ViewWeeklyAllowanceBatch extends ViewRecord
                     }
                 }),
 
-            // Approve & Pay
+            // Approve (Intermediate Step)
+            Actions\Action::make('approve')
+                ->label('Approve')
+                ->icon('heroicon-o-check-circle')
+                ->color('success')
+                ->visible(function () {
+                    if ($this->record->isPaid() || ! $this->record->canBeApprovedByFinance()) {
+                        return false;
+                    }
+                    $service = app(PayrollApprovalService::class);
+                    return $service->canUserActOnBatch($this->record, auth()->user()) && !$service->isFinalFinanceStep($this->record);
+                })
+                ->requiresConfirmation()
+                ->modalHeading('Approve Weekly Allowance Batch')
+                ->modalDescription('Are you sure you want to approve this weekly allowance batch and pass it to the next approver?')
+                ->action(function () {
+                    $service = app(PayrollApprovalService::class);
+
+                    try {
+                        $service->approve($this->record, auth()->user());
+
+                        Notification::make()
+                            ->title('Batch Approved')
+                            ->body('The weekly allowance batch has been approved and moved to the next step.')
+                            ->success()
+                            ->send();
+
+                        $this->refreshFormData(['status', 'current_finance_step_order']);
+                    } catch (\Exception $e) {
+                        Notification::make()
+                            ->title('Approval Failed')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                }),
+
+            // Approve & Pay (Final Step)
             Actions\Action::make('approveAndPay')
                 ->label('Approve & Pay')
                 ->icon('heroicon-o-banknotes')
@@ -165,11 +203,11 @@ class ViewWeeklyAllowanceBatch extends ViewRecord
                         return false;
                     }
                     $service = app(PayrollApprovalService::class);
-                    return $service->canUserActOnBatch($this->record, auth()->user());
+                    return $service->canUserActOnBatch($this->record, auth()->user()) && $service->isFinalFinanceStep($this->record);
                 })
                 ->requiresConfirmation()
                 ->modalHeading('Approve & Pay')
-                ->modalDescription('Are you sure you want to approve this weekly allowance batch and mark it as paid?')
+                ->modalDescription('This is the final approval step. Are you sure you want to approve this weekly allowance batch and mark it as paid?')
                 ->action(function () {
                     $service = app(PayrollApprovalService::class);
 
@@ -182,7 +220,7 @@ class ViewWeeklyAllowanceBatch extends ViewRecord
                             ->success()
                             ->send();
 
-                        $this->refreshFormData(['status']);
+                        $this->refreshFormData(['status', 'current_finance_step_order']);
                     } catch (\Exception $e) {
                         Notification::make()
                             ->title('Approval Failed')

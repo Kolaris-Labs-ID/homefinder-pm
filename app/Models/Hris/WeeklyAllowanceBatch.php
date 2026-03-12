@@ -44,6 +44,7 @@ class WeeklyAllowanceBatch extends Model
         'total_amount',
         'notes',
         'rejection_reason',
+        'current_finance_step_order',
     ];
 
     protected $casts = [
@@ -57,6 +58,7 @@ class WeeklyAllowanceBatch extends Model
         'paid_at' => 'datetime',
         'submitted_at' => 'datetime',
         'total_amount' => 'decimal:2',
+        'current_finance_step_order' => 'integer',
     ];
 
     /**

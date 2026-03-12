@@ -47,6 +47,7 @@ describe('PayrollApprovalService submitForApproval', function () {
 
         $batch->refresh();
         expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(1)
             ->and($batch->submitted_by)->toBe($submitter->id);
     });
 
@@ -102,7 +103,7 @@ describe('PayrollApprovalService approveAndPay', function () {
         $financeUser = User::factory()->create();
         setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser);
 
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
+        $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
 
         $this->service->approveAndPay($batch, $financeUser);
 
@@ -117,7 +118,7 @@ describe('PayrollApprovalService approveAndPay', function () {
         $randomUser = User::factory()->create();
         setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser);
 
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
+        $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
 
         expect(fn () => $this->service->approveAndPay($batch, $randomUser))
             ->toThrow(AuthorizationException::class);
@@ -133,7 +134,7 @@ describe('PayrollApprovalService approveAndPay', function () {
             ->toThrow(\LogicException::class);
     });
 
-    it('allows any of multiple finance approvers to approve', function () {
+    it('allows sequence of multiple finance approvers to approve and pay', function () {
         $financeUser1 = User::factory()->create();
         $financeUser2 = User::factory()->create();
 
@@ -158,9 +159,19 @@ describe('PayrollApprovalService approveAndPay', function () {
             'order' => 2,
         ]);
 
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
+        $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
 
-        // Second user approves — should work
+        // Attempt jump
+        expect(fn () => $this->service->approveAndPay($batch, $financeUser2))
+            ->toThrow(AuthorizationException::class);
+
+        // First user approves
+        $this->service->approve($batch, $financeUser1);
+        $batch->refresh();
+        expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(2);
+
+        // Second user approves & pays
         $this->service->approveAndPay($batch, $financeUser2);
 
         $batch->refresh();
@@ -174,12 +185,13 @@ describe('PayrollApprovalService reject', function () {
         $financeUser = User::factory()->create();
         setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser);
 
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
+        $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
 
         $this->service->reject($batch, $financeUser, 'Incorrect amounts');
 
         $batch->refresh();
         expect($batch->status)->toBe('rejected')
+            ->and($batch->current_finance_step_order)->toBeNull()
             ->and($batch->rejection_reason)->toBe('Incorrect amounts');
     });
 
@@ -187,7 +199,7 @@ describe('PayrollApprovalService reject', function () {
         $financeUser = User::factory()->create();
         setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser);
 
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
+        $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
 
         expect(fn () => $this->service->reject($batch, $financeUser, ''))
             ->toThrow(\InvalidArgumentException::class);
@@ -197,7 +209,7 @@ describe('PayrollApprovalService reject', function () {
         $financeUser = User::factory()->create();
         setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser);
 
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
+        $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
 
         expect(fn () => $this->service->reject($batch, $financeUser, '   '))
             ->toThrow(\InvalidArgumentException::class);
@@ -230,12 +242,13 @@ describe('PayrollApprovalService resubmit', function () {
         $submitter = User::factory()->create();
         setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser);
 
-        $batch = PayrunBatch::factory()->rejected()->create();
+        $batch = PayrunBatch::factory()->rejected()->create(['current_finance_step_order' => null]);
 
         $this->service->resubmit($batch, $submitter);
 
         $batch->refresh();
-        expect($batch->status)->toBe('pending_finance');
+        expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(1);
     });
 
     it('throws when resubmitting non-rejected batch', function () {
@@ -266,7 +279,7 @@ describe('PayrollApprovalService canUserActOnBatch', function () {
         $financeUser = User::factory()->create();
         setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser);
 
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
+        $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
 
         expect($this->service->canUserActOnBatch($batch, $financeUser))->toBeTrue();
     });
@@ -276,7 +289,7 @@ describe('PayrollApprovalService canUserActOnBatch', function () {
         $randomUser = User::factory()->create();
         setupWorkflow(PayrollWorkflowConfig::MODULE_MONTHLY, $financeUser);
 
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
+        $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
 
         expect($this->service->canUserActOnBatch($batch, $randomUser))->toBeFalse();
     });
@@ -302,7 +315,8 @@ describe('PayrollApprovalService full workflow integration', function () {
         // Step 1: Submit
         $this->service->submitForApproval($batch, $submitter);
         $batch->refresh();
-        expect($batch->status)->toBe('pending_finance');
+        expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(1);
 
         // Step 2: Approve and pay
         $this->service->approveAndPay($batch, $financeUser);
@@ -313,7 +327,7 @@ describe('PayrollApprovalService full workflow integration', function () {
         $logs = PayrollApprovalLog::where('batch_id', $batch->id)->orderBy('id')->get();
         expect($logs)->toHaveCount(2)
             ->and($logs[0]->action)->toBe('submitted')
-            ->and($logs[1]->action)->toBe('approved');
+            ->and($logs[1]->action)->toBe('paid');
     });
 
     it('completes rejection and resubmission flow', function () {
@@ -345,3 +359,4 @@ describe('PayrollApprovalService full workflow integration', function () {
         expect($logs)->toHaveCount(4);
     });
 });
+

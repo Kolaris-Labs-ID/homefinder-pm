@@ -14,6 +14,7 @@
  */
 
 use App\Models\Hris\PayrollWorkflowConfig;
+use App\Models\Hris\PayrollWorkflowStep;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 
@@ -176,17 +177,14 @@ test('Property 1: Config uniqueness per module — duplicate module insert alway
 /**
  * Property-Based Test: Config requires finance step
  *
- * For any valid PayrollWorkflowConfig, it must contain exactly one
- * PayrollWorkflowStep with step_type = 'finance'. The COO step is optional
- * (0 or 1 steps with step_type = 'coo'). A config with zero finance steps
- * or more than one finance step should be rejected by validation.
+ * For any valid PayrollWorkflowConfig, it must contain at least one
+ * PayrollWorkflowStep with step_type = 'finance'. A config with zero finance steps
+ * should be rejected by validation.
  *
  * **Validates: Requirements 1.3**
  */
 
-use App\Models\Hris\PayrollWorkflowStep;
-
-test('Property 2: Config requires finance step — validation passes only with exactly 1 finance and 0–1 COO', function () {
+test('Property 2: Config requires finance step — validation passes if >= 1 finance step', function () {
     for ($i = 0; $i < 100; $i++) {
         PayrollWorkflowConfig::query()->delete();
         PayrollWorkflowStep::query()->delete();
@@ -201,9 +199,8 @@ test('Property 2: Config requires finance step — validation passes only with e
             'is_active' => true,
         ]);
 
-        // Generate random step counts: 0–3 finance, 0–2 COO
+        // Generate random step counts: 0–3 finance
         $financeCount = fake()->numberBetween(0, 3);
-        $cooCount = fake()->numberBetween(0, 2);
 
         $order = 1;
         for ($f = 0; $f < $financeCount; $f++) {
@@ -216,22 +213,12 @@ test('Property 2: Config requires finance step — validation passes only with e
             ]);
         }
 
-        for ($c = 0; $c < $cooCount; $c++) {
-            PayrollWorkflowStep::create([
-                'payroll_workflow_config_id' => $config->id,
-                'step_type' => PayrollWorkflowStep::STEP_COO,
-                'assignee_type' => 'role',
-                'assignee_role' => 'coo',
-                'order' => $order++,
-            ]);
-        }
-
         $result = $config->validateSteps();
-        $expectedValid = ($financeCount === 1 && $cooCount <= 1);
+        $expectedValid = ($financeCount >= 1);
 
         expect($result['valid'])->toBe(
             $expectedValid,
-            "Iteration {$i}: finance={$financeCount}, coo={$cooCount} — "
+            "Iteration {$i}: finance={$financeCount} — "
             . "expected valid=" . ($expectedValid ? 'true' : 'false')
             . ", got valid=" . ($result['valid'] ? 'true' : 'false')
         );
@@ -261,118 +248,13 @@ test('Property 2: Config requires finance step — zero finance steps always fai
             'is_active' => true,
         ]);
 
-        // Only COO steps, no finance
-        $cooCount = fake()->numberBetween(0, 2);
-        for ($c = 0; $c < $cooCount; $c++) {
-            PayrollWorkflowStep::create([
-                'payroll_workflow_config_id' => $config->id,
-                'step_type' => PayrollWorkflowStep::STEP_COO,
-                'assignee_type' => 'role',
-                'assignee_role' => 'coo',
-                'order' => $c + 1,
-            ]);
-        }
-
         $result = $config->validateSteps();
 
         expect($result['valid'])->toBeFalse(
-            "Iteration {$i}: Config with 0 finance steps and {$cooCount} COO steps should be invalid"
+            "Iteration {$i}: Config with 0 finance steps should be invalid"
         );
         expect($result['errors'])->toContain(
-            "Config must have exactly 1 finance step, found 0."
-        );
-    }
-})->group('property-test', 'payroll-approval-workflow');
-
-test('Property 2: Config requires finance step — multiple finance steps always fails validation', function () {
-    for ($i = 0; $i < 50; $i++) {
-        PayrollWorkflowConfig::query()->delete();
-        PayrollWorkflowStep::query()->delete();
-
-        $config = PayrollWorkflowConfig::create([
-            'module' => fake()->randomElement([
-                PayrollWorkflowConfig::MODULE_MONTHLY,
-                PayrollWorkflowConfig::MODULE_WEEKLY,
-            ]),
-            'is_active' => true,
-        ]);
-
-        // 2 or 3 finance steps
-        $financeCount = fake()->numberBetween(2, 3);
-        $cooCount = fake()->numberBetween(0, 1);
-
-        $order = 1;
-        for ($f = 0; $f < $financeCount; $f++) {
-            PayrollWorkflowStep::create([
-                'payroll_workflow_config_id' => $config->id,
-                'step_type' => PayrollWorkflowStep::STEP_FINANCE,
-                'assignee_type' => 'role',
-                'assignee_role' => 'finance',
-                'order' => $order++,
-            ]);
-        }
-        for ($c = 0; $c < $cooCount; $c++) {
-            PayrollWorkflowStep::create([
-                'payroll_workflow_config_id' => $config->id,
-                'step_type' => PayrollWorkflowStep::STEP_COO,
-                'assignee_type' => 'role',
-                'assignee_role' => 'coo',
-                'order' => $order++,
-            ]);
-        }
-
-        $result = $config->validateSteps();
-
-        expect($result['valid'])->toBeFalse(
-            "Iteration {$i}: Config with {$financeCount} finance steps should be invalid"
-        );
-        expect($result['errors'])->toContain(
-            "Config must have exactly 1 finance step, found {$financeCount}."
-        );
-    }
-})->group('property-test', 'payroll-approval-workflow');
-
-test('Property 2: Config requires finance step — exactly 1 finance and 0–1 COO always passes validation', function () {
-    for ($i = 0; $i < 50; $i++) {
-        PayrollWorkflowConfig::query()->delete();
-        PayrollWorkflowStep::query()->delete();
-
-        $config = PayrollWorkflowConfig::create([
-            'module' => fake()->randomElement([
-                PayrollWorkflowConfig::MODULE_MONTHLY,
-                PayrollWorkflowConfig::MODULE_WEEKLY,
-            ]),
-            'is_active' => true,
-        ]);
-
-        // Exactly 1 finance step
-        PayrollWorkflowStep::create([
-            'payroll_workflow_config_id' => $config->id,
-            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
-            'assignee_type' => 'role',
-            'assignee_role' => 'finance',
-            'order' => 1,
-        ]);
-
-        // 0 or 1 COO steps
-        $cooCount = fake()->numberBetween(0, 1);
-        if ($cooCount === 1) {
-            PayrollWorkflowStep::create([
-                'payroll_workflow_config_id' => $config->id,
-                'step_type' => PayrollWorkflowStep::STEP_COO,
-                'assignee_type' => 'role',
-                'assignee_role' => 'coo',
-                'order' => 2,
-            ]);
-        }
-
-        $result = $config->validateSteps();
-
-        expect($result['valid'])->toBeTrue(
-            "Iteration {$i}: Config with 1 finance and {$cooCount} COO should be valid"
-        );
-        expect($result['errors'])->toBeEmpty(
-            "Iteration {$i}: Valid config should have no errors"
+            "Config must have at least 1 finance step, found 0."
         );
     }
 })->group('property-test', 'payroll-approval-workflow');
@@ -383,8 +265,8 @@ test('Property 2: Config requires finance step — exactly 1 finance and 0–1 C
 /**
  * Property-Based Test: Config persistence round-trip
  *
- * For any valid workflow configuration (module identifier, finance step with assignee,
- * optional COO step with assignee), saving it to the database and reading it back
+ * For any valid workflow configuration (module identifier, finance steps),
+ * saving it to the database and reading it back
  * should produce an equivalent configuration with all step definitions and approver
  * assignments intact.
  *
@@ -396,7 +278,7 @@ test('Property 4: Config persistence round-trip — saved config with steps can 
         PayrollWorkflowConfig::MODULE_MONTHLY,
         PayrollWorkflowConfig::MODULE_WEEKLY,
     ];
-    $roleNames = ['finance', 'coo', 'hr-admin', 'hr-staff', 'super_admin', 'manager'];
+    $roleNames = ['finance', 'hr-admin', 'hr-staff', 'super_admin', 'manager'];
 
     for ($i = 0; $i < 100; $i++) {
         PayrollWorkflowConfig::query()->delete();
@@ -405,7 +287,6 @@ test('Property 4: Config persistence round-trip — saved config with steps can 
         // Generate random valid config parameters
         $module = fake()->randomElement($modules);
         $isActive = fake()->boolean(80);
-        $includeCoo = fake()->boolean(50);
 
         // Generate random finance step assignee
         $financeAssigneeType = fake()->randomElement(['user', 'role']);
@@ -415,19 +296,6 @@ test('Property 4: Config persistence round-trip — saved config with steps can 
             $financeUser = User::factory()->create();
         } else {
             $financeRole = fake()->randomElement($roleNames);
-        }
-
-        // Generate random COO step assignee (if included)
-        $cooAssigneeType = null;
-        $cooUser = null;
-        $cooRole = null;
-        if ($includeCoo) {
-            $cooAssigneeType = fake()->randomElement(['user', 'role']);
-            if ($cooAssigneeType === 'user') {
-                $cooUser = User::factory()->create();
-            } else {
-                $cooRole = fake()->randomElement($roleNames);
-            }
         }
 
         // Save config
@@ -446,18 +314,6 @@ test('Property 4: Config persistence round-trip — saved config with steps can 
             'order' => 1,
         ]);
 
-        // Save COO step if included
-        if ($includeCoo) {
-            PayrollWorkflowStep::create([
-                'payroll_workflow_config_id' => $config->id,
-                'step_type' => PayrollWorkflowStep::STEP_COO,
-                'assignee_type' => $cooAssigneeType,
-                'assignee_user_id' => $cooUser?->id,
-                'assignee_role' => $cooRole,
-                'order' => 2,
-            ]);
-        }
-
         // Reload from database (fresh query, no cache)
         $reloaded = PayrollWorkflowConfig::with('steps')->find($config->id);
 
@@ -475,7 +331,7 @@ test('Property 4: Config persistence round-trip — saved config with steps can 
         );
 
         // Assert step count
-        $expectedStepCount = $includeCoo ? 2 : 1;
+        $expectedStepCount = 1;
         expect($reloaded->steps)->toHaveCount(
             $expectedStepCount,
             "Iteration {$i}: Expected {$expectedStepCount} steps, got {$reloaded->steps->count()}"
@@ -502,35 +358,6 @@ test('Property 4: Config persistence round-trip — saved config with steps can 
             1,
             "Iteration {$i}: Finance step order should be 1"
         );
-
-        // Assert COO step fields if included
-        if ($includeCoo) {
-            $reloadedCoo = $reloaded->steps->firstWhere('step_type', PayrollWorkflowStep::STEP_COO);
-            expect($reloadedCoo)->not->toBeNull(
-                "Iteration {$i}: Reloaded config should have a COO step"
-            );
-            expect($reloadedCoo->assignee_type)->toBe(
-                $cooAssigneeType,
-                "Iteration {$i}: COO assignee_type should be '{$cooAssigneeType}'"
-            );
-            expect($reloadedCoo->assignee_user_id)->toBe(
-                $cooUser?->id,
-                "Iteration {$i}: COO assignee_user_id mismatch"
-            );
-            expect($reloadedCoo->assignee_role)->toBe(
-                $cooRole,
-                "Iteration {$i}: COO assignee_role mismatch"
-            );
-            expect($reloadedCoo->order)->toBe(
-                2,
-                "Iteration {$i}: COO step order should be 2"
-            );
-        } else {
-            $reloadedCoo = $reloaded->steps->firstWhere('step_type', PayrollWorkflowStep::STEP_COO);
-            expect($reloadedCoo)->toBeNull(
-                "Iteration {$i}: Config without COO should not have a COO step after reload"
-            );
-        }
     }
 })->group('property-test', 'payroll-approval-workflow');
 
@@ -559,7 +386,7 @@ test('Property 4: Config persistence round-trip — getActiveConfig returns pers
             'step_type' => PayrollWorkflowStep::STEP_FINANCE,
             'assignee_type' => $assigneeType,
             'assignee_user_id' => $assigneeType === 'user' ? User::factory()->create()->id : null,
-            'assignee_role' => $assigneeType === 'role' ? fake()->randomElement(['finance', 'coo', 'hr-admin']) : null,
+            'assignee_role' => $assigneeType === 'role' ? fake()->randomElement(['finance', 'hr-admin']) : null,
             'order' => 1,
         ]);
 
@@ -590,7 +417,7 @@ test('Property 4: Config persistence round-trip — getActiveConfig returns pers
 })->group('property-test', 'payroll-approval-workflow');
 
 test('Property 4: Config persistence round-trip — steps relationship is correctly persisted and reloaded via fresh query', function () {
-    $roleNames = ['finance', 'coo', 'hr-admin', 'hr-staff', 'super_admin'];
+    $roleNames = ['finance', 'hr-admin', 'hr-staff', 'super_admin'];
 
     for ($i = 0; $i < 100; $i++) {
         PayrollWorkflowConfig::query()->delete();
@@ -621,21 +448,6 @@ test('Property 4: Config persistence round-trip — steps relationship is correc
             'assignee_role' => $finRole,
             'order' => 1,
         ];
-
-        // Optionally add COO step
-        if (fake()->boolean(50)) {
-            $cooAssigneeType = fake()->randomElement(['user', 'role']);
-            $cooUserId = $cooAssigneeType === 'user' ? User::factory()->create()->id : null;
-            $cooRole = $cooAssigneeType === 'role' ? fake()->randomElement($roleNames) : null;
-
-            $expectedSteps[] = [
-                'step_type' => PayrollWorkflowStep::STEP_COO,
-                'assignee_type' => $cooAssigneeType,
-                'assignee_user_id' => $cooUserId,
-                'assignee_role' => $cooRole,
-                'order' => 2,
-            ];
-        }
 
         // Persist all steps
         foreach ($expectedSteps as $stepData) {

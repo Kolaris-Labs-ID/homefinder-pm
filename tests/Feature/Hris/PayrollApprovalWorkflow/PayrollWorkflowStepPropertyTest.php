@@ -43,7 +43,7 @@ test('Property 3: Step assignee type validation — user-assigned step returns t
 
         $step = PayrollWorkflowStep::create([
             'payroll_workflow_config_id' => $config->id,
-            'step_type' => fake()->randomElement([PayrollWorkflowStep::STEP_FINANCE, PayrollWorkflowStep::STEP_COO]),
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
             'assignee_type' => 'user',
             'assignee_user_id' => $assignedUser->id,
             'assignee_role' => null,
@@ -111,7 +111,7 @@ test('Property 3: Step assignee type validation — role-assigned step returns t
 
         $step = PayrollWorkflowStep::create([
             'payroll_workflow_config_id' => $config->id,
-            'step_type' => fake()->randomElement([PayrollWorkflowStep::STEP_FINANCE, PayrollWorkflowStep::STEP_COO]),
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
             'assignee_type' => 'role',
             'assignee_user_id' => null,
             'assignee_role' => $assignedRoleName,
@@ -162,7 +162,7 @@ test('Property 3: Step assignee type validation — canBeActedOnBy is consistent
         if ($assigneeType === 'user') {
             $step = PayrollWorkflowStep::create([
                 'payroll_workflow_config_id' => $config->id,
-                'step_type' => fake()->randomElement([PayrollWorkflowStep::STEP_FINANCE, PayrollWorkflowStep::STEP_COO]),
+                'step_type' => PayrollWorkflowStep::STEP_FINANCE,
                 'assignee_type' => 'user',
                 'assignee_user_id' => $user->id,
                 'assignee_role' => null,
@@ -186,7 +186,7 @@ test('Property 3: Step assignee type validation — canBeActedOnBy is consistent
 
             $step = PayrollWorkflowStep::create([
                 'payroll_workflow_config_id' => $config->id,
-                'step_type' => fake()->randomElement([PayrollWorkflowStep::STEP_FINANCE, PayrollWorkflowStep::STEP_COO]),
+                'step_type' => PayrollWorkflowStep::STEP_FINANCE,
                 'assignee_type' => 'role',
                 'assignee_user_id' => null,
                 'assignee_role' => $roleName,

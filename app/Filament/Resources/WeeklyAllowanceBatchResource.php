@@ -91,7 +91,8 @@ class WeeklyAllowanceBatchResource extends Resource
                         'rejected' => 'danger',
                         'paid' => 'success',
                         default => 'gray',
-                    }),
+                    })
+                    ->description(fn (WeeklyAllowanceBatch $record) => $record->current_approver_name ? "Waiting: {$record->current_approver_name}" : null),
                 Tables\Columns\TextColumn::make('total_employees')
                     ->label('Employees')
                     ->alignCenter(),
@@ -148,6 +149,42 @@ class WeeklyAllowanceBatchResource extends Resource
                                 ->send();
                         }
                     }),
+                // Approve (Intermediate Step)
+                Tables\Actions\Action::make('approve')
+                    ->label('Approve')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(function (WeeklyAllowanceBatch $record) {
+                        if ($record->isPaid() || ! $record->canBeApprovedByFinance()) {
+                            return false;
+                        }
+                        $service = app(PayrollApprovalService::class);
+                        return $service->canUserActOnBatch($record, auth()->user()) && !$service->isFinalFinanceStep($record);
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Approve Weekly Allowance Batch')
+                    ->modalDescription('Are you sure you want to approve this weekly allowance batch and pass it to the next approver?')
+                    ->action(function (WeeklyAllowanceBatch $record) {
+                        $service = app(PayrollApprovalService::class);
+
+                        try {
+                            $service->approve($record, auth()->user());
+
+                            Notification::make()
+                                ->title('Batch Approved')
+                                ->body('The weekly allowance batch has been approved and moved to the next step.')
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Approval Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+
+                // Approve & Pay (Final Step)
                 Tables\Actions\Action::make('approveAndPay')
                     ->label('Approve & Pay')
                     ->icon('heroicon-o-banknotes')
@@ -157,11 +194,11 @@ class WeeklyAllowanceBatchResource extends Resource
                             return false;
                         }
                         $service = app(PayrollApprovalService::class);
-                        return $service->canUserActOnBatch($record, auth()->user());
+                        return $service->canUserActOnBatch($record, auth()->user()) && $service->isFinalFinanceStep($record);
                     })
                     ->requiresConfirmation()
                     ->modalHeading('Approve & Pay')
-                    ->modalDescription('Are you sure you want to approve this weekly allowance batch and mark it as paid?')
+                    ->modalDescription('This is the final approval step. Are you sure you want to approve this weekly allowance batch and mark it as paid?')
                     ->action(function (WeeklyAllowanceBatch $record) {
                         $service = app(PayrollApprovalService::class);
 

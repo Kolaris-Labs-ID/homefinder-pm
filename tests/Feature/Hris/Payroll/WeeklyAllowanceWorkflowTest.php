@@ -78,6 +78,7 @@ describe('Weekly Allowance Batch status transitions', function () {
         $batch = createWeeklyBatch('pending_finance', [
             'submitted_by' => User::factory()->create()->id,
             'submitted_at' => now(),
+            'current_finance_step_order' => 1,
         ]);
 
         expect($batch->canBeApprovedByFinance())->toBeTrue();
@@ -87,6 +88,7 @@ describe('Weekly Allowance Batch status transitions', function () {
         $batch = createWeeklyBatch('pending_finance', [
             'submitted_by' => User::factory()->create()->id,
             'submitted_at' => now(),
+            'current_finance_step_order' => 1,
         ]);
 
         expect($batch->canBeRejected())->toBeTrue();
@@ -97,6 +99,7 @@ describe('Weekly Allowance Batch status transitions', function () {
             'submitted_by' => User::factory()->create()->id,
             'submitted_at' => now(),
             'rejection_reason' => 'Wrong amounts',
+            'current_finance_step_order' => null,
         ]);
 
         expect($batch->canBeResubmitted())->toBeTrue();
@@ -131,17 +134,19 @@ describe('Weekly Allowance Batch approval workflow via PayrollApprovalService', 
         $batch->refresh();
 
         expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(1)
             ->and($batch->submitted_by)->toBe($submitter->id)
             ->and($batch->submitted_at)->not->toBeNull();
     });
 
-    it('finance approver can approve and pay', function () {
+    it('finance approver can approve and pay (single approver)', function () {
         $finance = User::factory()->create();
         createWeeklyWorkflow([$finance]);
 
         $batch = createWeeklyBatch('pending_finance', [
             'submitted_by' => User::factory()->create()->id,
             'submitted_at' => now(),
+            'current_finance_step_order' => 1,
         ]);
 
         $this->service->approveAndPay($batch, $finance);
@@ -159,12 +164,14 @@ describe('Weekly Allowance Batch approval workflow via PayrollApprovalService', 
         $batch = createWeeklyBatch('pending_finance', [
             'submitted_by' => User::factory()->create()->id,
             'submitted_at' => now(),
+            'current_finance_step_order' => 1,
         ]);
 
         $this->service->reject($batch, $finance, 'Numbers are incorrect');
         $batch->refresh();
 
         expect($batch->status)->toBe('rejected')
+            ->and($batch->current_finance_step_order)->toBeNull()
             ->and($batch->rejection_reason)->toBe('Numbers are incorrect');
     });
 
@@ -177,15 +184,17 @@ describe('Weekly Allowance Batch approval workflow via PayrollApprovalService', 
             'submitted_by' => $submitter->id,
             'submitted_at' => now()->subHour(),
             'rejection_reason' => 'Wrong amounts',
+            'current_finance_step_order' => null,
         ]);
 
         $this->service->resubmit($batch, $submitter);
         $batch->refresh();
 
-        expect($batch->status)->toBe('pending_finance');
+        expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(1);
     });
 
-    it('any of multiple finance approvers can approve', function () {
+    it('multiple finance approvers must approve sequentially', function () {
         $finance1 = User::factory()->create();
         $finance2 = User::factory()->create();
         $finance3 = User::factory()->create();
@@ -194,9 +203,26 @@ describe('Weekly Allowance Batch approval workflow via PayrollApprovalService', 
         $batch = createWeeklyBatch('pending_finance', [
             'submitted_by' => User::factory()->create()->id,
             'submitted_at' => now(),
+            'current_finance_step_order' => 1,
         ]);
 
-        // Finance user 3 approves — any should work
+        // Attempting to jump sequence should throw
+        expect(fn () => $this->service->approveAndPay($batch, $finance3))
+            ->toThrow(\Illuminate\Auth\Access\AuthorizationException::class);
+
+        // Finance 1 Approves
+        $this->service->approve($batch, $finance1);
+        $batch->refresh();
+        expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(2);
+
+        // Finance 2 Approves
+        $this->service->approve($batch, $finance2);
+        $batch->refresh();
+        expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(3);
+
+        // Finance 3 Approves & Pays
         $this->service->approveAndPay($batch, $finance3);
         $batch->refresh();
 
@@ -212,6 +238,7 @@ describe('Weekly Allowance Batch approval workflow via PayrollApprovalService', 
         $batch = createWeeklyBatch('pending_finance', [
             'submitted_by' => User::factory()->create()->id,
             'submitted_at' => now(),
+            'current_finance_step_order' => 1,
         ]);
 
         expect(fn () => $this->service->approveAndPay($batch, $outsider))
@@ -232,62 +259,74 @@ describe('Weekly Allowance Batch full workflow integration', function () {
         // Step 1: Submit
         $this->service->submitForApproval($batch, $submitter);
         $batch->refresh();
-        expect($batch->status)->toBe('pending_finance');
+        expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(1);
 
         // Step 2: Both finance users can see it
         expect(WeeklyAllowanceBatch::visibleToUser($finance1)->count())->toBe(1);
         expect(WeeklyAllowanceBatch::visibleToUser($finance2)->count())->toBe(1);
 
-        // Step 3: Finance1 approves
-        $this->service->approveAndPay($batch, $finance1);
+        // Step 3: Finance1 approves (intermediate)
+        $this->service->approve($batch, $finance1);
+        $batch->refresh();
+        expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(2);
+
+        // Step 4: Finance2 approves and pays
+        $this->service->approveAndPay($batch, $finance2);
         $batch->refresh();
         expect($batch->status)->toBe('paid');
 
-        // Step 4: Both can still see it (paid is visible)
+        // Step 5: Both can still see it (paid is visible)
         expect(WeeklyAllowanceBatch::visibleToUser($finance1)->count())->toBe(1);
         expect(WeeklyAllowanceBatch::visibleToUser($finance2)->count())->toBe(1);
 
         // Verify audit trail
         $logs = PayrollApprovalLog::where('batch_id', $batch->id)->orderBy('id')->get();
-        expect($logs)->toHaveCount(2)
+        expect($logs)->toHaveCount(3)
             ->and($logs[0]->action)->toBe('submitted')
-            ->and($logs[1]->action)->toBe('approved');
+            ->and($logs[1]->action)->toBe('approved')
+            ->and($logs[2]->action)->toBe('paid');
     });
 
     it('rejection and resubmission path: submit → reject → resubmit → approve', function () {
-        $finance = User::factory()->create();
+        $finance1 = User::factory()->create();
+        $finance2 = User::factory()->create();
         $submitter = User::factory()->create();
-        createWeeklyWorkflow([$finance]);
+        createWeeklyWorkflow([$finance1, $finance2]);
 
         $batch = createWeeklyBatch('calculated');
 
         // Submit
         $this->service->submitForApproval($batch, $submitter);
         $batch->refresh();
-        expect($batch->status)->toBe('pending_finance');
 
-        // Reject
-        $this->service->reject($batch, $finance, 'Wrong amounts');
+        // Finance 1 rejects
+        $this->service->reject($batch, $finance1, 'Wrong amounts');
         $batch->refresh();
         expect($batch->status)->toBe('rejected');
 
         // Resubmit
         $this->service->resubmit($batch, $submitter);
         $batch->refresh();
-        expect($batch->status)->toBe('pending_finance');
+        expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(1);
 
-        // Approve
-        $this->service->approveAndPay($batch, $finance);
+        // Appprove sequence
+        $this->service->approve($batch, $finance1);
+        $this->service->approveAndPay($batch, $finance2);
+        
         $batch->refresh();
         expect($batch->status)->toBe('paid');
 
         // Verify full audit trail
         $logs = PayrollApprovalLog::where('batch_id', $batch->id)->orderBy('id')->get();
-        expect($logs)->toHaveCount(4)
+        expect($logs)->toHaveCount(5)
             ->and($logs[0]->action)->toBe('submitted')
             ->and($logs[1]->action)->toBe('rejected')
             ->and($logs[2]->action)->toBe('resubmitted')
-            ->and($logs[3]->action)->toBe('approved');
+            ->and($logs[3]->action)->toBe('approved')
+            ->and($logs[4]->action)->toBe('paid');
     });
 
     it('finance approvers cannot see draft or calculated weekly batches', function () {
@@ -300,3 +339,4 @@ describe('Weekly Allowance Batch full workflow integration', function () {
         expect(WeeklyAllowanceBatch::visibleToUser($finance)->count())->toBe(0);
     });
 });
+

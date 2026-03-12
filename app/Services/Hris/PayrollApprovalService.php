@@ -42,6 +42,7 @@ class PayrollApprovalService
 
             $previousStatus = $batch->status;
             $batch->status = 'pending_finance';
+            $batch->current_finance_step_order = 1;
             $batch->submitted_by = $submitter->id;
             $batch->submitted_at = now();
             $batch->save();
@@ -51,8 +52,35 @@ class PayrollApprovalService
     }
 
     /**
-     * Finance approves and pays (pending_finance → paid).
-     * Any of the configured finance approvers can approve.
+     * Intermediate Finance Approver approves (stays pending_finance, advances step order).
+     */
+    public function approve(Model $batch, User $approver, ?string $notes = null): void
+    {
+        DB::transaction(function () use ($batch, $approver, $notes) {
+            $batch = $batch->fresh();
+            $batch->lockForUpdate()->find($batch->id);
+
+            if ($batch->status !== 'pending_finance') {
+                throw new \LogicException("Cannot approve batch with status: {$batch->status}");
+            }
+
+            if (!$this->canUserActOnBatch($batch, $approver)) {
+                throw new AuthorizationException("You are not authorized to act on this step.");
+            }
+
+            if ($this->isFinalFinanceStep($batch)) {
+                throw new \LogicException("Use approveAndPay for the final step.");
+            }
+
+            $batch->current_finance_step_order += 1;
+            $batch->save();
+
+            $this->createLog($batch, 'approved', 'pending_finance', 'pending_finance', $approver, $notes);
+        });
+    }
+
+    /**
+     * Final Finance Approver approves and pays (pending_finance → paid).
      */
     public function approveAndPay(Model $batch, User $approver, ?string $notes = null): void
     {
@@ -68,7 +96,13 @@ class PayrollApprovalService
                 throw new \LogicException("Cannot approve batch with status: {$batch->status}");
             }
 
-            $this->validateUserCanActOnStep($batch, $approver, PayrollWorkflowStep::STEP_FINANCE);
+            if (!$this->canUserActOnBatch($batch, $approver)) {
+                throw new AuthorizationException("You are not authorized to act on this step.");
+            }
+
+            if (!$this->isFinalFinanceStep($batch)) {
+                throw new AuthorizationException("Only the final approver can pay the batch.");
+            }
 
             $previousStatus = $batch->status;
             $batch->status = 'paid';
@@ -76,13 +110,12 @@ class PayrollApprovalService
             $batch->paid_at = now();
             $batch->save();
 
-            $this->createLog($batch, 'approved', $previousStatus, 'paid', $approver, $notes);
+            $this->createLog($batch, 'paid', $previousStatus, 'paid', $approver, $notes);
         });
     }
 
     /**
      * Reject a batch (pending_finance → rejected).
-     * Any of the configured finance approvers can reject.
      */
     public function reject(Model $batch, User $rejector, string $reason): void
     {
@@ -104,9 +137,14 @@ class PayrollApprovalService
                 throw new \LogicException("Cannot reject batch with status: {$batch->status}");
             }
 
+            if (!$this->canUserActOnBatch($batch, $rejector)) {
+                throw new AuthorizationException("You are not authorized to act on this step.");
+            }
+
             $previousStatus = $batch->status;
             $batch->status = 'rejected';
             $batch->rejection_reason = $trimmedReason;
+            $batch->current_finance_step_order = null; // Reset order upon rejection
             $batch->save();
 
             $this->createLog($batch, 'rejected', $previousStatus, 'rejected', $rejector, $trimmedReason);
@@ -132,6 +170,7 @@ class PayrollApprovalService
 
             $previousStatus = $batch->status;
             $batch->status = 'pending_finance';
+            $batch->current_finance_step_order = 1; // Restart from step 1
             $batch->save();
 
             $this->createLog($batch, 'resubmitted', $previousStatus, 'pending_finance', $submitter);
@@ -155,26 +194,52 @@ class PayrollApprovalService
     }
 
     /**
-     * Check if a user can act on the current step for a batch.
-     * Checks all finance step rows (multi-finance approver).
+     * Check if a user can act on the CURRENT step for a batch.
      */
     public function canUserActOnBatch(Model $batch, User $user): bool
     {
-        $module = $this->getModuleForBatch($batch);
-        $config = PayrollWorkflowConfig::getActiveConfig($module);
-
-        if (!$config) {
-            return false;
-        }
-
         if ($batch->status !== 'pending_finance') {
             return false;
         }
 
-        // Check if user matches ANY of the finance step rows
-        $financeSteps = $config->steps()->where('step_type', PayrollWorkflowStep::STEP_FINANCE)->get();
+        $module = $this->getModuleForBatch($batch);
+        $config = PayrollWorkflowConfig::getActiveConfig($module);
 
-        return $financeSteps->contains(fn ($step) => $step->canBeActedOnBy($user));
+        if (!$config || !$batch->current_finance_step_order) {
+            return false;
+        }
+
+        // Only verify against the exact current step based on order
+        $currentStep = $config->steps()
+            ->where('step_type', PayrollWorkflowStep::STEP_FINANCE)
+            ->orderBy('order', 'asc')
+            ->skip($batch->current_finance_step_order - 1)
+            ->first();
+
+        if (!$currentStep) {
+            return false;
+        }
+
+        return $currentStep->canBeActedOnBy($user);
+    }
+
+    /**
+     * Check if the batch is currently at the final finance step.
+     */
+    public function isFinalFinanceStep(Model $batch): bool
+    {
+        $module = $this->getModuleForBatch($batch);
+        $config = PayrollWorkflowConfig::getActiveConfig($module);
+
+        if (!$config || !$batch->current_finance_step_order) {
+            return false;
+        }
+
+        $totalFinanceSteps = $config->steps()
+            ->where('step_type', PayrollWorkflowStep::STEP_FINANCE)
+            ->count();
+
+        return $batch->current_finance_step_order >= $totalFinanceSteps;
     }
 
     /**
@@ -198,30 +263,5 @@ class PayrollApprovalService
             'notes' => $notes,
         ]);
     }
-
-    /**
-     * Validate that a user can act on a specific step type for a batch.
-     * For finance steps, checks ALL finance step rows (multi-finance approver).
-     */
-    protected function validateUserCanActOnStep(Model $batch, User $user, string $stepType): void
-    {
-        $module = $this->getModuleForBatch($batch);
-        $config = PayrollWorkflowConfig::getActiveConfig($module);
-
-        if (!$config) {
-            throw new AuthorizationException('No active workflow configuration exists.');
-        }
-
-        $steps = $config->steps()->where('step_type', $stepType)->get();
-
-        if ($steps->isEmpty()) {
-            throw new AuthorizationException('You are not authorized to act on this batch.');
-        }
-
-        $canAct = $steps->contains(fn ($step) => $step->canBeActedOnBy($user));
-
-        if (!$canAct) {
-            throw new AuthorizationException('You are not authorized to act on this batch.');
-        }
-    }
 }
+

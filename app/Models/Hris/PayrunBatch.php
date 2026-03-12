@@ -36,6 +36,7 @@ class PayrunBatch extends Model
         'submitted_by',
         'submitted_at',
         'rejection_reason',
+        'current_finance_step_order',
     ];
 
     protected $casts = [
@@ -46,6 +47,7 @@ class PayrunBatch extends Model
         'approved_at' => 'datetime',
         'paid_at' => 'datetime',
         'submitted_at' => 'datetime',
+        'current_finance_step_order' => 'integer',
     ];
 
     /**

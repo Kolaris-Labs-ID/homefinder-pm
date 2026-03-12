@@ -24,8 +24,8 @@ beforeEach(function () {
  */
 function createWorkflowConfig(
     string $module,
-    User $financeUser = null,
-    string $financeRole = null,
+    ?User $financeUser = null,
+    ?string $financeRole = null,
 ): PayrollWorkflowConfig {
     $config = PayrollWorkflowConfig::create([
         'module' => $module,
@@ -145,7 +145,7 @@ test('Property 7: Approve-and-pay transitions to paid with metadata — finance 
 
         if ($batchClass === PayrunBatch::class) {
             $module = PayrollWorkflowConfig::MODULE_MONTHLY;
-            $batch = PayrunBatch::factory()->pendingFinance()->create();
+            $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
         } else {
             $module = PayrollWorkflowConfig::MODULE_WEEKLY;
             $batch = WeeklyAllowanceBatch::create([
@@ -155,6 +155,7 @@ test('Property 7: Approve-and-pay transitions to paid with metadata — finance 
                 'status' => 'pending_finance',
                 'submitted_by' => User::factory()->create()->id,
                 'submitted_at' => now(),
+                'current_finance_step_order' => 1,
             ]);
         }
 
@@ -189,7 +190,7 @@ test('Property 10: Rejection with non-empty reason transitions to rejected', fun
 
         if ($batchClass === PayrunBatch::class) {
             $module = PayrollWorkflowConfig::MODULE_MONTHLY;
-            $batch = PayrunBatch::factory()->pendingFinance()->create();
+            $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
         } else {
             $module = PayrollWorkflowConfig::MODULE_WEEKLY;
             $batch = WeeklyAllowanceBatch::create([
@@ -199,6 +200,7 @@ test('Property 10: Rejection with non-empty reason transitions to rejected', fun
                 'status' => 'pending_finance',
                 'submitted_by' => User::factory()->create()->id,
                 'submitted_at' => now(),
+                'current_finance_step_order' => 1,
             ]);
         }
 
@@ -223,7 +225,7 @@ test('Property 10: Rejection with empty reason throws exception', function () {
 
         $financeUser = User::factory()->create();
         $module = PayrollWorkflowConfig::MODULE_MONTHLY;
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
+        $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
 
         createWorkflowConfig($module, financeUser: $financeUser);
 
@@ -254,7 +256,7 @@ test('Property 11: Rejection preserves calculation data — PayrunBatch records 
         $financeUser = User::factory()->create();
         $module = PayrollWorkflowConfig::MODULE_MONTHLY;
 
-        $batch = PayrunBatch::factory()->pendingFinance()->create();
+        $batch = PayrunBatch::factory()->pendingFinance()->create(['current_finance_step_order' => 1]);
 
         // Create random number of payroll records
         $recordCount = fake()->numberBetween(1, 5);
@@ -308,7 +310,7 @@ test('Property 12: Resubmission transitions to pending_finance from rejected', f
 
         if ($batchClass === PayrunBatch::class) {
             $module = PayrollWorkflowConfig::MODULE_MONTHLY;
-            $batch = PayrunBatch::factory()->rejected()->create();
+            $batch = PayrunBatch::factory()->rejected()->create(['current_finance_step_order' => null]);
         } else {
             $module = PayrollWorkflowConfig::MODULE_WEEKLY;
             $batch = WeeklyAllowanceBatch::create([
@@ -319,6 +321,7 @@ test('Property 12: Resubmission transitions to pending_finance from rejected', f
                 'submitted_by' => User::factory()->create()->id,
                 'submitted_at' => now()->subHour(),
                 'rejection_reason' => 'Needs correction',
+                'current_finance_step_order' => null,
             ]);
         }
 
@@ -414,12 +417,12 @@ test('Property 13: Every transition creates a complete log entry', function () {
 
         // 4. Approve and pay
         $logCountBefore = PayrollApprovalLog::count();
-        $service->approveAndPay($batch, $financeUser, 'All good');
+        $service->approveAndPay($batch, $financeUser);
         $batch->refresh();
 
         $log = PayrollApprovalLog::latest('id')->first();
         expect(PayrollApprovalLog::count())->toBe($logCountBefore + 1, "Iteration {$i}: Approve should create 1 log");
-        expect($log->action)->toBe('approved');
+        expect($log->action)->toBe('paid');
         expect($log->previous_status)->toBe('pending_finance');
         expect($log->new_status)->toBe('paid');
         expect($log->acted_by)->toBe($financeUser->id);
