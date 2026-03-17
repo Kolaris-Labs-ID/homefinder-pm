@@ -141,7 +141,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
                     ->formatStateUsing(fn (string $state): string => $this->getModuleLabel($state))
                     ->badge()
                     ->color(fn (string $state): string => $this->getModuleColor($state)),
-                TextColumn::make('approvable.employee.full_name')
+                TextColumn::make('approvable.employee.user.name')
                     ->label('Requestor')
                     ->searchable()
                     ->sortable(),
@@ -317,7 +317,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
             });
         }
 
-        return $query->with(['approvable.employee', 'workflow']);
+        return $query->with(['approvable.employee.user', 'workflow']);
     }
 
     /**

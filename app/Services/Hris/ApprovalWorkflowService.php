@@ -160,11 +160,8 @@ class ApprovalWorkflowService
         }
 
         // Validate the approver is authorized
-        if ($step->approver_id && $step->approver_id !== $approver->id) {
-            // Check if user has the required role
-            if ($step->approver_role && !$approver->hasRole($step->approver_role)) {
-                throw new \Exception('You are not authorized to approve this step.');
-            }
+        if (!$this->isUserAuthorizedForStep($step, $approver)) {
+            throw new \Exception('You are not authorized to approve this step.');
         }
 
         // Mark current step as approved
@@ -215,11 +212,8 @@ class ApprovalWorkflowService
         }
 
         // Validate the approver is authorized
-        if ($step->approver_id && $step->approver_id !== $approver->id) {
-            // Check if user has the required role
-            if ($step->approver_role && !$approver->hasRole($step->approver_role)) {
-                throw new \Exception('You are not authorized to reject this step.');
-            }
+        if (!$this->isUserAuthorizedForStep($step, $approver)) {
+            throw new \Exception('You are not authorized to reject this step.');
         }
 
         // Mark step as rejected
