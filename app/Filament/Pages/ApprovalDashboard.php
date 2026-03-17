@@ -476,7 +476,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
         }
 
         return match ($step->approvable_type) {
-            LeaveRequest::class => \App\Filament\Resources\LeaveRequestResource::getUrl('edit', ['record' => $approvable->id]),
+            LeaveRequest::class => \App\Filament\Resources\LeaveRequestResource::getUrl('view', ['record' => $approvable->id]),
             Reimbursement::class => \App\Filament\Resources\ReimbursementResource::getUrl('edit', ['record' => $approvable->id]),
             \App\Models\Hris\PayrollRecord::class => \App\Filament\Resources\PayrunBatchResource::getUrl('index'),
             TrainingRecord::class => \App\Filament\Resources\TrainingRecordResource::getUrl('edit', ['record' => $approvable->id]),

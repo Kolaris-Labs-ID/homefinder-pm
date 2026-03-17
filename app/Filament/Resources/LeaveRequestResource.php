@@ -233,18 +233,36 @@ class LeaveRequestResource extends Resource
             return $query;
         }
 
-        if ($user->hasAnyRole(['manager', 'head-division'])) {
+        // Build a query that includes:
+        // 1. Leave requests where the user is the current approver
+        // 2. Leave requests where the user has a pending ApprovalStep
+        // 3. Leave requests from employees managed by this user (for managers)
+        // 4. The user's own leave requests
+        return $query->where(function (Builder $builder) use ($user) {
+            // Include records where user is the assigned approver
+            $builder->where('current_approver_id', $user->id);
+
+            // Include records where user has a pending approval step
+            $builder->orWhereHas('approvalSteps', function (Builder $stepQuery) use ($user) {
+                $stepQuery->where('status', 'pending')
+                    ->where(function ($q) use ($user) {
+                        $q->where('approver_id', $user->id);
+                        $userRoles = $user->roles->pluck('name')->toArray();
+                        if (!empty($userRoles)) {
+                            $q->orWhereIn('approver_role', $userRoles);
+                        }
+                    });
+            });
+
+            // Include records from employees managed by this user
             $employeeId = optional($user->employee)->id;
-
             if ($employeeId) {
-                return $query->where(function (Builder $builder) use ($employeeId, $user) {
-                    $builder->whereHas('employee.primaryPosition', fn (Builder $relation) => $relation->where('manager_id', $employeeId))
-                        ->orWhereHas('employee', fn (Builder $relation) => $relation->where('user_id', $user->id));
-                });
+                $builder->orWhereHas('employee.primaryPosition', fn (Builder $relation) => $relation->where('manager_id', $employeeId));
             }
-        }
 
-        return $query->whereHas('employee', fn (Builder $builder) => $builder->where('user_id', $user->id));
+            // Include the user's own leave requests
+            $builder->orWhereHas('employee', fn (Builder $relation) => $relation->where('user_id', $user->id));
+        });
     }
 
     protected static function syncTotalDays(callable $set, ?string $start, ?string $end): void
