@@ -102,6 +102,11 @@ class HRDashboard extends Page implements HasForms
         return $this->analyticsService->getLeaveUsageSummary($this->leaveYear)->toArray();
     }
 
+    public function getEmployeeLeaveUsageDetails(): array
+    {
+        return $this->analyticsService->getEmployeeLeaveUsageDetails($this->leaveYear)->toArray();
+    }
+
     public function getAttendanceKPIs(): array
     {
         $start = Carbon::parse($this->startDate);

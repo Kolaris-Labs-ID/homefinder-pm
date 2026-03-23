@@ -215,6 +215,33 @@ class HRAnalyticsService
     }
 
     /**
+     * Get employee leave usage details for a given year.
+     * Shows detailed leave usage per employee.
+     *
+     * @param int $year The year to get details for
+     * @return Collection Collection with employee details and leave usage
+     */
+    public function getEmployeeLeaveUsageDetails(int $year): Collection
+    {
+        return LeaveBalance::query()
+            ->join('employees', 'leave_balances.employee_id', '=', 'employees.id')
+            ->join('users', 'employees.user_id', '=', 'users.id')
+            ->join('leave_types', 'leave_balances.leave_type_id', '=', 'leave_types.id')
+            ->where('leave_balances.year', $year)
+            ->where('employees.is_active', true)
+            ->select(
+                'users.name as employee_name',
+                'leave_types.name as leave_type_name',
+                'leave_balances.starting_balance as available_quota',
+                'leave_balances.used_days as used_quota',
+                'leave_balances.remaining_days as remaining_balance'
+            )
+            ->orderBy('users.name')
+            ->orderBy('leave_types.name')
+            ->get();
+    }
+
+    /**
      * Get attendance KPIs for a given date range.
      * Shows attendance rate, late percentage, and average working hours.
      *

@@ -182,6 +182,47 @@
         </x-filament::section>
     </div>
 
+    {{-- Employee Leave Usage --}}
+    <div class="mb-6">
+        <x-filament::section>
+            <x-slot name="heading">
+                <div class="flex items-center gap-2">
+                    <x-heroicon-o-users class="w-5 h-5" />
+                    Employee Leave Usage ({{ $this->leaveYear }})
+                </div>
+            </x-slot>
+            @php $employeeLeaveData = $this->getEmployeeLeaveUsageDetails(); @endphp
+            @if(count($employeeLeaveData) > 0)
+                <div class="overflow-x-auto max-h-96">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 bg-white dark:bg-gray-900 z-10">
+                            <tr class="border-b dark:border-gray-700">
+                                <th class="text-left py-2 text-gray-600 dark:text-gray-400">Name</th>
+                                <th class="text-left py-2 text-gray-600 dark:text-gray-400">Leave Type</th>
+                                <th class="text-right py-2 text-gray-600 dark:text-gray-400">Available Quota</th>
+                                <th class="text-right py-2 text-gray-600 dark:text-gray-400">Used</th>
+                                <th class="text-right py-2 text-gray-600 dark:text-gray-400">Remaining Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($employeeLeaveData as $data)
+                                <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                                    <td class="py-2 text-gray-900 dark:text-white font-medium">{{ $data['employee_name'] }}</td>
+                                    <td class="py-2 text-gray-900 dark:text-white">{{ $data['leave_type_name'] }}</td>
+                                    <td class="py-2 text-right text-gray-900 dark:text-white">{{ $data['available_quota'] }}</td>
+                                    <td class="py-2 text-right text-gray-900 dark:text-white">{{ $data['used_quota'] }}</td>
+                                    <td class="py-2 text-right text-gray-900 dark:text-white">{{ $data['remaining_balance'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <p class="text-gray-500 dark:text-gray-400 text-center py-4">No employee leave data available</p>
+            @endif
+        </x-filament::section>
+    </div>
+
     {{-- Leave Usage and Attendance KPIs --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {{-- Leave Usage Summary --}}
