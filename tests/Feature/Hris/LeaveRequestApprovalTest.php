@@ -71,7 +71,7 @@ test('it can approve leave request through multi-step workflow', function () {
 
     // Verify initial state
     expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_PENDING);
-    expect($leaveRequest->current_approver_id)->toBe($this->managerUser->id);
+    expect($leaveRequest->current_approver_id)->toBeNull();
     expect($leaveRequest->approvalSteps)->toHaveCount(2);
 
     $step1 = $leaveRequest->approvalSteps()->where('step_order', 1)->first();
@@ -79,36 +79,17 @@ test('it can approve leave request through multi-step workflow', function () {
 
     expect($step1->status)->toBe(ApprovalStep::STATUS_PENDING);
     expect($step1->approver_id)->toBe($this->managerUser->id);
-    expect($step2->status)->toBe(ApprovalStep::STATUS_SKIPPED); // Not yet active
+    expect($step2->status)->toBe(ApprovalStep::STATUS_PENDING); // Also pending because parallel
 
     // 3. Approve first step (Manager)
-    $this->approvalWorkflowService->approve($step1, $this->managerUser, 'Manager approved');
+    $this->approvalWorkflowService->approveParallel($step1, $this->managerUser, 'Manager approved');
 
     $leaveRequest->refresh();
     $step1->refresh();
     $step2->refresh();
 
     expect($step1->status)->toBe(ApprovalStep::STATUS_APPROVED);
-    expect($step2->status)->toBe(ApprovalStep::STATUS_PENDING);
-    // current_approver_id on leave request is NOT updated by ApprovalWorkflowService::approve automatically in the service itself, 
-    // it's usually handled by whatever calls it if they want that sync, 
-    // BUT LeaveWorkflowService::initializeWorkflow sets it initially.
-    // Actually, ApprovalWorkflowService::approve only advances steps.
-    // Let's check if LeaveRequest current_approver_id should be updated.
-    // In LeaveWorkflowService.php:
-    // $currentStep = $this->approvalWorkflowService->getCurrentStep($leaveRequest);
-    // if ($currentStep && $currentStep->approver_id) { $leaveRequest->update(['current_approver_id' => $currentStep->approver_id]); }
-    // This sync happens in initialize. If we want it to stay in sync during progression, 
-    // we might need to handle it or verify if the app expects it to always stay in sync.
-    // For now, let's verify what the code DOES.
-
-    // 4. Approve second step (HR Admin)
-    $this->approvalWorkflowService->approve($step2, $this->hrAdminUser, 'HR approved');
-
-    $leaveRequest->refresh();
-    $step2->refresh();
-
-    expect($step2->status)->toBe(ApprovalStep::STATUS_APPROVED);
+    expect($step2->status)->toBe(ApprovalStep::STATUS_SKIPPED);
     expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_APPROVED);
     expect($leaveRequest->approved_at)->not->toBeNull();
 });
@@ -192,7 +173,7 @@ test('unauthorized users cannot approve a step', function () {
     // Create a random user
     $randomUser = User::factory()->create();
 
-    expect(fn() => $this->approvalWorkflowService->approve($step, $randomUser))
+    expect(fn() => $this->approvalWorkflowService->approveParallel($step, $randomUser))
         ->toThrow(\Exception::class, 'You are not authorized to approve this step.');
 });
 

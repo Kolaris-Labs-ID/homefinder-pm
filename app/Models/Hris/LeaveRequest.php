@@ -4,6 +4,7 @@ namespace App\Models\Hris;
 
 use App\Contracts\Hris\ApprovableContract;
 use App\Models\User;
+use App\Services\Hris\LeaveBalanceService;
 use App\Traits\Hris\Approvable;
 use Carbon\CarbonPeriod;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -80,6 +81,21 @@ class LeaveRequest extends Model implements ApprovableContract
     public function requestedPeriod(): CarbonPeriod
     {
         return CarbonPeriod::create($this->start_date, $this->end_date);
+    }
+
+    /**
+     * Override markAsApproved to also consume leave balance.
+     */
+    public function markAsApproved(): void
+    {
+        // First consume the balance
+        app(LeaveBalanceService::class)->consume($this);
+
+        // Then call the trait's method to update status
+        $this->update([
+            'status' => static::STATUS_APPROVED,
+            'approved_at' => now(),
+        ]);
     }
 }
 

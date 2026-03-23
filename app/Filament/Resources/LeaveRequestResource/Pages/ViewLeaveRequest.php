@@ -164,7 +164,7 @@ class ViewLeaveRequest extends ViewRecord
 
         try {
             $service = app(ApprovalWorkflowService::class);
-            $service->approve($currentStep, $user, $data['notes'] ?? null);
+            $service->approveParallel($currentStep, $user, $data['notes'] ?? null);
 
             Notification::make()
                 ->title(__('Leave Request Approved'))

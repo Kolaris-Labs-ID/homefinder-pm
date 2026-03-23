@@ -24,24 +24,6 @@ beforeEach(function () {
     );
 });
 
-function createAttendance(Employee $employee, int $days, string $startDate = '2025-10-01'): void
-{
-    $daysCreated = 0;
-    $date = Carbon::parse($startDate);
-    while ($daysCreated < $days) {
-        if (!$date->isWeekend()) {
-            AttendanceLog::create([
-                'employee_id' => $employee->id,
-                'date' => $date->copy(),
-                'status' => AttendanceLog::STATUS_PRESENT,
-                'mode' => AttendanceLog::MODE_OFFICE,
-                'source' => AttendanceLog::SOURCE_WEB,
-            ]);
-            $daysCreated++;
-        }
-        $date->addDay();
-    }
-}
 
 describe('SalaryStructure bpjs_enabled field', function () {
     it('defaults bpjs_enabled to true', function () {

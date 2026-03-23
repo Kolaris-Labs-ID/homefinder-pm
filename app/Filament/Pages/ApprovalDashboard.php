@@ -326,7 +326,11 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     protected function approveStep(ApprovalStep $step, ?string $notes = null, ?int $pgpPoints = null): void
     {
         try {
-            $this->approvalService->approve($step, Auth::user(), $notes);
+            if ($step->approvable_type === \App\Models\Hris\LeaveRequest::class) {
+                $this->approvalService->approveParallel($step, Auth::user(), $notes);
+            } else {
+                $this->approvalService->approve($step, Auth::user(), $notes);
+            }
 
             // Handle PGP point assignment for training records
             if ($step->approvable_type === TrainingRecord::class) {

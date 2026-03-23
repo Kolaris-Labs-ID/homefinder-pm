@@ -35,16 +35,14 @@ class LeaveWorkflowService
             ->exists();
 
         if ($hasActiveWorkflow) {
-            // Use the approval workflow service to create approval steps
-            $this->approvalWorkflowService->initializeWorkflow($leaveRequest, ApprovalWorkflow::MODULE_LEAVE);
+            // Use parallel workflow: all approvers see the request simultaneously
+            // Any single approval is sufficient to approve the leave request
+            $this->approvalWorkflowService->initializeParallelWorkflow($leaveRequest, ApprovalWorkflow::MODULE_LEAVE);
 
-            // Update current_approver_id from the first pending step
-            $currentStep = $this->approvalWorkflowService->getCurrentStep($leaveRequest);
-            if ($currentStep && $currentStep->approver_id) {
-                $leaveRequest->update([
-                    'current_approver_id' => $currentStep->approver_id,
-                ]);
-            }
+            // Set current_approver_id to null since any approver can act
+            $leaveRequest->update([
+                'current_approver_id' => null,
+            ]);
         } else {
             // Fall back to simple approver assignment
             // Always create an ApprovalStep so it appears in the Approval Dashboard

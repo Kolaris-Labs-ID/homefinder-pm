@@ -194,6 +194,111 @@ class ApprovalWorkflowService
         }
     }
 
+    /**
+     * Approve a step using parallel (any-one-approves) logic.
+     * When one approver approves, the approvable is immediately marked as approved
+     * and all remaining pending steps are marked as skipped.
+     *
+     * Used for modules like Leave where any single approval is sufficient.
+     *
+     * @param ApprovalStep $step
+     * @param User $approver
+     * @param string|null $notes
+     * @return void
+     * @throws \Exception
+     */
+    public function approveParallel(ApprovalStep $step, User $approver, ?string $notes = null): void
+    {
+        // Validate the step is pending
+        if ($step->status !== ApprovalStep::STATUS_PENDING) {
+            throw new \Exception('This step has already been processed.');
+        }
+
+        // Validate the approver is authorized
+        if (!$this->isUserAuthorizedForStep($step, $approver)) {
+            throw new \Exception('You are not authorized to approve this step.');
+        }
+
+        // Mark current step as approved
+        $step->update([
+            'status' => ApprovalStep::STATUS_APPROVED,
+            'approved_at' => now(),
+            'notes' => $notes,
+            'approver_id' => $approver->id,
+        ]);
+
+        $approvable = $step->approvable;
+
+        // Skip all remaining pending steps for this approvable
+        ApprovalStep::where('approvable_type', get_class($approvable))
+            ->where('approvable_id', $approvable->id)
+            ->where('status', ApprovalStep::STATUS_PENDING)
+            ->update(['status' => ApprovalStep::STATUS_SKIPPED]);
+
+        // Immediately mark the approvable as approved
+        $this->markApprovableAsApproved($approvable);
+    }
+
+    /**
+     * Initialize a parallel workflow where all steps start as pending
+     * and all approvers are notified simultaneously.
+     *
+     * Used for modules like Leave where any single approval is sufficient.
+     *
+     * @param Model $approvable
+     * @param string $module
+     * @return void
+     */
+    public function initializeParallelWorkflow(Model $approvable, string $module): void
+    {
+        $workflow = $this->getActiveWorkflowForModule($module);
+
+        if (!$workflow || empty($workflow->steps)) {
+            return;
+        }
+
+        // Create workflow snapshot
+        $workflowSnapshot = [
+            'workflow_id' => $workflow->id,
+            'workflow_name' => $workflow->name,
+            'for_module' => $workflow->for_module,
+            'steps' => $workflow->steps,
+            'snapshot_at' => now()->toIso8601String(),
+        ];
+
+        // Create ALL steps as pending (parallel)
+        $steps = $workflow->steps;
+
+        foreach ($steps as $stepDefinition) {
+            $approverId = $this->resolveApprover($stepDefinition, $approvable);
+
+            ApprovalStep::create([
+                'workflow_id' => $workflow->id,
+                'workflow_snapshot' => $workflowSnapshot,
+                'approvable_type' => get_class($approvable),
+                'approvable_id' => $approvable->id,
+                'step_order' => $stepDefinition['order'],
+                'approver_id' => $approverId,
+                'approver_role' => $stepDefinition['type'] === 'role' ? $stepDefinition['value'] : null,
+                'status' => ApprovalStep::STATUS_PENDING, // All pending
+                'approved_at' => null,
+                'notes' => null,
+            ]);
+        }
+
+        // Notify ALL approvers simultaneously
+        $allSteps = ApprovalStep::where('approvable_type', get_class($approvable))
+            ->where('approvable_id', $approvable->id)
+            ->where('status', ApprovalStep::STATUS_PENDING)
+            ->get();
+
+        foreach ($allSteps as $step) {
+            if ($step->approver_id) {
+                $this->notifyApprover($step);
+            }
+        }
+    }
+
 
     /**
      * Reject the current step.
