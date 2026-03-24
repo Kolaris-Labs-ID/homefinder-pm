@@ -333,4 +333,226 @@
             </div>
         </div>
     </x-filament::section>
+
+    {{-- ─────────────────────────────────────────────────────────────
+         Working Hours Analytics
+         ───────────────────────────────────────────────────────────── --}}
+
+    {{-- Section divider --}}
+    <div class="my-2">
+        <div class="flex items-center gap-3">
+            <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+            <span class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Working Hours Analytics</span>
+            <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+        </div>
+    </div>
+
+    {{-- Employee Filter --}}
+    <div class="mb-4">
+        <x-filament::section>
+            <x-slot name="heading">
+                <div class="flex items-center gap-2">
+                    <x-heroicon-o-funnel class="w-5 h-5" />
+                    Filter by Employee
+                </div>
+            </x-slot>
+            <div class="flex items-center gap-4">
+                <div class="flex-1 max-w-xs">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Employee</label>
+                    <select
+                        wire:model.live="selectedEmployeeId"
+                        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                        <option value="">— All Employees —</option>
+                        @foreach($this->getEmployeeList() as $id => $name)
+                            <option value="{{ $id }}">{{ $name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                @if($selectedEmployeeId)
+                    <div class="mt-5">
+                        <button
+                            wire:click="$set('selectedEmployeeId', null)"
+                            class="text-sm text-danger-600 dark:text-danger-400 hover:underline"
+                        >
+                            Clear filter
+                        </button>
+                    </div>
+                @endif
+            </div>
+        </x-filament::section>
+    </div>
+
+    {{-- Weekly Working Hours --}}
+    <div class="mb-6">
+        <x-filament::section>
+            <x-slot name="heading">
+                <div class="flex items-center gap-2">
+                    <x-heroicon-o-clock class="w-5 h-5" />
+                    Weekly Working Hours
+                    @if($selectedEmployeeId)
+                        <span class="text-xs font-normal text-gray-500 dark:text-gray-400">(filtered by employee)</span>
+                    @endif
+                </div>
+            </x-slot>
+            @php $weeklyData = $this->getWeeklyWorkingHoursData(); @endphp
+            @if(count($weeklyData) > 0)
+                <div class="overflow-x-auto max-h-96">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 bg-white dark:bg-gray-900 z-10">
+                            <tr class="border-b dark:border-gray-700">
+                                <th class="text-left py-2 pr-4 text-gray-600 dark:text-gray-400">Week</th>
+                                <th class="text-left py-2 pr-4 text-gray-600 dark:text-gray-400">Employee</th>
+                                <th class="text-right py-2 text-gray-600 dark:text-gray-400">Total Hours</th>
+                                <th class="py-2 pl-4 w-48 text-gray-600 dark:text-gray-400"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @php
+                                $weeklyMax = max(array_column($weeklyData, 'total_hours')) ?: 1;
+                            @endphp
+                            @foreach($weeklyData as $row)
+                                <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                                    <td class="py-2 pr-4 text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ $row['week_label'] }}</td>
+                                    <td class="py-2 pr-4 font-medium text-gray-900 dark:text-white">{{ $row['employee_name'] }}</td>
+                                    <td class="py-2 text-right font-semibold
+                                        @if($row['total_hours'] >= 40) text-success-600 dark:text-success-400
+                                        @elseif($row['total_hours'] >= 30) text-warning-600 dark:text-warning-400
+                                        @else text-danger-600 dark:text-danger-400
+                                        @endif
+                                    ">{{ number_format($row['total_hours'], 1) }}h</td>
+                                    <td class="py-2 pl-4">
+                                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                            <div class="bg-info-500 h-2 rounded-full" style="width: {{ min(($row['total_hours'] / $weeklyMax) * 100, 100) }}%"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <div class="flex flex-col items-center justify-center py-10 text-gray-400 dark:text-gray-600">
+                    <x-heroicon-o-clock class="w-10 h-10 mb-2" />
+                    <p class="text-sm">No working hours data for the selected period.</p>
+                </div>
+            @endif
+        </x-filament::section>
+    </div>
+
+    {{-- Monthly Working Hours --}}
+    <div class="mb-6">
+        <x-filament::section>
+            <x-slot name="heading">
+                <div class="flex items-center gap-2">
+                    <x-heroicon-o-calendar-days class="w-5 h-5" />
+                    Monthly Working Hours Comparison
+                    @if($selectedEmployeeId)
+                        <span class="text-xs font-normal text-gray-500 dark:text-gray-400">(filtered by employee)</span>
+                    @endif
+                </div>
+            </x-slot>
+            @php $monthlyData = $this->getMonthlyWorkingHoursData(); @endphp
+            @if(count($monthlyData) > 0)
+                <div class="overflow-x-auto max-h-96">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 bg-white dark:bg-gray-900 z-10">
+                            <tr class="border-b dark:border-gray-700">
+                                <th class="text-left py-2 pr-4 text-gray-600 dark:text-gray-400">Month</th>
+                                <th class="text-left py-2 pr-4 text-gray-600 dark:text-gray-400">Employee</th>
+                                <th class="text-right py-2 text-gray-600 dark:text-gray-400">Total Hours</th>
+                                <th class="py-2 pl-4 w-48 text-gray-600 dark:text-gray-400"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @php
+                                $monthlyMax = max(array_column($monthlyData, 'total_hours')) ?: 1;
+                                // Group by month for subtle section shading
+                                $currentMonth = null;
+                            @endphp
+                            @foreach($monthlyData as $row)
+                                @php
+                                    $isNewMonth = $currentMonth !== $row['month_label'];
+                                    $currentMonth = $row['month_label'];
+                                @endphp
+                                <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 {{ $isNewMonth ? 'border-t-2 border-t-gray-300 dark:border-t-gray-600' : '' }}">
+                                    <td class="py-2 pr-4 text-gray-700 dark:text-gray-300 whitespace-nowrap font-medium">
+                                        {{ $isNewMonth ? $row['month_label'] : '' }}
+                                    </td>
+                                    <td class="py-2 pr-4 text-gray-900 dark:text-white">{{ $row['employee_name'] }}</td>
+                                    <td class="py-2 text-right font-semibold text-primary-600 dark:text-primary-400">
+                                        {{ number_format($row['total_hours'], 1) }}h
+                                    </td>
+                                    <td class="py-2 pl-4">
+                                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                            <div class="bg-primary-500 h-2 rounded-full" style="width: {{ min(($row['total_hours'] / $monthlyMax) * 100, 100) }}%"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <div class="flex flex-col items-center justify-center py-10 text-gray-400 dark:text-gray-600">
+                    <x-heroicon-o-calendar-days class="w-10 h-10 mb-2" />
+                    <p class="text-sm">No monthly data available for the selected period.</p>
+                </div>
+            @endif
+        </x-filament::section>
+    </div>
+
+    {{-- Recent Missing Checkouts --}}
+    <div class="mb-6">
+        <x-filament::section>
+            <x-slot name="heading">
+                <div class="flex items-center gap-2">
+                    <x-heroicon-o-exclamation-triangle class="w-5 h-5 text-warning-500" />
+                    Recent Missing Checkouts
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning-100 dark:bg-warning-900 text-warning-700 dark:text-warning-300">
+                        Last 20 records
+                    </span>
+                </div>
+            </x-slot>
+            @php $missingData = $this->getMissingCheckoutRecords(); @endphp
+            @if(count($missingData) > 0)
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b dark:border-gray-700">
+                                <th class="text-left py-2 pr-4 text-gray-600 dark:text-gray-400">#</th>
+                                <th class="text-left py-2 pr-4 text-gray-600 dark:text-gray-400">Employee</th>
+                                <th class="text-left py-2 pr-4 text-gray-600 dark:text-gray-400">Date</th>
+                                <th class="text-left py-2 text-gray-600 dark:text-gray-400">Check-in Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($missingData as $index => $row)
+                                <tr class="border-b dark:border-gray-700 hover:bg-warning-50 dark:hover:bg-warning-900/20">
+                                    <td class="py-2 pr-4 text-gray-400 dark:text-gray-600 text-xs">{{ $index + 1 }}</td>
+                                    <td class="py-2 pr-4 font-medium text-gray-900 dark:text-white">{{ $row['employee_name'] }}</td>
+                                    <td class="py-2 pr-4 text-gray-700 dark:text-gray-300">
+                                        {{ \Carbon\Carbon::parse($row['date'])->format('D, d M Y') }}
+                                    </td>
+                                    <td class="py-2 text-gray-700 dark:text-gray-300">
+                                        @if($row['check_in_time'])
+                                            {{ \Carbon\Carbon::parse($row['check_in_time'])->format('H:i') }}
+                                        @else
+                                            <span class="text-gray-400">—</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <div class="flex flex-col items-center justify-center py-10 text-success-500">
+                    <x-heroicon-o-check-circle class="w-10 h-10 mb-2" />
+                    <p class="text-sm font-medium">Great! No missing checkouts found.</p>
+                </div>
+            @endif
+        </x-filament::section>
+    </div>
+
 </x-filament-panels::page>

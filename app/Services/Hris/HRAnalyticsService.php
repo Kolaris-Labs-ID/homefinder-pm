@@ -369,4 +369,132 @@ class HRAnalyticsService
             'conversion_rate' => $conversionRate,
         ];
     }
+
+    /**
+     * Get weekly working hours per employee for a given date range.
+     *
+     * Working hours = (check_out_time - check_in_time) - total_break_minutes
+     * Only includes records that have both check_in_time and check_out_time.
+     *
+     * @param Carbon $from  Start date of the range
+     * @param Carbon $to    End date of the range
+     * @param int|null $employeeId  Optional: filter by specific employee
+     * @return Collection   Rows: employee_name, week_start, week_end, week_label, total_hours
+     */
+    public function getWeeklyWorkingHours(Carbon $from, Carbon $to, ?int $employeeId = null): Collection
+    {
+        $query = AttendanceLog::query()
+            ->join('employees', 'attendance_logs.employee_id', '=', 'employees.id')
+            ->join('users', 'employees.user_id', '=', 'users.id')
+            ->whereBetween('attendance_logs.date', [$from->toDateString(), $to->toDateString()])
+            ->whereNotNull('attendance_logs.check_in_time')
+            ->whereNotNull('attendance_logs.check_out_time')
+            ->select(
+                'users.name as employee_name',
+                'employees.id as employee_id',
+                DB::raw('YEARWEEK(attendance_logs.date, 1) as year_week'),
+                DB::raw('MIN(attendance_logs.date) as week_start'),
+                DB::raw('MAX(attendance_logs.date) as week_end'),
+                DB::raw('
+                    ROUND(
+                        SUM(
+                            TIMESTAMPDIFF(MINUTE, attendance_logs.check_in_time, attendance_logs.check_out_time)
+                            - COALESCE(attendance_logs.total_break_minutes, 0)
+                        ) / 60.0,
+                        2
+                    ) as total_hours
+                ')
+            )
+            ->groupBy('employees.id', 'users.name', DB::raw('YEARWEEK(attendance_logs.date, 1)'))
+            ->orderBy('year_week')
+            ->orderBy('users.name');
+
+        if ($employeeId !== null) {
+            $query->where('attendance_logs.employee_id', $employeeId);
+        }
+
+        $results = $query->get();
+
+        // Add a human-readable week label to each row
+        return $results->map(function ($row) {
+            $weekStart = Carbon::parse($row->week_start);
+            $weekEnd   = Carbon::parse($row->week_end);
+            $row->week_label = 'Week ' . $weekStart->weekOfYear
+                . ' (' . $weekStart->format('M d') . '–' . $weekEnd->format('M d') . ')';
+            return $row;
+        });
+    }
+
+    /**
+     * Get monthly working hours per employee for a given date range.
+     *
+     * Working hours = (check_out_time - check_in_time) - total_break_minutes
+     * Only includes records that have both check_in_time and check_out_time.
+     *
+     * @param Carbon $from  Start date of the range
+     * @param Carbon $to    End date of the range
+     * @param int|null $employeeId  Optional: filter by specific employee
+     * @return Collection   Rows: employee_name, year, month_num, month_label, total_hours
+     */
+    public function getMonthlyWorkingHours(Carbon $from, Carbon $to, ?int $employeeId = null): Collection
+    {
+        $query = AttendanceLog::query()
+            ->join('employees', 'attendance_logs.employee_id', '=', 'employees.id')
+            ->join('users', 'employees.user_id', '=', 'users.id')
+            ->whereBetween('attendance_logs.date', [$from->toDateString(), $to->toDateString()])
+            ->whereNotNull('attendance_logs.check_in_time')
+            ->whereNotNull('attendance_logs.check_out_time')
+            ->select(
+                'users.name as employee_name',
+                'employees.id as employee_id',
+                DB::raw('YEAR(attendance_logs.date) as year'),
+                DB::raw('MONTH(attendance_logs.date) as month_num'),
+                DB::raw('
+                    ROUND(
+                        SUM(
+                            TIMESTAMPDIFF(MINUTE, attendance_logs.check_in_time, attendance_logs.check_out_time)
+                            - COALESCE(attendance_logs.total_break_minutes, 0)
+                        ) / 60.0,
+                        2
+                    ) as total_hours
+                ')
+            )
+            ->groupBy('employees.id', 'users.name', DB::raw('YEAR(attendance_logs.date)'), DB::raw('MONTH(attendance_logs.date)'))
+            ->orderBy(DB::raw('YEAR(attendance_logs.date)'))
+            ->orderBy(DB::raw('MONTH(attendance_logs.date)'))
+            ->orderBy('users.name');
+
+        if ($employeeId !== null) {
+            $query->where('attendance_logs.employee_id', $employeeId);
+        }
+
+        $results = $query->get();
+
+        return $results->map(function ($row) {
+            $row->month_label = Carbon::createFromDate($row->year, $row->month_num, 1)->format('M Y');
+            return $row;
+        });
+    }
+
+    /**
+     * Get recent attendance records where the employee forgot to check out.
+     *
+     * @param int $limit  Maximum number of records to return
+     * @return Collection   Rows: employee_name, date, check_in_time
+     */
+    public function getMissingCheckoutRecent(int $limit = 20): Collection
+    {
+        return AttendanceLog::query()
+            ->join('employees', 'attendance_logs.employee_id', '=', 'employees.id')
+            ->join('users', 'employees.user_id', '=', 'users.id')
+            ->where('attendance_logs.missing_checkout', true)
+            ->orderBy('attendance_logs.date', 'desc')
+            ->limit($limit)
+            ->select(
+                'users.name as employee_name',
+                'attendance_logs.date',
+                'attendance_logs.check_in_time'
+            )
+            ->get();
+    }
 }

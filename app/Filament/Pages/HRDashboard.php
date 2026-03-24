@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Exports\HeadcountExport;
 use App\Exports\RecruitmentReportExport;
 use App\Exports\TurnoverExport;
+use App\Models\Hris\Employee;
 use App\Services\Hris\HRAnalyticsService;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -31,6 +32,7 @@ class HRDashboard extends Page implements HasForms
     public ?string $startDate = null;
     public ?string $endDate = null;
     public int $leaveYear;
+    public ?int $selectedEmployeeId = null;
 
     protected HRAnalyticsService $analyticsService;
 
@@ -158,6 +160,55 @@ class HRDashboard extends Page implements HasForms
             'intern' => 'Intern',
             default => ucfirst($status),
         };
+    }
+
+    /**
+     * Get list of active employees for the dropdown filter.
+     *
+     * @return array  [id => name]
+     */
+    public function getEmployeeList(): array
+    {
+        return Employee::query()
+            ->where('is_active', true)
+            ->join('users', 'employees.user_id', '=', 'users.id')
+            ->orderBy('users.name')
+            ->pluck('users.name', 'employees.id')
+            ->toArray();
+    }
+
+    /**
+     * Get weekly working hours for the selected employee and date range.
+     */
+    public function getWeeklyWorkingHoursData(): array
+    {
+        $start = Carbon::parse($this->startDate);
+        $end   = Carbon::parse($this->endDate);
+        return $this->analyticsService
+            ->getWeeklyWorkingHours($start, $end, $this->selectedEmployeeId ?: null)
+            ->toArray();
+    }
+
+    /**
+     * Get monthly working hours for the selected employee and date range.
+     */
+    public function getMonthlyWorkingHoursData(): array
+    {
+        $start = Carbon::parse($this->startDate);
+        $end   = Carbon::parse($this->endDate);
+        return $this->analyticsService
+            ->getMonthlyWorkingHours($start, $end, $this->selectedEmployeeId ?: null)
+            ->toArray();
+    }
+
+    /**
+     * Get recent attendance records with missing checkout.
+     */
+    public function getMissingCheckoutRecords(): array
+    {
+        return $this->analyticsService
+            ->getMissingCheckoutRecent(20)
+            ->toArray();
     }
 
     protected function getHeaderActions(): array
