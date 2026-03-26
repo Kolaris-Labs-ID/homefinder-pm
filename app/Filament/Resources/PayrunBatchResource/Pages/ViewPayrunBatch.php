@@ -38,7 +38,7 @@ class ViewPayrunBatch extends ViewRecord
                                 'paid' => 'success',
                                 default => 'gray',
                             })
-                            ->description(fn (PayrunBatch $record) => $record->current_approver_name ? "Waiting: {$record->current_approver_name}" : null),
+                            ->helperText(fn (PayrunBatch $record) => $record->current_approver_name ? "Waiting: {$record->current_approver_name}" : null),
                     ])->columns(3),
 
                 Section::make('Rejection Details')

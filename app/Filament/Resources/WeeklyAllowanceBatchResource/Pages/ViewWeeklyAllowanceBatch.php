@@ -33,7 +33,7 @@ class ViewWeeklyAllowanceBatch extends ViewRecord
                         TextEntry::make('status')
                             ->badge()
                             ->color(fn (string $state): string => WeeklyAllowanceBatch::getStatusColors()[$state] ?? 'gray')
-                            ->description(fn (WeeklyAllowanceBatch $record) => $record->current_approver_name ? "Waiting: {$record->current_approver_name}" : null),
+                            ->helperText(fn (WeeklyAllowanceBatch $record) => $record->current_approver_name ? "Waiting: {$record->current_approver_name}" : null),
                     ])->columns(3),
 
                 Section::make('Summary')
