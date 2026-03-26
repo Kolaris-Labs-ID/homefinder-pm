@@ -78,6 +78,10 @@ class PayrunBatchResource extends Resource
                 Tables\Columns\TextColumn::make('payroll_records_count')
                     ->label('Employees')
                     ->counts('payrollRecords'),
+                Tables\Columns\TextColumn::make('total_net_income')
+                    ->label('Total Net Income')
+                    ->money('IDR')
+                    ->sortable(false),
                 Tables\Columns\TextColumn::make('calculated_at')
                     ->dateTime()
                     ->sortable()

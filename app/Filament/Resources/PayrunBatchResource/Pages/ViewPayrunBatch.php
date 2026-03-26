@@ -41,6 +41,15 @@ class ViewPayrunBatch extends ViewRecord
                             ->helperText(fn (PayrunBatch $record) => $record->current_approver_name ? "Waiting: {$record->current_approver_name}" : null),
                     ])->columns(3),
 
+                Section::make('Payroll Summary')
+                    ->schema([
+                        TextEntry::make('employee_count')
+                            ->label('Total Employees'),
+                        TextEntry::make('total_net_income')
+                            ->label('Total Net Income')
+                            ->money('IDR'),
+                    ])->columns(2),
+
                 Section::make('Rejection Details')
                     ->icon('heroicon-o-x-circle')
                     ->iconColor('danger')
