@@ -123,13 +123,10 @@ class AdminSeeder extends Seeder
         // Get Filament widgets (excluding AccountWidget and FilamentInfoWidget)
         $widgets = [
             'CalendarWidget',
-            'MonthlyTicketTrendChart',
             'ProjectStatusChart',
             'ProjectTimeline',
             'RecentActivityTable',
             'StatsOverview',
-            'TicketsPerProjectChart',
-            'UserStatisticsChart',
             'UserWeeklyTodoWidget',
             'WeeklyTodoOverviewWidget',
         ];

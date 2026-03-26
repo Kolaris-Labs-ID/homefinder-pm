@@ -29,7 +29,7 @@ class RecentActivityTable extends BaseWidget
         'xl' => 6,
     ];
 
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 1;
 
     public function table(Table $table): Table
     {
