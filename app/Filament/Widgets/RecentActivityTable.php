@@ -2,11 +2,19 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\TicketHistory;
+use App\Filament\Resources\ProjectResource;
+use App\Filament\Resources\TicketResource;
+use App\Models\ActivityLog;
+use App\Models\Project;
+use App\Models\Ticket;
 use Filament\Tables;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class RecentActivityTable extends BaseWidget
 {
@@ -25,13 +33,15 @@ class RecentActivityTable extends BaseWidget
 
     public function table(Table $table): Table
     {
+        $currentUser = Auth::user();
+
         return $table
             ->query(
-                TicketHistory::query()
-                    ->with(['ticket.project', 'user', 'status'])
-                    ->when(!auth()->user()->hasRole('super_admin'), function ($query) {
-                        $query->whereHas('ticket.project.members', function ($subQuery) {
-                            $subQuery->where('user_id', auth()->id());
+                ActivityLog::query()
+                    ->with(['project', 'user', 'subject'])
+                    ->when(!$currentUser?->hasRole('super_admin'), function ($query) {
+                        $query->whereHas('project.members', function ($subQuery) {
+                            $subQuery->where('user_id', Auth::id());
                         });
                     })
                     ->latest()
@@ -39,36 +49,38 @@ class RecentActivityTable extends BaseWidget
             ->columns([
                 Tables\Columns\TextColumn::make('activity_summary')
                     ->label('Activity')
-                    ->state(function (TicketHistory $record): string {
-                        $ticketName = $record->ticket->name ?? 'Unknown ticket';
-                        $trimmedName = strlen($ticketName) > 40 ? substr($ticketName, 0, 40) . '...' : $ticketName;
-                        $userName = $record->user->name ?? 'Unknown user';
-                        return "<span class='text-primary-600 font-medium'>{$userName}</span> changed \"{$trimmedName}\"";
-                    })
-                    ->description(function (TicketHistory $record): string {
-                        $isToday = $record->created_at->isToday();
-                        $time = $isToday
-                            ? $record->created_at->format('H:i')
-                            : $record->created_at->format('M d, H:i');
-                        $project = $record->ticket->project->name ?? 'No Project';
-                        $uuid = $record->ticket->uuid ?? '';
-                        return "{$time} • {$uuid} • {$project}";
-                    })
+                    ->state(fn (ActivityLog $record): string => $this->formatActivitySummary($record))
+                    ->description(fn (ActivityLog $record): string => $this->formatActivityDescription($record))
                     ->html()
-                    ->searchable(['users.name', 'tickets.name', 'tickets.uuid'])
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->where(function (Builder $subQuery) use ($search) {
+                            $subQuery
+                                ->whereHas('user', fn (Builder $userQuery) => $userQuery->where('name', 'like', "%{$search}%"))
+                                ->orWhereHas('project', fn (Builder $projectQuery) => $projectQuery->where('name', 'like', "%{$search}%"))
+                                ->orWhereHasMorph(
+                                    'subject',
+                                    [Ticket::class],
+                                    fn (Builder $ticketQuery) => $ticketQuery
+                                        ->where('name', 'like', "%{$search}%")
+                                        ->orWhere('uuid', 'like', "%{$search}%")
+                                )
+                                ->orWhereHasMorph(
+                                    'subject',
+                                    [Project::class],
+                                    fn (Builder $projectSubjectQuery) => $projectSubjectQuery
+                                        ->where('name', 'like', "%{$search}%")
+                                        ->orWhere('ticket_prefix', 'like', "%{$search}%")
+                                )
+                                ->orWhere('event_type', 'like', "%{$search}%");
+                        });
+                    })
                     ->weight('medium'),
-                Tables\Columns\TextColumn::make('status.name')
-                    ->label('Status')
+                Tables\Columns\TextColumn::make('event_type')
+                    ->label('Type')
                     ->badge()
+                    ->state(fn (ActivityLog $record): string => $this->getEventLabel($record))
                     ->alignEnd()
-                    ->color(fn (TicketHistory $record): string => match($record->status->name ?? '') {
-                        'To Do', 'Backlog' => 'gray',
-                        'In Progress', 'Doing' => 'warning',
-                        'Review', 'Testing' => 'info',
-                        'Done', 'Completed' => 'success',
-                        'Cancelled', 'Blocked' => 'danger',
-                        default => 'primary',
-                    }),
+                    ->color(fn (ActivityLog $record): string => $this->getEventColor($record)),
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
@@ -106,6 +118,15 @@ class RecentActivityTable extends BaseWidget
                     ->query(fn ($query) => $query->whereDate('created_at', today()))
                     ->toggle(),
 
+                SelectFilter::make('event_type')
+                    ->label('Activity Type')
+                    ->options([
+                        'ticket_created' => 'Ticket Created',
+                        'ticket_updated' => 'Ticket Edited',
+                        'ticket_status_changed' => 'Status Changed',
+                        'project_created' => 'Project Created',
+                    ]),
+
                 Tables\Filters\SelectFilter::make('user')
                     ->relationship('user', 'name')
                     ->searchable()
@@ -117,20 +138,123 @@ class RecentActivityTable extends BaseWidget
                     ->label('')
                     ->icon('heroicon-o-arrow-top-right-on-square')
                     ->size('sm')
-                    ->tooltip('Open Ticket')
-                    ->url(fn (TicketHistory $record): string =>
-                        route('filament.admin.resources.tickets.view', $record->ticket)
-                    )
+                    ->tooltip('Open Record')
+                    ->visible(fn (ActivityLog $record): bool => filled($this->getRecordUrl($record)))
+                    ->url(fn (ActivityLog $record): ?string => $this->getRecordUrl($record))
                     ->openUrlInNewTab()
             ])
-            ->recordUrl(fn (TicketHistory $record) =>
-                route('filament.admin.resources.tickets.view', $record->ticket)
-            )
+            ->recordUrl(fn (ActivityLog $record): ?string => $this->getRecordUrl($record))
             ->paginated([5, 25, 50])
             ->poll('30s')
             ->striped()
             ->emptyStateHeading('No Activity Found')
-            ->emptyStateDescription('No ticket activities found for the selected period.')
+            ->emptyStateDescription('No project or ticket activities found for the selected period.')
             ->emptyStateIcon('heroicon-o-clock');
+    }
+
+    private function formatActivitySummary(ActivityLog $record): string
+    {
+        $userName = e($record->user->name ?? 'System');
+        $subjectName = e(Str::limit($record->meta['name'] ?? $record->subject?->name ?? 'Unknown item', 40));
+        $toStatus = e($record->meta['to_status_name'] ?? 'Unknown status');
+
+        return match ($record->event_type) {
+            'ticket_created' => "<span class='text-primary-600 font-medium'>{$userName}</span> created ticket \"{$subjectName}\"",
+            'ticket_updated' => "<span class='text-primary-600 font-medium'>{$userName}</span> updated ticket \"{$subjectName}\"",
+            'ticket_status_changed' => "<span class='text-primary-600 font-medium'>{$userName}</span> moved \"{$subjectName}\" to {$toStatus}",
+            'project_created' => "<span class='text-primary-600 font-medium'>{$userName}</span> created project \"{$subjectName}\"",
+            default => "<span class='text-primary-600 font-medium'>{$userName}</span> updated \"{$subjectName}\"",
+        };
+    }
+
+    private function formatActivityDescription(ActivityLog $record): string
+    {
+        $isToday = $record->created_at->isToday();
+        $time = $isToday
+            ? $record->created_at->format('H:i')
+            : $record->created_at->format('M d, H:i');
+
+        if ($record->event_type === 'project_created') {
+            $ticketPrefix = $record->meta['ticket_prefix'] ?? $record->subject?->ticket_prefix ?? 'Project';
+
+            return "{$time} • {$ticketPrefix} • New project";
+        }
+
+        $project = $record->project->name ?? 'No Project';
+        $uuid = $record->meta['uuid'] ?? $record->subject?->uuid ?? '';
+        $description = trim("{$time} • {$uuid} • {$project}", ' •');
+
+        if ($record->event_type !== 'ticket_updated') {
+            return $description;
+        }
+
+        $fieldSummary = $this->formatChangedFields($record);
+
+        return $fieldSummary !== null
+            ? "{$description} • Edited: {$fieldSummary}"
+            : $description;
+    }
+
+    private function formatChangedFields(ActivityLog $record): ?string
+    {
+        $changedFields = collect($record->meta['changed_fields'] ?? [])
+            ->map(fn (string $field): string => match ($field) {
+                'name' => 'Name',
+                'description' => 'Description',
+                'start_date' => 'Start Date',
+                'due_date' => 'Due Date',
+                'priority_id' => 'Priority',
+                'project_id' => 'Project',
+                'epic_id' => 'Epic',
+                'archived_at' => 'Archive Status',
+                'assignees' => 'Assignees',
+                default => Str::headline($field),
+            })
+            ->take(3)
+            ->values();
+
+        if ($changedFields->isEmpty()) {
+            return null;
+        }
+
+        $summary = $changedFields->implode(', ');
+        $extraCount = count($record->meta['changed_fields'] ?? []) - $changedFields->count();
+
+        if ($extraCount > 0) {
+            $summary .= " +{$extraCount} more";
+        }
+
+        return $summary;
+    }
+
+    private function getEventLabel(ActivityLog $record): string
+    {
+        return match ($record->event_type) {
+            'ticket_created' => 'Ticket Created',
+            'ticket_updated' => 'Ticket Edited',
+            'ticket_status_changed' => 'Status Changed',
+            'project_created' => 'Project Created',
+            default => 'Activity',
+        };
+    }
+
+    private function getEventColor(ActivityLog $record): string
+    {
+        return match ($record->event_type) {
+            'ticket_created' => 'success',
+            'ticket_updated' => 'info',
+            'ticket_status_changed' => 'warning',
+            'project_created' => 'primary',
+            default => 'gray',
+        };
+    }
+
+    private function getRecordUrl(ActivityLog $record): ?string
+    {
+        return match ($record->subject_type) {
+            Ticket::class => TicketResource::getUrl('view', ['record' => $record->subject_id]),
+            Project::class => ProjectResource::getUrl('view', ['record' => $record->subject_id]),
+            default => null,
+        };
     }
 }

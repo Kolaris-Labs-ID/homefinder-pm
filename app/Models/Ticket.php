@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -47,19 +48,45 @@ class Ticket extends Model
             }
 
             // Set created_by jika belum di-set dan ada user yang login
-            if (empty($ticket->created_by) && auth()->id()) {
-                $ticket->created_by = auth()->id();
+            if (empty($ticket->created_by) && Auth::id()) {
+                $ticket->created_by = Auth::id();
             }
+        });
+
+        static::created(function ($ticket) {
+            ActivityLog::logTicketCreated($ticket, Auth::user());
         });
 
         static::updating(function ($ticket) {
             if ($ticket->isDirty('ticket_status_id')) {
+                $fromStatusId = $ticket->getOriginal('ticket_status_id');
+                $toStatusId = $ticket->ticket_status_id;
+
                 TicketHistory::create([
                     'ticket_id' => $ticket->id,
-                    'user_id' => auth()->id(),
-                    'ticket_status_id' => $ticket->ticket_status_id,
+                    'user_id' => Auth::id(),
+                    'ticket_status_id' => $toStatusId,
                 ]);
+
+                ActivityLog::logTicketStatusChanged(
+                    $ticket,
+                    Auth::user(),
+                    $fromStatusId,
+                    TicketStatus::find($fromStatusId)?->name,
+                    $toStatusId,
+                    TicketStatus::find($toStatusId)?->name,
+                );
             }
+
+            $changedFields = collect(array_keys($ticket->getDirty()))
+                ->reject(fn (string $field): bool => in_array($field, [
+                    'updated_at',
+                    'ticket_status_id',
+                ], true))
+                ->values()
+                ->all();
+
+            ActivityLog::logTicketUpdated($ticket, Auth::user(), $changedFields);
         });
     }
 
@@ -139,6 +166,34 @@ class Ticket extends Model
     public function assignUsers(array $userIds): void
     {
         $this->assignees()->sync($userIds);
+    }
+
+    public function syncAssigneesWithActivity(array $userIds, ?User $actor = null): void
+    {
+        $before = $this->assignees()
+            ->pluck('users.id')
+            ->map(fn ($id) => (int) $id)
+            ->sort()
+            ->values()
+            ->all();
+
+        $after = collect($userIds)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        $this->assignees()->sync($after);
+
+        if ($before === $after) {
+            return;
+        }
+
+        ActivityLog::logTicketUpdated($this, $actor, ['assignees'], [
+            'added_assignee_ids' => array_values(array_diff($after, $before)),
+            'removed_assignee_ids' => array_values(array_diff($before, $after)),
+        ]);
     }
 
     public function isAssignedTo(User $user): bool

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class Project extends Model
 {
@@ -35,6 +36,19 @@ class Project extends Model
         'done_at' => 'datetime',
         'is_auto_done' => 'boolean',
     ];
+
+    protected static function booted()
+    {
+        static::creating(function ($project) {
+            if (empty($project->created_by) && Auth::id()) {
+                $project->created_by = Auth::id();
+            }
+        });
+
+        static::created(function ($project) {
+            ActivityLog::logProjectCreated($project, Auth::user());
+        });
+    }
 
     // Helper method to check if project is pinned
     public function getIsPinnedAttribute(): bool

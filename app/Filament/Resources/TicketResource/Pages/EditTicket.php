@@ -8,6 +8,7 @@ use App\Models\Project;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Auth;
 
 class EditTicket extends EditRecord
 {
@@ -73,7 +74,7 @@ class EditTicket extends EditRecord
     {
         // Sync assignees after saving (since it's a many-to-many relationship)
         if (isset($this->data['assignees']) && is_array($this->data['assignees'])) {
-            $this->record->assignees()->sync($this->data['assignees']);
+            $this->record->syncAssigneesWithActivity($this->data['assignees'], Auth::user());
         }
     }
 
