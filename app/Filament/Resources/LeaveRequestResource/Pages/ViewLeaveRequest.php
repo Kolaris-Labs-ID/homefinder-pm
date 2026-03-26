@@ -4,6 +4,7 @@ namespace App\Filament\Resources\LeaveRequestResource\Pages;
 
 use App\Filament\Resources\LeaveRequestResource;
 use App\Models\Hris\LeaveRequest;
+use App\Models\User;
 use App\Services\Hris\ApprovalWorkflowService;
 use Filament\Actions;
 use Filament\Forms;
@@ -17,6 +18,28 @@ use Illuminate\Support\Facades\Gate;
 class ViewLeaveRequest extends ViewRecord
 {
     protected static string $resource = LeaveRequestResource::class;
+
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+
+        $leaveRequest = $this->record->loadMissing('employee.user');
+        $employeeUserId = $leaveRequest->employee?->user_id;
+        $collisionUserId = User::query()->whereKey($leaveRequest->employee_id)->value('id');
+        $authUser = request()->user();
+
+        // #region agent log
+        $this->debugLog('H3', 'view mount resolved leave request', [
+            'record_id' => $leaveRequest->id,
+            'route_record' => $record,
+            'record_employee_id' => $leaveRequest->employee_id,
+            'record_employee_user_id' => $employeeUserId,
+            'auth_user_id' => $authUser?->id,
+            'auth_employee_id' => data_get($authUser, 'employee.id'),
+            'user_exists_with_employee_id' => (bool) $collisionUserId,
+        ]);
+        // #endregion
+    }
 
     /**
      * Get the infolist schema for the view page.
@@ -217,5 +240,22 @@ class ViewLeaveRequest extends ViewRecord
                 ->danger()
                 ->send();
         }
+    }
+
+    private function debugLog(string $hypothesisId, string $message, array $data): void
+    {
+        @file_put_contents(
+            '/Users/arirudiana/Devs/hris-phi/.cursor/debug-21491e.log',
+            json_encode([
+                'sessionId' => '21491e',
+                'runId' => 'initial',
+                'hypothesisId' => $hypothesisId,
+                'location' => 'ViewLeaveRequest.php',
+                'message' => $message,
+                'data' => $data,
+                'timestamp' => round(microtime(true) * 1000),
+            ], JSON_UNESCAPED_SLASHES) . PHP_EOL,
+            FILE_APPEND
+        );
     }
 }
