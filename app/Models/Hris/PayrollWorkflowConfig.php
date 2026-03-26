@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 
 class PayrollWorkflowConfig extends Model
 {
@@ -47,6 +48,19 @@ class PayrollWorkflowConfig extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('is_active', true);
+    }
+
+    /**
+     * Get all finance steps for this config, ordered by their sequence.
+     *
+     * @return Collection<int, PayrollWorkflowStep>
+     */
+    public function getFinanceStepsOrdered(): Collection
+    {
+        return $this->steps()
+            ->where('step_type', PayrollWorkflowStep::STEP_FINANCE)
+            ->orderBy('order', 'asc')
+            ->get();
     }
 
     /**

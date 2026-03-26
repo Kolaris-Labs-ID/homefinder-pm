@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\Hris\PayrollWorkflowConfig;
 use App\Models\Hris\PayrollWorkflowStep;
 use App\Models\User;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -38,19 +39,19 @@ class PayrollApprovalConfig extends Page implements HasForms
 
         if (! $config) {
             return [
-                'finance_approver_user_ids' => [],
+                'approver_steps' => [],
             ];
         }
 
-        $financeUserIds = $config->steps()
+        $steps = $config->steps()
             ->where('step_type', PayrollWorkflowStep::STEP_FINANCE)
-            ->pluck('assignee_user_id')
-            ->filter()
-            ->values()
-            ->toArray();
+            ->orderBy('order', 'asc')
+            ->get();
 
         return [
-            'finance_approver_user_ids' => $financeUserIds,
+            'approver_steps' => $steps->map(fn ($step) => [
+                'user_id' => $step->assignee_user_id,
+            ])->values()->toArray(),
         ];
     }
 
@@ -81,17 +82,29 @@ class PayrollApprovalConfig extends Page implements HasForms
         $userOptions = fn () => User::orderBy('name')->pluck('name', 'id')->toArray();
 
         return [
-            Section::make('Finance Approvers')
-                ->description('Select the finance users who can approve and pay batches. Any one of them can approve (first wins). All will see the batch and who paid.')
+            Section::make('Sequential Finance Approvers')
+                ->description('Define the approval chain in order. Each approver must review the payroll records and approve before the batch moves to the next. The last approver will see the "Approve & Pay" button.')
                 ->schema([
-                    Select::make('finance_approver_user_ids')
-                        ->label('Finance Approvers')
-                        ->options($userOptions)
-                        ->multiple()
-                        ->searchable()
-                        ->required()
+                    Repeater::make('approver_steps')
+                        ->label('Approval Steps')
+                        ->schema([
+                            Select::make('user_id')
+                                ->label('Approver')
+                                ->options($userOptions)
+                                ->searchable()
+                                ->required()
+                                ->distinct()
+                                ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
+                        ])
+                        ->reorderable()
+                        ->reorderableWithDragAndDrop()
+                        ->orderColumn(false)
+                        ->addActionLabel('Add approver step')
                         ->minItems(1)
-                        ->helperText('Select at least one finance approver. Any of them can approve, reject, or pay.'),
+                        ->defaultItems(1)
+                        ->itemLabel(fn (array $state, $component): ?string => 'Step ' . (array_search($state, $component->getState()) + 1))
+                        ->collapsible()
+                        ->helperText('Drag to reorder. Step 1 approves first, last step can approve and pay.'),
                 ]),
         ];
     }
@@ -116,16 +129,14 @@ class PayrollApprovalConfig extends Page implements HasForms
                 ['is_active' => true],
             );
 
-            // Remove existing steps and recreate
             $config->steps()->delete();
 
-            // Create one finance step row per selected user
-            $userIds = $data['finance_approver_user_ids'] ?? [];
-            foreach ($userIds as $order => $userId) {
+            $steps = $data['approver_steps'] ?? [];
+            foreach (array_values($steps) as $order => $step) {
                 $config->steps()->create([
                     'step_type' => PayrollWorkflowStep::STEP_FINANCE,
                     'assignee_type' => 'user',
-                    'assignee_user_id' => $userId,
+                    'assignee_user_id' => $step['user_id'],
                     'assignee_role' => null,
                     'order' => $order + 1,
                 ]);

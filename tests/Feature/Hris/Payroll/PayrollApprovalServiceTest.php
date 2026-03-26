@@ -358,5 +358,189 @@ describe('PayrollApprovalService full workflow integration', function () {
         $logs = PayrollApprovalLog::where('batch_id', $batch->id)->orderBy('id')->get();
         expect($logs)->toHaveCount(4);
     });
+
+    it('completes 3-approver sequential flow end-to-end', function () {
+        $financeUser1 = User::factory()->create(['name' => 'Approver 1']);
+        $financeUser2 = User::factory()->create(['name' => 'Approver 2']);
+        $financeUser3 = User::factory()->create(['name' => 'Approver 3']);
+        $submitter = User::factory()->create();
+
+        $config = PayrollWorkflowConfig::create([
+            'module' => PayrollWorkflowConfig::MODULE_MONTHLY,
+            'is_active' => true,
+        ]);
+
+        PayrollWorkflowStep::create([
+            'payroll_workflow_config_id' => $config->id,
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+            'assignee_type' => 'user',
+            'assignee_user_id' => $financeUser1->id,
+            'order' => 1,
+        ]);
+        PayrollWorkflowStep::create([
+            'payroll_workflow_config_id' => $config->id,
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+            'assignee_type' => 'user',
+            'assignee_user_id' => $financeUser2->id,
+            'order' => 2,
+        ]);
+        PayrollWorkflowStep::create([
+            'payroll_workflow_config_id' => $config->id,
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+            'assignee_type' => 'user',
+            'assignee_user_id' => $financeUser3->id,
+            'order' => 3,
+        ]);
+
+        $batch = PayrunBatch::factory()->calculated()->create();
+
+        $this->service->submitForApproval($batch, $submitter);
+        $batch->refresh();
+        expect($batch->current_finance_step_order)->toBe(1);
+
+        // Step 1: only user1 can act, user2 and user3 cannot
+        expect($this->service->canUserActOnBatch($batch, $financeUser1))->toBeTrue();
+        expect($this->service->canUserActOnBatch($batch, $financeUser2))->toBeFalse();
+        expect($this->service->canUserActOnBatch($batch, $financeUser3))->toBeFalse();
+        expect($this->service->isFinalFinanceStep($batch))->toBeFalse();
+
+        $this->service->approve($batch, $financeUser1);
+        $batch->refresh();
+        expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(2);
+
+        // Step 2: only user2 can act
+        expect($this->service->canUserActOnBatch($batch, $financeUser1))->toBeFalse();
+        expect($this->service->canUserActOnBatch($batch, $financeUser2))->toBeTrue();
+        expect($this->service->canUserActOnBatch($batch, $financeUser3))->toBeFalse();
+        expect($this->service->isFinalFinanceStep($batch))->toBeFalse();
+
+        $this->service->approve($batch, $financeUser2);
+        $batch->refresh();
+        expect($batch->status)->toBe('pending_finance')
+            ->and($batch->current_finance_step_order)->toBe(3);
+
+        // Step 3 (final): only user3 can act, and it IS the final step
+        expect($this->service->canUserActOnBatch($batch, $financeUser1))->toBeFalse();
+        expect($this->service->canUserActOnBatch($batch, $financeUser2))->toBeFalse();
+        expect($this->service->canUserActOnBatch($batch, $financeUser3))->toBeTrue();
+        expect($this->service->isFinalFinanceStep($batch))->toBeTrue();
+
+        // Intermediate approve should throw on final step
+        expect(fn () => $this->service->approve($batch, $financeUser3))
+            ->toThrow(\LogicException::class);
+
+        $this->service->approveAndPay($batch, $financeUser3);
+        $batch->refresh();
+        expect($batch->status)->toBe('paid')
+            ->and($batch->paid_by)->toBe($financeUser3->id);
+
+        // Verify full audit trail: submitted, approved, approved, paid
+        $logs = PayrollApprovalLog::where('batch_id', $batch->id)->orderBy('id')->get();
+        expect($logs)->toHaveCount(4)
+            ->and($logs[0]->action)->toBe('submitted')
+            ->and($logs[1]->action)->toBe('approved')
+            ->and($logs[2]->action)->toBe('approved')
+            ->and($logs[3]->action)->toBe('paid');
+    });
+
+    it('allows intermediate approver to reject in multi-step flow', function () {
+        $financeUser1 = User::factory()->create();
+        $financeUser2 = User::factory()->create();
+        $financeUser3 = User::factory()->create();
+        $submitter = User::factory()->create();
+
+        $config = PayrollWorkflowConfig::create([
+            'module' => PayrollWorkflowConfig::MODULE_MONTHLY,
+            'is_active' => true,
+        ]);
+
+        PayrollWorkflowStep::create([
+            'payroll_workflow_config_id' => $config->id,
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+            'assignee_type' => 'user',
+            'assignee_user_id' => $financeUser1->id,
+            'order' => 1,
+        ]);
+        PayrollWorkflowStep::create([
+            'payroll_workflow_config_id' => $config->id,
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+            'assignee_type' => 'user',
+            'assignee_user_id' => $financeUser2->id,
+            'order' => 2,
+        ]);
+        PayrollWorkflowStep::create([
+            'payroll_workflow_config_id' => $config->id,
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+            'assignee_type' => 'user',
+            'assignee_user_id' => $financeUser3->id,
+            'order' => 3,
+        ]);
+
+        $batch = PayrunBatch::factory()->calculated()->create();
+
+        $this->service->submitForApproval($batch, $submitter);
+        $this->service->approve($batch, $financeUser1);
+        $batch->refresh();
+        expect($batch->current_finance_step_order)->toBe(2);
+
+        // Second approver rejects
+        $this->service->reject($batch, $financeUser2, 'Numbers look wrong');
+        $batch->refresh();
+        expect($batch->status)->toBe('rejected')
+            ->and($batch->current_finance_step_order)->toBeNull();
+
+        // Resubmit restarts from step 1
+        $this->service->resubmit($batch, $submitter);
+        $batch->refresh();
+        expect($batch->current_finance_step_order)->toBe(1);
+        expect($this->service->canUserActOnBatch($batch, $financeUser1))->toBeTrue();
+    });
+});
+
+describe('PayrollWorkflowConfig getFinanceStepsOrdered', function () {
+    it('returns finance steps in correct ascending order', function () {
+        $user1 = User::factory()->create();
+        $user2 = User::factory()->create();
+        $user3 = User::factory()->create();
+
+        $config = PayrollWorkflowConfig::create([
+            'module' => PayrollWorkflowConfig::MODULE_MONTHLY,
+            'is_active' => true,
+        ]);
+
+        // Insert in reverse order to verify sorting works
+        PayrollWorkflowStep::create([
+            'payroll_workflow_config_id' => $config->id,
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+            'assignee_type' => 'user',
+            'assignee_user_id' => $user3->id,
+            'order' => 3,
+        ]);
+        PayrollWorkflowStep::create([
+            'payroll_workflow_config_id' => $config->id,
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+            'assignee_type' => 'user',
+            'assignee_user_id' => $user1->id,
+            'order' => 1,
+        ]);
+        PayrollWorkflowStep::create([
+            'payroll_workflow_config_id' => $config->id,
+            'step_type' => PayrollWorkflowStep::STEP_FINANCE,
+            'assignee_type' => 'user',
+            'assignee_user_id' => $user2->id,
+            'order' => 2,
+        ]);
+
+        $steps = $config->getFinanceStepsOrdered();
+
+        expect($steps)->toHaveCount(3)
+            ->and($steps[0]->assignee_user_id)->toBe($user1->id)
+            ->and($steps[0]->order)->toBe(1)
+            ->and($steps[1]->assignee_user_id)->toBe($user2->id)
+            ->and($steps[1]->order)->toBe(2)
+            ->and($steps[2]->assignee_user_id)->toBe($user3->id)
+            ->and($steps[2]->order)->toBe(3);
+    });
 });
 

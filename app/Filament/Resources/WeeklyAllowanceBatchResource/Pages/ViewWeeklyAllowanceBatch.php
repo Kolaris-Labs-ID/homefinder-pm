@@ -10,6 +10,7 @@ use Filament\Actions;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Components\ViewEntry;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
@@ -85,6 +86,17 @@ class ViewWeeklyAllowanceBatch extends ViewRecord
                             ->label('Notes')
                             ->default('-'),
                     ]),
+
+                Section::make('Approval Progress')
+                    ->icon('heroicon-o-arrow-right-circle')
+                    ->description('Sequential approval chain. Each approver must review the records before approving.')
+                    ->schema([
+                        ViewEntry::make('approval_progress')
+                            ->label('')
+                            ->view('filament.infolists.entries.approval-progress')
+                            ->columnSpanFull(),
+                    ])
+                    ->visible(fn (WeeklyAllowanceBatch $record): bool => in_array($record->status, ['pending_finance', 'paid', 'rejected'])),
 
                 Section::make('Approval Timeline')
                     ->icon('heroicon-o-clock')

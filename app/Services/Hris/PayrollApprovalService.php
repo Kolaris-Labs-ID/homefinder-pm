@@ -4,7 +4,6 @@ namespace App\Services\Hris;
 
 use App\Models\Hris\PayrollApprovalLog;
 use App\Models\Hris\PayrollWorkflowConfig;
-use App\Models\Hris\PayrollWorkflowStep;
 use App\Models\Hris\PayrunBatch;
 use App\Models\Hris\WeeklyAllowanceBatch;
 use App\Models\User;
@@ -209,12 +208,8 @@ class PayrollApprovalService
             return false;
         }
 
-        // Only verify against the exact current step based on order
-        $currentStep = $config->steps()
-            ->where('step_type', PayrollWorkflowStep::STEP_FINANCE)
-            ->orderBy('order', 'asc')
-            ->skip($batch->current_finance_step_order - 1)
-            ->first();
+        $steps = $config->getFinanceStepsOrdered();
+        $currentStep = $steps->get($batch->current_finance_step_order - 1);
 
         if (!$currentStep) {
             return false;
@@ -235,11 +230,9 @@ class PayrollApprovalService
             return false;
         }
 
-        $totalFinanceSteps = $config->steps()
-            ->where('step_type', PayrollWorkflowStep::STEP_FINANCE)
-            ->count();
+        $steps = $config->getFinanceStepsOrdered();
 
-        return $batch->current_finance_step_order >= $totalFinanceSteps;
+        return $batch->current_finance_step_order >= $steps->count();
     }
 
     /**

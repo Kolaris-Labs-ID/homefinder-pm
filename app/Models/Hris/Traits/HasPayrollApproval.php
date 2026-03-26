@@ -4,7 +4,6 @@ namespace App\Models\Hris\Traits;
 
 use App\Models\Hris\PayrollApprovalLog;
 use App\Models\Hris\PayrollWorkflowConfig;
-use App\Models\Hris\PayrollWorkflowStep;
 use App\Models\Hris\PayrunBatch;
 use App\Models\Hris\WeeklyAllowanceBatch;
 use App\Models\User;
@@ -115,8 +114,7 @@ trait HasPayrollApproval
             return $query->whereRaw('1 = 0');
         }
 
-        // Check if user is ANY of the finance approvers (multiple rows with step_type = 'finance')
-        $financeSteps = $config->steps()->where('step_type', PayrollWorkflowStep::STEP_FINANCE)->get();
+        $financeSteps = $config->getFinanceStepsOrdered();
         $isFinanceApprover = $financeSteps->contains(fn ($step) => $step->canBeActedOnBy($user));
 
         if ($isFinanceApprover) {
@@ -143,11 +141,8 @@ trait HasPayrollApproval
             return null;
         }
 
-        $currentStep = $config->steps()
-            ->where('step_type', PayrollWorkflowStep::STEP_FINANCE)
-            ->orderBy('order', 'asc')
-            ->skip($this->current_finance_step_order - 1)
-            ->first();
+        $steps = $config->getFinanceStepsOrdered();
+        $currentStep = $steps->get($this->current_finance_step_order - 1);
 
         if ($currentStep && $currentStep->assigneeUser) {
             return $currentStep->assigneeUser->name;
