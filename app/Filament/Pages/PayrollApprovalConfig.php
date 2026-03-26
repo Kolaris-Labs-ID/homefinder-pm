@@ -102,8 +102,7 @@ class PayrollApprovalConfig extends Page implements HasForms
                         ->addActionLabel('Add approver step')
                         ->minItems(1)
                         ->defaultItems(1)
-                        ->itemLabel(fn (array $state, $component): ?string => 'Step ' . (array_search($state, $component->getState()) + 1))
-                        ->collapsible()
+                        ->itemNumbers()
                         ->helperText('Drag to reorder. Step 1 approves first, last step can approve and pay.'),
                 ]),
         ];
