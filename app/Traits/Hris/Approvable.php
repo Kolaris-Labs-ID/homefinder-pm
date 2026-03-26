@@ -29,12 +29,35 @@ trait Approvable
     }
 
     /**
-     * Get the current pending approval step.
+     * Get the current pending approval step (first pending step overall).
      */
     public function currentApprovalStep(): ?ApprovalStep
     {
         return $this->approvalSteps()
             ->where('status', ApprovalStep::STATUS_PENDING)
+            ->first();
+    }
+
+    /**
+     * Get the pending approval step assigned to a specific user.
+     * Supports both direct user assignment and role-based assignment.
+     * Used by parallel workflows where each assignee has their own pending step.
+     */
+    public function pendingStepFor($user): ?ApprovalStep
+    {
+        $userRoles = $user->roles->pluck('name')->toArray();
+
+        return $this->approvalSteps()
+            ->where('status', ApprovalStep::STATUS_PENDING)
+            ->where(function ($query) use ($user, $userRoles) {
+                $query->where('approver_id', $user->id);
+                if (!empty($userRoles)) {
+                    $query->orWhere(function ($q) use ($user, $userRoles) {
+                        $q->whereIn('approver_role', $userRoles)
+                            ->whereNull('approver_id');
+                    });
+                }
+            })
             ->first();
     }
 
@@ -120,26 +143,12 @@ trait Approvable
 
     /**
      * Check if the given user can approve this item.
+     * For parallel workflows each assignee has their own pending step, so this
+     * checks whether the user has any pending step assigned to them (by id or role).
      */
     public function canBeApprovedBy($user): bool
     {
-        $currentStep = $this->currentApprovalStep();
-
-        if (!$currentStep) {
-            return false;
-        }
-
-        // Check if user is the designated approver
-        if ($currentStep->approver_id === $user->id) {
-            return true;
-        }
-
-        // Check if user has the required role
-        if ($currentStep->approver_role && $user->hasRole($currentStep->approver_role)) {
-            return true;
-        }
-
-        return false;
+        return $this->pendingStepFor($user) !== null;
     }
 
     /**

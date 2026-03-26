@@ -174,12 +174,12 @@ class ViewLeaveRequest extends ViewRecord
     protected function handleWorkflowApprove(array $data): void
     {
         $user = auth()->user();
-        $currentStep = $this->record->currentApprovalStep();
+        $step = $this->record->pendingStepFor($user);
 
-        if (!$currentStep) {
+        if (!$step) {
             Notification::make()
                 ->title(__('Error'))
-                ->body(__('No pending approval step found.'))
+                ->body(__('No pending approval step found for your account.'))
                 ->danger()
                 ->send();
             return;
@@ -187,7 +187,7 @@ class ViewLeaveRequest extends ViewRecord
 
         try {
             $service = app(ApprovalWorkflowService::class);
-            $service->approveParallel($currentStep, $user, $data['notes'] ?? null);
+            $service->approveParallel($step, $user, $data['notes'] ?? null);
 
             Notification::make()
                 ->title(__('Leave Request Approved'))
@@ -211,12 +211,12 @@ class ViewLeaveRequest extends ViewRecord
     protected function handleWorkflowReject(array $data): void
     {
         $user = auth()->user();
-        $currentStep = $this->record->currentApprovalStep();
+        $step = $this->record->pendingStepFor($user);
 
-        if (!$currentStep) {
+        if (!$step) {
             Notification::make()
                 ->title(__('Error'))
-                ->body(__('No pending approval step found.'))
+                ->body(__('No pending approval step found for your account.'))
                 ->danger()
                 ->send();
             return;
@@ -224,7 +224,7 @@ class ViewLeaveRequest extends ViewRecord
 
         try {
             $service = app(ApprovalWorkflowService::class);
-            $service->reject($currentStep, $user, $data['reason']);
+            $service->reject($step, $user, $data['reason']);
 
             Notification::make()
                 ->title(__('Leave Request Rejected'))

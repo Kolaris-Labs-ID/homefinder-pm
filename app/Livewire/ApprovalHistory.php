@@ -73,6 +73,18 @@ class ApprovalHistory extends Component
     }
 
     /**
+     * Get the step that was actually approved or rejected (if any).
+     * Used to tell non-acting approvers who acted on the request.
+     */
+    #[Computed]
+    public function actedStep(): ?ApprovalStep
+    {
+        return $this->approvalSteps
+            ->whereIn('status', [ApprovalStep::STATUS_APPROVED, ApprovalStep::STATUS_REJECTED])
+            ->first();
+    }
+
+    /**
      * Get the status configuration for display.
      */
     public function getStatusConfig(string $status): array
