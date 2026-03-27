@@ -75,27 +75,27 @@
 
                         <div class="fi-ta-content overflow-x-auto">
                             <table class="w-full table-auto divide-y divide-gray-200 text-start dark:divide-white/5">
-                                <thead class="bg-gray-50 dark:bg-white/5">
+                                <thead class="bg-gray-50/50 dark:bg-white/5 border-b border-gray-100 dark:border-white/5">
                                     <tr>
-                                        <th class="px-3 py-3.5 text-start text-sm font-semibold text-gray-950 dark:text-white ps-6">Project</th>
+                                        <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 ps-6">Project Name</th>
                                         @if(!in_array('due_date', $hiddenColumns))
-                                            <th class="px-3 py-3.5 text-start text-sm font-semibold text-gray-950 dark:text-white">Due Date</th>
+                                            <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Timeline / Due Date</th>
                                         @endif
                                         @if(!in_array('division', $hiddenColumns))
-                                            <th class="px-3 py-3.5 text-start text-sm font-semibold text-gray-950 dark:text-white">Division</th>
+                                            <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Division</th>
                                         @endif
                                         @if(!in_array('owner', $hiddenColumns))
-                                            <th class="px-3 py-3.5 text-start text-sm font-semibold text-gray-950 dark:text-white">Owner</th>
+                                            <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Owner</th>
                                         @endif
                                         @if(!in_array('members', $hiddenColumns))
-                                            <th class="px-3 py-3.5 text-start text-sm font-semibold text-gray-950 dark:text-white">Members</th>
+                                            <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Members</th>
                                         @endif
                                         @if(!in_array('progress', $hiddenColumns))
-                                            <th class="px-3 py-3.5 text-start text-sm font-semibold text-gray-950 dark:text-white pe-6">Progress</th>
+                                            <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 pe-6">Status & Progress</th>
                                         @endif
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-gray-200 whitespace-nowrap dark:divide-white/5">
+                                <tbody class="divide-y divide-gray-100 whitespace-nowrap dark:divide-white/5">
                                     @foreach ($groupProjects as $project)
                                         @php
                                             $status = $this->getProjectStatus($project);
@@ -106,79 +106,123 @@
                                         @endphp
                                         <tr
                                             wire:click="selectProject({{ $project->id }})"
-                                            class="fi-ta-row cursor-pointer transition duration-75 hover:bg-gray-50 dark:hover:bg-white/5"
+                                            class="fi-ta-row cursor-pointer transition-all duration-200 hover:bg-gray-50/50 dark:hover:bg-white/5 group"
                                         >
                                             {{-- Project Name --}}
-                                            <td class="px-3 py-4 ps-6">
-                                                <div class="flex flex-col">
-                                                    <span class="font-medium text-gray-950 dark:text-white">{{ $project->name }}</span>
+                                            <td class="px-3 py-5 ps-6">
+                                                <div class="flex flex-col gap-1.5">
+                                                    <span class="text-sm font-semibold text-gray-900 dark:text-white leading-tight group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                                                        {{ $project->name }}
+                                                    </span>
                                                     @if($project->ticket_prefix)
-                                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ $project->ticket_prefix }}</span>
+                                                        <div class="inline-flex">
+                                                            <span class="text-[10px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-white/10">
+                                                                {{ $project->ticket_prefix }}
+                                                            </span>
+                                                        </div>
                                                     @endif
                                                 </div>
                                             </td>
 
                                             {{-- Due Date --}}
                                             @if(!in_array('due_date', $hiddenColumns))
-                                                <td class="px-3 py-4">
+                                                <td class="px-3 py-5">
                                                     @if($project->end_date)
-                                                        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                                                            <div class="w-2 h-2 rounded-full flex-shrink-0" style="background-color: {{ $dueDateIndicator['dot'] }};"></div>
+                                                        @php
+                                                            $isOverdue = $project->end_date->isPast() && !$project->is_done;
+                                                            $isSoon = !$isOverdue && $project->end_date->diffInDays(now()) <= 7;
+                                                            $badgeColor = $isOverdue ? 'danger' : ($isSoon ? 'warning' : 'success');
+                                                        @endphp
+                                                        <x-filament::badge 
+                                                            :color="$badgeColor" 
+                                                            icon="{{ $isOverdue ? 'heroicon-m-exclamation-triangle' : 'heroicon-m-calendar' }}" 
+                                                            size="sm"
+                                                            class="shadow-sm"
+                                                        >
                                                             {{ $project->end_date->format('M d, Y') }}
-                                                        </div>
+                                                        </x-filament::badge>
                                                     @else
-                                                        <span class="text-sm text-gray-400 dark:text-gray-500">—</span>
+                                                        <span class="text-xs text-gray-400 dark:text-gray-500 font-medium italic">No deadline</span>
                                                     @endif
                                                 </td>
                                             @endif
 
                                             {{-- Division --}}
                                             @if(!in_array('division', $hiddenColumns))
-                                                <td class="px-3 py-4">
+                                                <td class="px-3 py-5">
                                                     @if($owner?->division)
-                                                        <x-filament::badge color="gray">
+                                                        @php
+                                                            $divName = strtolower($owner->division);
+                                                            $divColor = match(true) {
+                                                                str_contains($divName, 'legal') => 'amber',
+                                                                str_contains($divName, 'hr') => 'rose',
+                                                                str_contains($divName, 'tech') || str_contains($divName, 'it') => 'primary',
+                                                                str_contains($divName, 'account') => 'teal',
+                                                                str_contains($divName, 'market') => 'indigo',
+                                                                str_contains($divName, 'sales') => 'orange',
+                                                                str_contains($divName, 'commercial') => 'blue',
+                                                                default => 'gray',
+                                                            };
+                                                        @endphp
+                                                        <x-filament::badge :color="$divColor" size="sm" class="font-medium">
                                                             {{ $owner->division }}
                                                         </x-filament::badge>
                                                     @else
-                                                        <span class="text-sm text-gray-400 dark:text-gray-500">—</span>
+                                                        <span class="text-xs text-gray-400 dark:text-gray-500">—</span>
                                                     @endif
                                                 </td>
                                             @endif
 
                                             {{-- Owner --}}
                                             @if(!in_array('owner', $hiddenColumns))
-                                                <td class="px-3 py-4 text-sm text-gray-600 dark:text-gray-400">
-                                                    {{ $owner?->name ?? '—' }}
+                                                <td class="px-3 py-5">
+                                                    <div class="flex items-center gap-2">
+                                                        <div class="w-6 h-6 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center border border-gray-200 dark:border-white/10">
+                                                            <x-heroicon-m-user-circle class="w-4 h-4 text-gray-500" />
+                                                        </div>
+                                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                            {{ $owner?->name ?? 'Unassigned' }}
+                                                        </span>
+                                                    </div>
                                                 </td>
                                             @endif
 
                                             {{-- Members --}}
                                             @if(!in_array('members', $hiddenColumns))
-                                                <td class="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
-                                                    @if($otherMembers->isNotEmpty())
-                                                        <div class="flex items-center gap-1">
-                                                            <span class="truncate max-w-[150px]">{{ $otherMembers->pluck('name')->implode(', ') }}</span>
+                                                <td class="px-3 py-5">
+                                                    <div class="flex items-center gap-1.5 flex-wrap max-w-[200px]">
+                                                        @if($otherMembers->isNotEmpty())
+                                                            @foreach($otherMembers as $member)
+                                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-white/10 shadow-sm leading-none">
+                                                                    {{ explode(' ', $member->name)[0] }}
+                                                                </span>
+                                                            @endforeach
                                                             @if($project->users->count() > 4)
-                                                                <x-filament::badge size="xs" color="gray">+{{ $project->users->count() - 4 }}</x-filament::badge>
+                                                                <span class="text-[10px] font-bold text-gray-400 ml-0.5">+{{ $project->users->count() - 4 }}</span>
                                                             @endif
-                                                        </div>
-                                                    @else
-                                                        —
-                                                    @endif
+                                                        @else
+                                                            <span class="text-xs text-gray-400 dark:text-gray-500">—</span>
+                                                        @endif
+                                                    </div>
                                                 </td>
                                             @endif
 
                                             {{-- Progress --}}
                                             @if(!in_array('progress', $hiddenColumns))
-                                                <td class="px-3 py-4 pe-6">
-                                                    <div class="flex items-center gap-3">
-                                                        <div class="w-24 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                                                <td class="px-3 py-5 pe-6">
+                                                    <div class="flex flex-col gap-1.5 min-w-[140px]">
+                                                        <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
+                                                            <span class="text-gray-400">Full Progress</span>
+                                                            <span class="{{ $progress >= 100 ? 'text-emerald-600' : ($progress >= 50 ? 'text-primary-600' : 'text-amber-600') }}">
+                                                                {{ number_format(min($progress, 100), 0) }}%
+                                                            </span>
+                                                        </div>
+                                                        <div class="w-full h-2 rounded-full bg-gray-100 dark:bg-white/5 overflow-hidden border border-gray-200 dark:border-white/10 relative">
                                                             <div
-                                                                class="h-full rounded-full transition-all duration-500"
-                                                                style="width: {{ min($progress, 100) }}%; background-color: {{ $progress >= 100 ? '#10B981' : ($progress >= 50 ? '#22C55E' : '#F59E0B') }};"
+                                                                class="h-full rounded-full transition-all duration-1000 ease-out shadow-sm"
+                                                                style="width: {{ min($progress, 100) }}%; background: linear-gradient(90deg, {{ $progress >= 100 ? '#10B981, #059669' : ($progress >= 50 ? '#3B82F6, #2563EB' : '#F59E0B, #D97706') }});"
                                                             ></div>
                                                         </div>
-                                                        <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ number_format(min($progress, 100), 0) }}%</span>
                                                     </div>
                                                 </td>
                                             @endif
