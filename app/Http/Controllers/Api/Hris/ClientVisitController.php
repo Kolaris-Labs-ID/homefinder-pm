@@ -8,6 +8,7 @@ use App\Models\Hris\ClientVisit;
 use App\Models\Hris\Employee;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -132,32 +133,58 @@ class ClientVisitController extends Controller
             );
         }
 
-        $clientVisit->update([
-            'status' => ClientVisit::STATUS_IN_PROGRESS,
-            'actual_check_in' => now(),
-            'check_in_latitude' => $data['latitude'] ?? null,
-            'check_in_longitude' => $data['longitude'] ?? null,
-            'photo_path' => $photoPath ?? $clientVisit->photo_path,
-        ]);
+        DB::transaction(function () use ($clientVisit, $employee, $data, $photoPath) {
+            $checkInTime = now();
+            $attendanceDate = $clientVisit->visit_date->toDateString();
 
-        // Create an attendance log entry for this visit
-        AttendanceLog::create([
-            'employee_id' => $employee->id,
-            'client_visit_id' => $clientVisit->id,
-            'date' => $clientVisit->visit_date,
-            'mode' => AttendanceLog::MODE_OFFICE,
-            'check_in_time' => now(),
-            'check_in_latitude' => $data['latitude'] ?? null,
-            'check_in_longitude' => $data['longitude'] ?? null,
-            'check_in_address' => $clientVisit->client_address,
-            'source' => AttendanceLog::SOURCE_VISIT,
-            'status' => AttendanceLog::STATUS_VISIT,
-            'metadata' => [
+            $clientVisit->update([
+                'status' => ClientVisit::STATUS_IN_PROGRESS,
+                'actual_check_in' => $checkInTime,
+                'check_in_latitude' => $data['latitude'] ?? null,
+                'check_in_longitude' => $data['longitude'] ?? null,
+                'photo_path' => $photoPath ?? $clientVisit->photo_path,
+            ]);
+
+            // Reuse existing daily attendance to avoid unique(employee_id, date) collisions.
+            $attendanceCandidates = AttendanceLog::query()
+                ->where('employee_id', $employee->id)
+                ->whereDate('date', $attendanceDate)
+                ->get();
+
+            $attendanceLog = $attendanceCandidates->first(function (AttendanceLog $log) {
+                return $log->check_in_time !== null;
+            }) ?? $attendanceCandidates->first();
+
+            if (!$attendanceLog) {
+                $attendanceLog = new AttendanceLog([
+                    'employee_id' => $employee->id,
+                    'date' => $attendanceDate,
+                ]);
+            }
+
+            $isNewAttendance = !$attendanceLog->exists;
+
+            $attendanceLog->client_visit_id = $clientVisit->id;
+
+            if ($isNewAttendance) {
+                $attendanceLog->mode = AttendanceLog::MODE_OFFICE;
+                $attendanceLog->check_in_time = $checkInTime;
+                $attendanceLog->check_in_latitude = $data['latitude'] ?? null;
+                $attendanceLog->check_in_longitude = $data['longitude'] ?? null;
+                $attendanceLog->check_in_address = $clientVisit->client_address;
+                $attendanceLog->source = AttendanceLog::SOURCE_VISIT;
+                $attendanceLog->status = AttendanceLog::STATUS_VISIT;
+            }
+
+            $attendanceLog->metadata = [
+                ...($attendanceLog->metadata ?? []),
                 'client_name' => $clientVisit->client_name,
                 'purpose' => $clientVisit->purpose,
                 'purpose_label' => $clientVisit->purpose_label,
-            ],
-        ]);
+            ];
+
+            $attendanceLog->save();
+        });
 
         return response()->json([
             'message' => 'Checked in to visit successfully.',

@@ -2,8 +2,11 @@
 
 namespace Tests\Feature\Api\Hris;
 
+use App\Models\Hris\AttendanceLog;
+use App\Models\Hris\ClientVisit;
 use App\Models\Hris\Employee;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\Test;
@@ -94,5 +97,51 @@ class ClientVisitApiTest extends TestCase
         $response = $this->getJson('/api/hris/visits');
 
         $response->assertStatus(401);
+    }
+
+    #[Test]
+    public function check_in_reuses_existing_daily_attendance_and_does_not_throw_server_error()
+    {
+        Sanctum::actingAs($this->user);
+        Carbon::setTestNow('2026-03-27 11:00:00');
+
+        try {
+            $visit = ClientVisit::create([
+                'employee_id' => $this->employee->id,
+                'client_name' => 'PT Existing Attendance',
+                'client_address' => 'Jl. Gatot Subroto No. 1, Jakarta',
+                'purpose' => ClientVisit::PURPOSE_OTHER,
+                'visit_date' => Carbon::today()->toDateString(),
+                'status' => ClientVisit::STATUS_PLANNED,
+            ]);
+
+            $attendanceLog = AttendanceLog::factory()->create([
+                'employee_id' => $this->employee->id,
+                'date' => Carbon::today()->toDateString(),
+                'source' => AttendanceLog::SOURCE_MOBILE,
+                'status' => AttendanceLog::STATUS_PRESENT,
+                'client_visit_id' => null,
+            ]);
+            $initialAttendanceCount = AttendanceLog::count();
+
+            $response = $this->postJson("/api/hris/visits/{$visit->id}/check-in", [
+                'latitude' => -6.200000,
+                'longitude' => 106.816666,
+            ]);
+
+            $response->assertStatus(200)
+                ->assertJsonPath('data.status', ClientVisit::STATUS_IN_PROGRESS);
+
+            $this->assertDatabaseHas('attendance_logs', [
+                'id' => $attendanceLog->id,
+                'employee_id' => $this->employee->id,
+                'date' => Carbon::today()->toDateString(),
+                'client_visit_id' => $visit->id,
+            ]);
+
+            $this->assertSame($initialAttendanceCount, AttendanceLog::count());
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 }
