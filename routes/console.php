@@ -42,3 +42,9 @@ Schedule::command('attendance:flag-missing-checkouts')
     ->at('23:55')
     ->timezone('Asia/Jakarta')
     ->description('Flag attendance records that have check-in but no check-out');
+
+// Auto-close overtime sessions that have been running more than 6 hours
+Schedule::command('lembur:auto-close')
+    ->everyThirtyMinutes()
+    ->timezone('Asia/Jakarta')
+    ->description('Auto-close overtime sessions running longer than 6 hours and flag for HR review');

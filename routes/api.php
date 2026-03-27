@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Hris\LeaveRequestController;
 use App\Http\Controllers\Api\Hris\NotificationController;
 use App\Http\Controllers\Api\Hris\PayslipController;
 use App\Http\Controllers\Api\Hris\ProfileController;
+use App\Http\Controllers\Api\Hris\OvertimeController;
 use App\Http\Controllers\Api\Hris\ReimbursementController;
 use App\Http\Controllers\Api\Hris\TeamController;
 use Illuminate\Support\Facades\Route;
@@ -82,6 +83,16 @@ Route::middleware(['auth:sanctum'])
         Route::post('/visits/{clientVisit}/check-in', [ClientVisitController::class, 'checkIn']);
         Route::post('/visits/{clientVisit}/check-out', [ClientVisitController::class, 'checkOut']);
         Route::put('/visits/{clientVisit}/cancel', [ClientVisitController::class, 'cancel']);
+
+        // Overtime (Lembur) endpoints
+        Route::prefix('overtime')->group(function () {
+            Route::get('/managers', [OvertimeController::class, 'managers']);
+            Route::get('/active', [OvertimeController::class, 'active']);
+            Route::get('/', [OvertimeController::class, 'index']);
+            Route::post('/start', [OvertimeController::class, 'start']);
+            Route::post('/stop', [OvertimeController::class, 'stop']);
+            Route::get('/{overtimeLog}', [OvertimeController::class, 'show']);
+        });
 
         // Team endpoints
         Route::get('/team', [TeamController::class, 'index']);

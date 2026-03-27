@@ -88,6 +88,12 @@ class Employee extends Model
     {
         return $this->hasMany(ClientVisit::class);
     }
+
+    public function overtimeLogs(): HasMany
+    {
+        return $this->hasMany(OvertimeLog::class, 'user_id', 'user_id');
+    }
+
     public function emergencyContacts(): HasMany
     {
         return $this->hasMany(EmployeeEmergencyContact::class);
