@@ -139,6 +139,15 @@ class OvertimeController extends Controller
             ->running()
             ->first();
 
+        Log::info('Overtime stop request', [
+            'user_id'     => $employee->user_id,
+            'log_found'   => $log ? $log->id : null,
+            'has_client'  => $log?->hasClient(),
+            'has_file'    => $request->hasFile('evidence'),
+            'all_files'   => array_keys($request->allFiles()),
+            'content_type'=> $request->header('Content-Type'),
+        ]);
+
         abort_if(! $log, 404, 'No active overtime session found.');
 
         // Evidence is required when a client was set
