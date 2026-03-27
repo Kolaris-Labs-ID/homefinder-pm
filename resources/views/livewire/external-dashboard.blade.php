@@ -380,7 +380,7 @@
                                         <td class="px-4 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                             @if ($ticket->due_date)
                                                 @php
-                                                    $isCompleted = $ticket->status && $ticket->status->is_completed;
+                                                    $isCompleted = $ticket->isCompleted();
                                                     $isOverdue = $ticket->isOverdue();
                                                 @endphp
                                                 <span
@@ -473,7 +473,7 @@
                                             </svg>
                                             @if ($ticket->due_date)
                                                 @php
-                                                    $mobileIsCompleted = $ticket->status && $ticket->status->is_completed;
+                                                    $mobileIsCompleted = $ticket->isCompleted();
                                                     $mobileIsOverdue = $ticket->isOverdue();
                                                 @endphp
                                                 <span

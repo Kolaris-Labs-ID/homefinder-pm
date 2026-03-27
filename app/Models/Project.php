@@ -114,7 +114,8 @@ class Project extends Model
 
         $incompleteTickets = $this->tickets()
             ->whereHas('status', function ($query) {
-                $query->where('is_completed', false);
+                $query->where('is_completed', false)
+                    ->whereNotIn(\Illuminate\Support\Facades\DB::raw('LOWER(name)'), ['done', 'completed', 'closed']);
             })
             ->count();
 
@@ -127,7 +128,8 @@ class Project extends Model
         return $this->epics()
             ->whereHas('tickets', function ($query) {
                 $query->whereHas('status', function ($statusQuery) {
-                    $statusQuery->where('is_completed', false);
+                    $statusQuery->where('is_completed', false)
+                        ->whereNotIn(\Illuminate\Support\Facades\DB::raw('LOWER(name)'), ['done', 'completed', 'closed']);
                 });
             })
             ->exists();
@@ -192,7 +194,8 @@ class Project extends Model
 
         $completedTickets = $this->tickets()
             ->whereHas('status', function ($query) {
-                $query->where('is_completed', true);
+                $query->where('is_completed', true)
+                    ->orWhereIn(\Illuminate\Support\Facades\DB::raw('LOWER(name)'), ['done', 'completed', 'closed']);
             })
             ->count();
 

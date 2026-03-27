@@ -202,6 +202,16 @@ class Ticket extends Model
     }
 
     /**
+     * Check if ticket is completed
+     */
+    public function isCompleted(): bool
+    {
+        $statusName = strtolower($this->status?->name ?? '');
+        return ($this->status && $this->status->is_completed) || 
+               in_array($statusName, ['done', 'completed', 'closed']);
+    }
+
+    /**
      * Check if ticket is overdue
      */
     public function isOverdue(): bool
@@ -211,8 +221,7 @@ class Ticket extends Model
         }
 
         // Consider ticket overdue only if it's not completed
-        $isCompleted = $this->status && $this->status->is_completed;
-        if ($isCompleted) {
+        if ($this->isCompleted()) {
             return false;
         }
 

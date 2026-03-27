@@ -695,7 +695,7 @@
                                                 </span>
                                             @endif
                                             @if ($ticket->due_date)
-                                                <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap {{ $ticket->due_date->isPast() ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' }}">
+                                                <span class="text-xs px-1.5 py-0.5 rounded whitespace-nowrap {{ $ticket->isOverdue() ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' }}">
                                                     {{ $ticket->due_date->format('M d') }}
                                                 </span>
                                             @endif

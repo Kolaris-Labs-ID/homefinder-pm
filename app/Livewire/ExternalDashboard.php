@@ -246,7 +246,8 @@ class ExternalDashboard extends Component
 
             'completed_tickets' => $this->project->tickets()
                 ->whereHas('status', function ($q) {
-                    $q->where('is_completed', true);
+                    $q->where('is_completed', true)
+                        ->orWhereIn(DB::raw('LOWER(name)'), ['done', 'completed', 'closed']);
                 })->count(),
 
             'in_progress_tickets' => $this->project->tickets()
@@ -256,7 +257,8 @@ class ExternalDashboard extends Component
             'overdue_tickets' => $this->project->tickets()
                 ->where('due_date', '<', Carbon::now())
                 ->whereHas('status', function ($q) {
-                    $q->where('is_completed', false);
+                    $q->where('is_completed', false)
+                        ->whereNotIn(DB::raw('LOWER(name)'), ['done', 'completed', 'closed']);
                 })->count(),
         ];
 
@@ -266,7 +268,8 @@ class ExternalDashboard extends Component
 
         $this->completedThisWeek = $this->project->tickets()
             ->whereHas('status', function ($q) {
-                $q->whereIn('name', ['Completed', 'Done', 'Closed']);
+                $q->where('is_completed', true)
+                    ->orWhereIn(DB::raw('LOWER(name)'), ['completed', 'done', 'closed']);
             })
             ->where('updated_at', '>=', Carbon::now()->subDays(7))
             ->count();
@@ -335,8 +338,9 @@ class ExternalDashboard extends Component
                         $endDate = $startDate->copy()->addDays(1);
                     }
 
+                    $isCompleted = $ticket->isCompleted();
                     $progress = $this->getSimpleProgress($ticket->status->name ?? '') / 100;
-                    $isOverdue = $endDate->lt($now) && $progress < 1;
+                    $isOverdue = $endDate->lt($now) && !$isCompleted;
 
                     // Format dates for modal
                     $startDateFormatted = $startDate->format('M d, Y');
@@ -372,6 +376,7 @@ class ExternalDashboard extends Component
                             'start_date' => $startDateFormatted,
                             'due_date' => $dueDateFormatted,
                             'progress_percentage' => (int) ($progress * 100),
+                            'is_completed' => $isCompleted,
                             'is_overdue' => $isOverdue,
                             'assignees' => $ticket->assignees->map(function ($user) {
                                 return [
@@ -513,7 +518,7 @@ class ExternalDashboard extends Component
         
         foreach ($tickets as $ticket) {
             $isOverdue = $ticket->isOverdue();
-            $isCompleted = $ticket->status && $ticket->status->is_completed;
+            $isCompleted = $ticket->isCompleted();
             
             $events[] = [
                 'id' => 'ticket_' . $ticket->id,
