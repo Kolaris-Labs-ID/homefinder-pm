@@ -188,7 +188,7 @@
             </p>
         </div>
     @else
-        {{-- Consistent Empty State (same as Project Board) --}}
+        {{-- Consistent Empty State (same as Kanban Board) --}}
         <div class="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400 gap-4">
             <div class="flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 p-6">
                 <x-heroicon-o-flag class="w-16 h-16 text-gray-400 dark:text-gray-500" />

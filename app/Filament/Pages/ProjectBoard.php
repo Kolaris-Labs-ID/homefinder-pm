@@ -24,10 +24,16 @@ class ProjectBoard extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-view-columns';
     protected static string $view = 'filament.pages.project-board';
-    protected static ?string $title = 'Project Board';
-    protected static ?string $navigationLabel = 'Project Board';
+    protected static ?string $title = 'Kanban Board';
+    protected static ?string $navigationLabel = 'Kanban Board';
     protected static ?string $navigationGroup = 'Project Management';
     protected static ?int $navigationSort = 4;
+    protected ?string $heading = 'Kanban Board';
+
+    public function getHeading(): string
+    {
+        return 'Kanban Board';
+    }
 
     public function getSubheading(): ?string
     {

@@ -20,7 +20,7 @@ class ViewProject extends ViewRecord
         return [
             Actions\EditAction::make(),
             Actions\Action::make('board')
-                ->label('Project Board')
+                ->label('Kanban Board')
                 ->icon('heroicon-o-view-columns')
                 ->color('info')
                 ->url(fn () => \App\Filament\Pages\ProjectBoard::getUrl(['project_id' => $this->record->id])),
