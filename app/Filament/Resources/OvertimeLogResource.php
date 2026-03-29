@@ -10,6 +10,8 @@ use App\Filament\Resources\OvertimeLogResource\Pages\ViewOvertimeLog;
 use App\Models\Hris\OvertimeLog;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -92,6 +94,111 @@ class OvertimeLogResource extends Resource
     }
 
     // -------------------------------------------------------------------------
+    // Infolist (view)
+    // -------------------------------------------------------------------------
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\Section::make('Session Info')
+                    ->columns(2)
+                    ->schema([
+                        Infolists\Components\TextEntry::make('user.name')
+                            ->label('Employee'),
+                        Infolists\Components\TextEntry::make('manager.name')
+                            ->label('Manager / Assigner'),
+                        Infolists\Components\TextEntry::make('task_name')
+                            ->label('Task'),
+                        Infolists\Components\TextEntry::make('client_name')
+                            ->label('Client')
+                            ->placeholder('—'),
+                        Infolists\Components\TextEntry::make('description')
+                            ->placeholder('—')
+                            ->columnSpanFull(),
+                    ]),
+
+                Infolists\Components\Section::make('Timing & Pay')
+                    ->columns(2)
+                    ->schema([
+                        Infolists\Components\TextEntry::make('start_time')
+                            ->label('Start')
+                            ->dateTime('d M Y, H:i'),
+                        Infolists\Components\TextEntry::make('end_time')
+                            ->label('End')
+                            ->dateTime('d M Y, H:i')
+                            ->placeholder('—'),
+                        Infolists\Components\TextEntry::make('duration_minutes')
+                            ->label('Duration')
+                            ->formatStateUsing(fn (?int $state): string => $state
+                                ? sprintf('%dh %dm', intdiv($state, 60), $state % 60)
+                                : '—'),
+                        Infolists\Components\TextEntry::make('hourly_rate')
+                            ->label('Hourly Rate')
+                            ->money('IDR'),
+                        Infolists\Components\TextEntry::make('estimated_pay')
+                            ->label('Est. Pay')
+                            ->money('IDR')
+                            ->state(fn (OvertimeLog $record): float => $record->calculateEstimatedPay()),
+                    ]),
+
+                Infolists\Components\Section::make('Evidence')
+                    ->visible(fn (OvertimeLog $record): bool => filled($record->evidence_path))
+                    ->schema([
+                        Infolists\Components\ImageEntry::make('evidence_path')
+                            ->label('Evidence photo')
+                            ->height(250)
+                            ->extraImgAttributes([
+                                'class' => 'rounded-lg shadow-lg border',
+                                'loading' => 'lazy',
+                            ])
+                            ->openUrlInNewTab()
+                            ->url(fn (OvertimeLog $record): ?string => self::evidenceImageState($record))
+                            ->getStateUsing(fn (OvertimeLog $record): ?string => self::evidenceImageState($record)),
+                    ]),
+
+                Infolists\Components\Section::make('Approval')
+                    ->columns(2)
+                    ->schema([
+                        Infolists\Components\TextEntry::make('status')
+                            ->badge()
+                            ->color(fn (string $state): string => match ($state) {
+                                OvertimeLog::STATUS_RUNNING => 'info',
+                                OvertimeLog::STATUS_PENDING => 'warning',
+                                OvertimeLog::STATUS_APPROVED => 'success',
+                                OvertimeLog::STATUS_REJECTED => 'danger',
+                                OvertimeLog::STATUS_FLAGGED => 'gray',
+                                default => 'gray',
+                            })
+                            ->formatStateUsing(fn (string $state): string => OvertimeLog::getStatusLabels()[$state] ?? $state),
+                        Infolists\Components\IconEntry::make('auto_closed')
+                            ->label('Auto-closed by system')
+                            ->boolean()
+                            ->trueIcon('heroicon-o-exclamation-triangle')
+                            ->trueColor('warning'),
+                        Infolists\Components\TextEntry::make('rejection_note')
+                            ->label('Rejection reason')
+                            ->placeholder('—')
+                            ->columnSpanFull()
+                            ->visible(fn (OvertimeLog $record): bool => filled($record->rejection_note)),
+                    ]),
+            ]);
+    }
+
+    protected static function evidenceImageState(OvertimeLog $record): ?string
+    {
+        $state = $record->evidence_path;
+        if (! $state) {
+            return null;
+        }
+        if (str_starts_with($state, 'http')) {
+            return $state;
+        }
+
+        return url('/admin/overtime-evidence').'?'.http_build_query(['path' => $state]);
+    }
+
+    // -------------------------------------------------------------------------
     // Table
     // -------------------------------------------------------------------------
 
@@ -132,18 +239,20 @@ class OvertimeLogResource extends Resource
                     ->getStateUsing(fn (OvertimeLog $record): float => $record->calculateEstimatedPay()),
                 Tables\Columns\ImageColumn::make('evidence_path')
                     ->label('Evidence')
-                    ->disk('local')
                     ->size(50)
-                    ->defaultImageUrl(fn (OvertimeLog $record): string => $record->evidence_path ? '' : ''),
+                    ->defaultImageUrl(fn () => null)
+                    ->getStateUsing(function (OvertimeLog $record): ?string {
+                        return self::evidenceImageState($record);
+                    }),
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        OvertimeLog::STATUS_RUNNING  => 'info',
-                        OvertimeLog::STATUS_PENDING  => 'warning',
+                        OvertimeLog::STATUS_RUNNING => 'info',
+                        OvertimeLog::STATUS_PENDING => 'warning',
                         OvertimeLog::STATUS_APPROVED => 'success',
                         OvertimeLog::STATUS_REJECTED => 'danger',
-                        OvertimeLog::STATUS_FLAGGED  => 'gray',
-                        default                      => 'gray',
+                        OvertimeLog::STATUS_FLAGGED => 'gray',
+                        default => 'gray',
                     }),
                 Tables\Columns\IconColumn::make('auto_closed')
                     ->label('Auto-closed')
@@ -180,7 +289,7 @@ class OvertimeLogResource extends Resource
                     ->modalDescription('Are you sure you want to approve this overtime session?')
                     ->action(function (OvertimeLog $record): void {
                         $record->update([
-                            'status'         => OvertimeLog::STATUS_APPROVED,
+                            'status' => OvertimeLog::STATUS_APPROVED,
                             'rejection_note' => null,
                         ]);
                         Notification::make()
@@ -206,7 +315,7 @@ class OvertimeLogResource extends Resource
                     ])
                     ->action(function (OvertimeLog $record, array $data): void {
                         $record->update([
-                            'status'         => OvertimeLog::STATUS_REJECTED,
+                            'status' => OvertimeLog::STATUS_REJECTED,
                             'rejection_note' => $data['rejection_note'],
                         ]);
                         Notification::make()
@@ -231,7 +340,7 @@ class OvertimeLogResource extends Resource
                                 OvertimeLog::STATUS_FLAGGED,
                             ]))
                             ->each(fn (OvertimeLog $r) => $r->update([
-                                'status'         => OvertimeLog::STATUS_APPROVED,
+                                'status' => OvertimeLog::STATUS_APPROVED,
                                 'rejection_note' => null,
                             ]))
                             ->count();
@@ -252,10 +361,10 @@ class OvertimeLogResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => ListOvertimeLogs::route('/'),
+            'index' => ListOvertimeLogs::route('/'),
             'create' => CreateOvertimeLog::route('/create'),
-            'view'   => ViewOvertimeLog::route('/{record}'),
-            'edit'   => EditOvertimeLog::route('/{record}/edit'),
+            'view' => ViewOvertimeLog::route('/{record}'),
+            'edit' => EditOvertimeLog::route('/{record}/edit'),
         ];
     }
 }

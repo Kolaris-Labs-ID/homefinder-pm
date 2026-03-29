@@ -1,12 +1,12 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
-use App\Livewire\ExternalLogin;
-use App\Livewire\ExternalDashboard;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Auth\GoogleController;
+use App\Livewire\ExternalDashboard;
+use App\Livewire\ExternalLogin;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 Route::get('/', function () {
     return view('welcome');
@@ -21,6 +21,7 @@ Route::get('logout', function () {
     Auth::logout();
     request()->session()->invalidate();
     request()->session()->regenerateToken();
+
     return redirect('/admin/login')->with('info', 'You have been logged out.');
 })->name('emergency.logout');
 
@@ -36,21 +37,36 @@ Route::middleware('auth')->group(function () {
         if (in_array($locale, ['en', 'id'])) {
             session(['locale' => $locale]);
         }
+
         return redirect()->back();
     })->name('locale.switch');
 });
 
 Route::middleware('auth')->get('/admin/attendance-photo', function (\Illuminate\Http\Request $request) {
     $path = $request->query('path');
-    if (!$path || !str_starts_with($path, 'attendance-photos/') || !Storage::disk('local')->exists($path)) {
+    if (! $path || ! str_starts_with($path, 'attendance-photos/') || ! Storage::disk('local')->exists($path)) {
         abort(404, 'Photo not found.');
     }
     $file = Storage::disk('local')->get($path);
     $mimeType = Storage::disk('local')->mimeType($path) ?: 'image/jpeg';
+
     return response($file, 200)
         ->header('Content-Type', $mimeType)
         ->header('Cache-Control', 'private, max-age=86400');
 })->name('admin.attendance-photo');
+
+Route::middleware('auth')->get('/admin/overtime-evidence', function (\Illuminate\Http\Request $request) {
+    $path = $request->query('path');
+    if (! $path || ! str_starts_with($path, 'overtime-evidence/') || ! Storage::disk('local')->exists($path)) {
+        abort(404, 'Evidence not found.');
+    }
+    $file = Storage::disk('local')->get($path);
+    $mimeType = Storage::disk('local')->mimeType($path) ?: 'image/jpeg';
+
+    return response($file, 200)
+        ->header('Content-Type', $mimeType)
+        ->header('Cache-Control', 'private, max-age=86400');
+})->name('admin.overtime-evidence');
 
 Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
