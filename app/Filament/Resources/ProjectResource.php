@@ -208,9 +208,9 @@ class ProjectResource extends Resource
                         $service->archive($record, auth()->user());
 
                         Notification::make()
-                            ->title('Project archived')
-                            ->body("Project '{$record->name}' has been archived successfully.")
-                            ->success()
+                            ->title('🗃️ Project Archived!')
+                            ->body("The project '{$record->name}' has been securely moved to the archives.")
+                            ->warning()
                             ->actions([
                                 NotificationAction::make('undo')
                                     ->label('Undo')
@@ -219,6 +219,8 @@ class ProjectResource extends Resource
                                     ->close(),
                                 NotificationAction::make('view')
                                     ->label('View Archived')
+                                    ->button()
+                                    ->color('warning')
                                     ->url(static::getUrl('index', ['activeTab' => 'archived']))
                                     ->close(),
                             ])
@@ -241,12 +243,14 @@ class ProjectResource extends Resource
                         $service->restore($record);
 
                         Notification::make()
-                            ->title('Project restored')
-                            ->body("Project '{$record->name}' has been restored successfully.")
+                            ->title('🙌 Project Restored!')
+                            ->body("The project '{$record->name}' is now active again.")
                             ->success()
                             ->actions([
                                 NotificationAction::make('view')
                                     ->label('View Project')
+                                    ->button()
+                                    ->color('success')
                                     ->url(static::getUrl('view', ['record' => $record->id]))
                                     ->close(),
                             ])
@@ -266,15 +270,15 @@ class ProjectResource extends Resource
                         if ($record->is_done) {
                             $service->unmarkDone($record);
                             Notification::make()
-                                ->title('Done status removed')
-                                ->body("Project '{$record->name}' is no longer marked as done.")
-                                ->success()
+                                ->title('🔄 Status Reverted!')
+                                ->body("The project '{$record->name}' is no longer marked as completed.")
+                                ->info()
                                 ->send();
                         } else {
                             $service->markAsDone($record, false);
                             Notification::make()
-                                ->title('Project marked as done')
-                                ->body("Project '{$record->name}' has been marked as done.")
+                                ->title('🎯 Project Completed!')
+                                ->body("Awesome! The project '{$record->name}' has been marked as done.")
                                 ->success()
                                 ->send();
                         }

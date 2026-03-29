@@ -5,43 +5,72 @@
         <div class="space-y-6">
             {{-- Toolbar Section --}}
             <x-filament::section>
-                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="flex flex-wrap items-center gap-3">
-                        {{-- New Project Button --}}
-                        @can('create', \App\Models\Project::class)
-                            <x-filament::button
-                                color="primary"
-                                icon="heroicon-m-plus"
-                                tag="a"
-                                href="{{ \App\Filament\Resources\ProjectResource::getUrl('create') }}"
-                            >
-                                New Project
-                            </x-filament::button>
-                        @endcan
+                <div class="flex flex-col gap-5">
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                        <div class="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+                            {{-- New Project Button --}}
+                            @can('create', \App\Models\Project::class)
+                                <x-filament::button
+                                    color="primary"
+                                    icon="heroicon-m-plus"
+                                    tag="a"
+                                    href="{{ \App\Filament\Resources\ProjectResource::getUrl('create') }}"
+                                    class="w-full sm:w-auto"
+                                >
+                                    New Project
+                                </x-filament::button>
+                            @endcan
 
-                        {{-- Search Input --}}
-                        <div class="w-full sm:w-64">
-                            <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
-                                <x-filament::input
-                                    type="search"
-                                    wire:model.live.debounce.300ms="projectSearch"
-                                    placeholder="Search projects..."
-                                />
-                            </x-filament::input.wrapper>
+                            {{-- Search Input --}}
+                            <div class="w-full sm:w-64">
+                                <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
+                                    <x-filament::input
+                                        type="search"
+                                        wire:model.live.debounce.300ms="projectSearch"
+                                        placeholder="Search projects..."
+                                    />
+                                </x-filament::input.wrapper>
+                            </div>
+                        </div>
+
+                        {{-- Filters --}}
+                        <div class="flex flex-col sm:flex-row flex-wrap lg:items-center gap-3 w-full lg:w-auto">
+                            <div class="w-full sm:w-48">
+                                <x-filament::input.wrapper prefix-icon="heroicon-m-building-office">
+                                    <x-filament::input.select wire:model.live="filterDivision">
+                                        <option value="">All Divisions</option>
+                                        @foreach($this->getAvailableDivisions() as $division)
+                                            <option value="{{ $division }}">{{ $division }}</option>
+                                        @endforeach
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
+                            </div>
+
+                            <div class="w-full sm:w-48">
+                                <x-filament::input.wrapper prefix-icon="heroicon-m-user">
+                                    <x-filament::input.select wire:model.live="filterOwner">
+                                        <option value="">All Owners</option>
+                                        @foreach($this->getAvailableOwners() as $id => $name)
+                                            <option value="{{ $id }}">{{ $name }}</option>
+                                        @endforeach
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
+                            </div>
                         </div>
                     </div>
 
                     {{-- Sort Tabs --}}
-                    <div class="flex items-center">
+                    <div class="flex items-center overflow-x-auto pb-2 sm:pb-0 border-t border-gray-100 dark:border-white/10 pt-4">
+                        <span class="text-sm font-medium text-gray-500 mr-4 whitespace-nowrap">Sort by:</span>
                         <x-filament::tabs>
-                            @foreach(['name' => 'Name', 'end_date' => 'Due Date', 'division' => 'Division'] as $field => $label)
+                            @foreach(['name' => 'Name', 'end_date' => 'Due Date', 'division' => 'Division', 'owner' => 'Owner'] as $field => $label)
                                 <x-filament::tabs.item
                                     :active="$projectSortField === $field"
                                     wire:click="sortProjectsBy('{{ $field }}')"
                                 >
                                     {{ $label }}
                                     @if($projectSortField === $field)
-                                        <x-heroicon-m-chevron-up class="ml-1 w-3 h-3 transition-transform {{ $projectSortDirection === 'desc' ? 'rotate-180' : '' }}" />
+                                        <x-heroicon-m-chevron-up class="ml-1 w-3 h-3 inline-block transition-transform {{ $projectSortDirection === 'desc' ? 'rotate-180' : '' }}" />
                                     @endif
                                 </x-filament::tabs.item>
                             @endforeach
@@ -73,29 +102,29 @@
                             </div>
                         </x-slot>
 
-                        <div class="fi-ta-content overflow-x-auto">
-                            <table class="w-full table-auto divide-y divide-gray-200 text-start dark:divide-white/5">
-                                <thead class="bg-gray-50/50 dark:bg-white/5 border-b border-gray-100 dark:border-white/5">
+                        <div class="fi-ta-content overflow-x-auto pt-2 pb-4 px-1">
+                            <table class="w-full text-start border-separate" style="border-spacing: 0 0.75rem;">
+                                <thead>
                                     <tr>
-                                        <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 ps-6">Project Name</th>
+                                        <th class="px-5 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Project Name</th>
                                         @if(!in_array('due_date', $hiddenColumns))
-                                            <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Timeline / Due Date</th>
+                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Timeline / Due Date</th>
                                         @endif
                                         @if(!in_array('division', $hiddenColumns))
-                                            <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Division</th>
+                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Division</th>
                                         @endif
                                         @if(!in_array('owner', $hiddenColumns))
-                                            <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Owner</th>
+                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Owner</th>
                                         @endif
                                         @if(!in_array('members', $hiddenColumns))
-                                            <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Members</th>
+                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Members</th>
                                         @endif
                                         @if(!in_array('progress', $hiddenColumns))
-                                            <th class="px-3 py-4 text-start text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 pe-6">Status & Progress</th>
+                                            <th class="px-5 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Status & Progress</th>
                                         @endif
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-gray-100 whitespace-nowrap dark:divide-white/5">
+                                <tbody class="whitespace-nowrap">
                                     @foreach ($groupProjects as $project)
                                         @php
                                             $status = $this->getProjectStatus($project);
@@ -106,17 +135,17 @@
                                         @endphp
                                         <tr
                                             wire:click="selectProject({{ $project->id }})"
-                                            class="fi-ta-row cursor-pointer transition-all duration-200 hover:bg-gray-50/50 dark:hover:bg-white/5 group"
+                                            class="cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 group bg-white dark:bg-gray-900 shadow-sm"
                                         >
                                             {{-- Project Name --}}
-                                            <td class="px-3 py-5 ps-6">
+                                            <td class="px-5 py-4 rounded-l-2xl border-y border-l border-gray-200 dark:border-gray-800 group-hover:border-primary-200 group-hover:bg-primary-50/50 dark:group-hover:bg-primary-900/20 dark:group-hover:border-primary-800">
                                                 <div class="flex flex-col gap-1.5">
-                                                    <span class="text-sm font-semibold text-gray-900 dark:text-white leading-tight group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                                                    <span class="text-base font-bold text-gray-900 dark:text-white leading-tight group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
                                                         {{ $project->name }}
                                                     </span>
                                                     @if($project->ticket_prefix)
                                                         <div class="inline-flex">
-                                                            <span class="text-[10px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-white/10">
+                                                            <span class="text-[10px] font-black tracking-widest uppercase px-2 py-0.5 rounded-md bg-gray-50 dark:bg-white/5 text-gray-500 border border-gray-200 dark:border-white/10 shadow-sm">
                                                                 {{ $project->ticket_prefix }}
                                                             </span>
                                                         </div>
@@ -126,7 +155,7 @@
 
                                             {{-- Due Date --}}
                                             @if(!in_array('due_date', $hiddenColumns))
-                                                <td class="px-3 py-5">
+                                                <td class="px-3 py-4 border-y border-gray-200 dark:border-gray-800 group-hover:border-primary-200 group-hover:bg-primary-50/50 dark:group-hover:bg-primary-900/20 dark:group-hover:border-primary-800">
                                                     @if($project->end_date)
                                                         @php
                                                             $isOverdue = $project->end_date->isPast() && !$project->is_done;
@@ -136,20 +165,20 @@
                                                         <x-filament::badge 
                                                             :color="$badgeColor" 
                                                             icon="{{ $isOverdue ? 'heroicon-m-exclamation-triangle' : 'heroicon-m-calendar' }}" 
-                                                            size="sm"
-                                                            class="shadow-sm"
+                                                            size="md"
+                                                            class="shadow-sm font-bold"
                                                         >
                                                             {{ $project->end_date->format('M d, Y') }}
                                                         </x-filament::badge>
                                                     @else
-                                                        <span class="text-xs text-gray-400 dark:text-gray-500 font-medium italic">No deadline</span>
+                                                        <span class="text-sm text-gray-400 dark:text-gray-500 font-medium italic">No deadline</span>
                                                     @endif
                                                 </td>
                                             @endif
 
                                             {{-- Division --}}
                                             @if(!in_array('division', $hiddenColumns))
-                                                <td class="px-3 py-5">
+                                                <td class="px-3 py-4 border-y border-gray-200 dark:border-gray-800 group-hover:border-primary-200 group-hover:bg-primary-50/50 dark:group-hover:bg-primary-900/20 dark:group-hover:border-primary-800">
                                                     @if($owner?->division)
                                                         @php
                                                             $divName = strtolower($owner->division);
@@ -164,23 +193,23 @@
                                                                 default => 'gray',
                                                             };
                                                         @endphp
-                                                        <x-filament::badge :color="$divColor" size="sm" class="font-medium">
+                                                        <x-filament::badge :color="$divColor" size="md" class="font-bold shadow-sm">
                                                             {{ $owner->division }}
                                                         </x-filament::badge>
                                                     @else
-                                                        <span class="text-xs text-gray-400 dark:text-gray-500">—</span>
+                                                        <span class="text-sm text-gray-400 dark:text-gray-500">—</span>
                                                     @endif
                                                 </td>
                                             @endif
 
                                             {{-- Owner --}}
                                             @if(!in_array('owner', $hiddenColumns))
-                                                <td class="px-3 py-5">
-                                                    <div class="flex items-center gap-2">
-                                                        <div class="w-6 h-6 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center border border-gray-200 dark:border-white/10">
-                                                            <x-heroicon-m-user-circle class="w-4 h-4 text-gray-500" />
+                                                <td class="px-3 py-4 border-y border-gray-200 dark:border-gray-800 group-hover:border-primary-200 group-hover:bg-primary-50/50 dark:group-hover:bg-primary-900/20 dark:group-hover:border-primary-800">
+                                                    <div class="flex items-center gap-3">
+                                                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center border border-gray-300 dark:border-gray-600 shadow-sm">
+                                                            <x-heroicon-s-user class="w-4 h-4 text-gray-500 dark:text-gray-400" />
                                                         </div>
-                                                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                        <span class="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600">
                                                             {{ $owner?->name ?? 'Unassigned' }}
                                                         </span>
                                                     </div>
@@ -189,19 +218,21 @@
 
                                             {{-- Members --}}
                                             @if(!in_array('members', $hiddenColumns))
-                                                <td class="px-3 py-5">
-                                                    <div class="flex items-center gap-1.5 flex-wrap max-w-[200px]">
+                                                <td class="px-3 py-4 border-y border-gray-200 dark:border-gray-800 group-hover:border-primary-200 group-hover:bg-primary-50/50 dark:group-hover:bg-primary-900/20 dark:group-hover:border-primary-800">
+                                                    <div class="flex items-center -space-x-2">
                                                         @if($otherMembers->isNotEmpty())
                                                             @foreach($otherMembers as $member)
-                                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-white/10 shadow-sm leading-none">
-                                                                    {{ explode(' ', $member->name)[0] }}
-                                                                </span>
+                                                                <div class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 border-2 border-white dark:border-gray-900 flex items-center justify-center shadow-sm" title="{{ $member->name }}">
+                                                                    <span class="text-xs font-black text-gray-600 dark:text-gray-300">{{ substr($member->name, 0, 1) }}</span>
+                                                                </div>
                                                             @endforeach
                                                             @if($project->users->count() > 4)
-                                                                <span class="text-[10px] font-bold text-gray-400 ml-0.5">+{{ $project->users->count() - 4 }}</span>
+                                                                <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 border-2 border-white dark:border-gray-900 flex items-center justify-center shadow-sm">
+                                                                    <span class="text-[10px] font-black text-gray-500">+{{ $project->users->count() - 4 }}</span>
+                                                                </div>
                                                             @endif
                                                         @else
-                                                            <span class="text-xs text-gray-400 dark:text-gray-500">—</span>
+                                                            <span class="text-sm text-gray-400 dark:text-gray-500 font-medium">—</span>
                                                         @endif
                                                     </div>
                                                 </td>
@@ -209,17 +240,17 @@
 
                                             {{-- Progress --}}
                                             @if(!in_array('progress', $hiddenColumns))
-                                                <td class="px-3 py-5 pe-6">
-                                                    <div class="flex flex-col gap-1.5 min-w-[140px]">
-                                                        <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
-                                                            <span class="text-gray-400">Full Progress</span>
-                                                            <span class="{{ $progress >= 100 ? 'text-emerald-600' : ($progress >= 50 ? 'text-primary-600' : 'text-amber-600') }}">
+                                                <td class="px-5 py-4 rounded-r-2xl border-y border-r border-gray-200 dark:border-gray-800 group-hover:border-primary-200 group-hover:bg-primary-50/50 dark:group-hover:bg-primary-900/20 dark:group-hover:border-primary-800">
+                                                    <div class="flex flex-col gap-2 min-w-[150px]">
+                                                        <div class="flex items-center justify-between text-[11px] font-black uppercase tracking-wider">
+                                                            <span class="text-gray-500 dark:text-gray-400">Progress</span>
+                                                            <span class="{{ $progress >= 100 ? 'text-emerald-500' : ($progress >= 50 ? 'text-primary-500' : 'text-amber-500') }}">
                                                                 {{ number_format(min($progress, 100), 0) }}%
                                                             </span>
                                                         </div>
-                                                        <div class="w-full h-2 rounded-full bg-gray-100 dark:bg-white/5 overflow-hidden border border-gray-200 dark:border-white/10 relative">
+                                                        <div class="w-full h-2.5 rounded-full bg-gray-100 dark:bg-black/20 overflow-hidden shadow-inner">
                                                             <div
-                                                                class="h-full rounded-full transition-all duration-1000 ease-out shadow-sm"
+                                                                class="h-full rounded-full transition-all duration-1000 ease-out shadow-[inset_0_1px_rgba(255,255,255,0.4)]"
                                                                 style="width: {{ min($progress, 100) }}%; background: linear-gradient(90deg, {{ $progress >= 100 ? '#10B981, #059669' : ($progress >= 50 ? '#3B82F6, #2563EB' : '#F59E0B, #D97706') }});"
                                                             ></div>
                                                         </div>

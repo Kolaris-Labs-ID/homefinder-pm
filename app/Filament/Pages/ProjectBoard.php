@@ -62,6 +62,10 @@ class ProjectBoard extends Page
 
     public string $projectSearch = '';
 
+    public string $filterDivision = '';
+
+    public string $filterOwner = '';
+
     public string $projectSortField = 'name';
 
     public string $projectSortDirection = 'asc';
@@ -211,6 +215,26 @@ class ProjectBoard extends Page
         return $divisions->keys()->first() ?? 'No Division';
     }
 
+    public function getAvailableDivisions(): array
+    {
+        return $this->projects->map(function ($project) {
+            return $this->getProjectDivision($project);
+        })->filter(fn($d) => $d !== 'No Division')->unique()->sort()->values()->toArray();
+    }
+
+    public function getAvailableOwners(): array
+    {
+        $owners = [];
+        foreach ($this->projects as $project) {
+            $owner = $project->users->first();
+            if ($owner) {
+                $owners[$owner->id] = $owner->name;
+            }
+        }
+        asort($owners);
+        return $owners;
+    }
+
     public function getGroupedProjects(): Collection
     {
         $filtered = $this->projects;
@@ -223,6 +247,19 @@ class ProjectBoard extends Page
             });
         }
 
+        if (!empty($this->filterDivision)) {
+            $filtered = $filtered->filter(function ($project) {
+                return strtolower($this->getProjectDivision($project)) === strtolower($this->filterDivision);
+            });
+        }
+
+        if (!empty($this->filterOwner)) {
+            $filtered = $filtered->filter(function ($project) {
+                $owner = $project->users->first();
+                return $owner && (string)$owner->id === (string)$this->filterOwner;
+            });
+        }
+
         $field = $this->projectSortField;
         $direction = $this->projectSortDirection;
 
@@ -232,6 +269,7 @@ class ProjectBoard extends Page
                 'end_date' => $project->end_date ? $project->end_date->format('Y-m-d') : '9999-12-31',
                 'status' => $this->getProjectStatus($project)['label'],
                 'division' => strtolower($this->getProjectDivision($project)),
+                'owner' => $project->users->first() ? strtolower($project->users->first()->name) : 'zzzz',
                 default => strtolower($project->name),
             };
         }, SORT_REGULAR, $direction === 'desc');
