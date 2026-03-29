@@ -205,11 +205,8 @@
                                             {{-- Owner --}}
                                             @if(!in_array('owner', $hiddenColumns))
                                                 <td class="px-3 py-4 border-y border-gray-200 dark:border-gray-800 group-hover:border-primary-200 group-hover:bg-primary-50/50 dark:group-hover:bg-primary-900/20 dark:group-hover:border-primary-800">
-                                                    <div class="flex items-center gap-3">
-                                                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center border border-gray-300 dark:border-gray-600 shadow-sm">
-                                                            <x-heroicon-s-user class="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                                                        </div>
-                                                        <span class="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600">
+                                                    <div class="flex items-center">
+                                                        <span class="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors">
                                                             {{ $owner?->name ?? 'Unassigned' }}
                                                         </span>
                                                     </div>
@@ -219,18 +216,14 @@
                                             {{-- Members --}}
                                             @if(!in_array('members', $hiddenColumns))
                                                 <td class="px-3 py-4 border-y border-gray-200 dark:border-gray-800 group-hover:border-primary-200 group-hover:bg-primary-50/50 dark:group-hover:bg-primary-900/20 dark:group-hover:border-primary-800">
-                                                    <div class="flex items-center -space-x-2">
+                                                    <div class="flex items-center">
                                                         @if($otherMembers->isNotEmpty())
-                                                            @foreach($otherMembers as $member)
-                                                                <div class="w-8 h-8 rounded-full bg-white dark:bg-gray-800 border-2 border-white dark:border-gray-900 flex items-center justify-center shadow-sm" title="{{ $member->name }}">
-                                                                    <span class="text-xs font-black text-gray-600 dark:text-gray-300">{{ substr($member->name, 0, 1) }}</span>
-                                                                </div>
-                                                            @endforeach
-                                                            @if($project->users->count() > 4)
-                                                                <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 border-2 border-white dark:border-gray-900 flex items-center justify-center shadow-sm">
-                                                                    <span class="text-[10px] font-black text-gray-500">+{{ $project->users->count() - 4 }}</span>
-                                                                </div>
-                                                            @endif
+                                                            <span class="text-sm text-gray-600 dark:text-gray-400 line-clamp-1" title="{{ $project->users->skip(1)->pluck('name')->join(', ') }}">
+                                                                {{ $otherMembers->pluck('name')->join(', ') }}
+                                                                @if($project->users->count() > 4)
+                                                                    <span class="text-xs text-gray-400 font-medium ml-1 bg-gray-50 dark:bg-gray-800/50 px-1.5 py-0.5 rounded">+{{ $project->users->count() - 4 }}</span>
+                                                                @endif
+                                                            </span>
                                                         @else
                                                             <span class="text-sm text-gray-400 dark:text-gray-500 font-medium">—</span>
                                                         @endif
