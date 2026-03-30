@@ -144,4 +144,49 @@ class ClientVisitApiTest extends TestCase
             Carbon::setTestNow();
         }
     }
+
+    #[Test]
+    public function visit_check_out_does_not_set_attendance_check_out(): void
+    {
+        Sanctum::actingAs($this->user);
+        Carbon::setTestNow('2026-03-27 11:00:00');
+
+        try {
+            $visit = ClientVisit::create([
+                'employee_id' => $this->employee->id,
+                'client_name' => 'PT Visit Only',
+                'client_address' => 'Jl. Thamrin, Jakarta',
+                'purpose' => ClientVisit::PURPOSE_OTHER,
+                'visit_date' => Carbon::today()->toDateString(),
+                'status' => ClientVisit::STATUS_PLANNED,
+            ]);
+
+            $this->postJson("/api/hris/visits/{$visit->id}/check-in", [
+                'latitude' => -6.2,
+                'longitude' => 106.81,
+            ])->assertStatus(200);
+
+            $log = AttendanceLog::where('client_visit_id', $visit->id)->first();
+            $this->assertNotNull($log);
+            $this->assertNull($log->check_out_time);
+
+            $this->postJson("/api/hris/visits/{$visit->id}/check-out", [
+                'latitude' => -6.21,
+                'longitude' => 106.82,
+            ])->assertStatus(200)
+                ->assertJsonPath('data.status', ClientVisit::STATUS_COMPLETED);
+
+            $visit->refresh();
+            $this->assertEquals(ClientVisit::STATUS_COMPLETED, $visit->status);
+            $this->assertNotNull($visit->actual_check_out);
+
+            $log->refresh();
+            $this->assertNull(
+                $log->check_out_time,
+                'Daily attendance check-out must use the attendance API (e.g. with photo), not visit check-out.',
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
 }

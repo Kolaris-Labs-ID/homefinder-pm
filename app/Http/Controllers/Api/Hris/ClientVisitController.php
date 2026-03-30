@@ -216,16 +216,8 @@ class ClientVisitController extends Controller
             'visit_report' => $data['visit_report'] ?? null,
         ]);
 
-        // Update the corresponding attendance log entry
-        $attendanceLog = AttendanceLog::where('client_visit_id', $clientVisit->id)->first();
-        if ($attendanceLog) {
-            $attendanceLog->update([
-                'check_out_time' => now(),
-                'check_out_latitude' => $data['latitude'] ?? null,
-                'check_out_longitude' => $data['longitude'] ?? null,
-                'check_out_address' => $clientVisit->client_address,
-            ]);
-        }
+        // Visit check-out is separate from daily attendance check-out (photo-required flow).
+        // Attendance remains open until POST /api/hris/attendance/check-out.
 
         return response()->json([
             'message' => 'Checked out from visit successfully.',
