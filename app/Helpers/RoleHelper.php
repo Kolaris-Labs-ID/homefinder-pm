@@ -45,6 +45,20 @@ class RoleHelper
     }
 
     /**
+     * Super admin and C-level executives can comment on any ticket, including outside their projects.
+     */
+    public static function canCommentOnAnyTicket(?User $user = null): bool
+    {
+        $user = $user ?? auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        return $user->hasRole(['super_admin', 'CEO', 'COO']);
+    }
+
+    /**
      * Check if user can assign to the target user based on role hierarchy
      * 
      * @param User $targetUser The user being assigned to

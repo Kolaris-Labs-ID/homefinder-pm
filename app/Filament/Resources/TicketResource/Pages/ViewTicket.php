@@ -4,6 +4,7 @@ namespace App\Filament\Resources\TicketResource\Pages;
 
 use App\Filament\Pages\ProjectBoard;
 use App\Filament\Resources\TicketResource;
+use App\Helpers\RoleHelper;
 use App\Models\Ticket;
 use App\Models\TicketComment;
 use Filament\Actions;
@@ -30,8 +31,8 @@ class ViewTicket extends ViewRecord
         $ticket = $this->getRecord();
         $project = $ticket->project;
         
-        // Check if user is member of the project
-        $canComment = $project->members()->where('users.id', auth()->id())->exists();
+        $canComment = $project->members()->where('users.id', auth()->id())->exists()
+            || RoleHelper::canCommentOnAnyTicket(auth()->user());
 
         return [
             Actions\EditAction::make()
@@ -53,6 +54,18 @@ class ViewTicket extends ViewRecord
                 ])
                 ->action(function (array $data) {
                     $ticket = $this->getRecord();
+                    $project = $ticket->project;
+                    $allowed = $project->members()->where('users.id', auth()->id())->exists()
+                        || RoleHelper::canCommentOnAnyTicket(auth()->user());
+
+                    if (! $allowed) {
+                        Notification::make()
+                            ->title('You do not have permission to add a comment')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
 
                     $comment = $ticket->comments()->create([
                         'user_id' => auth()->id(),

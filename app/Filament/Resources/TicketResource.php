@@ -43,7 +43,7 @@ class TicketResource extends Resource
         // Exclude archived tickets
         $query->whereNull('archived_at');
 
-        if (! auth()->user()->hasRole(['super_admin'])) {
+        if (! RoleHelper::canCommentOnAnyTicket(auth()->user())) {
             $query->where(function ($query) {
                 $query->whereHas('assignees', function ($query) {
                         $query->where('users.id', auth()->id());
