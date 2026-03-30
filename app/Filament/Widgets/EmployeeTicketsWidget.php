@@ -2,12 +2,14 @@
 
 namespace App\Filament\Widgets;
 
+use App\Models\Ticket;
 use App\Models\User;
 use BezhanSalleh\FilamentShield\Traits\HasWidgetShield;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Carbon\Carbon;
 
 class EmployeeTicketsWidget extends BaseWidget
@@ -66,26 +68,27 @@ class EmployeeTicketsWidget extends BaseWidget
         return true;
     }
 
-    public function table(Table $table): Table
+    /**
+     * User query for this widget (assignee or creator of non-archived tickets), with role scoping.
+     */
+    public static function employeeTicketsUserQuery(?User $viewer): Builder
     {
-        $user = self::getAuthUser();
+        $ticketsTable = (new Ticket)->getTable();
 
-        $query = User::query()
-            ->whereHas('assignedTickets', function (Builder $q) {
-                $q->whereNull('archived_at');
+        return User::query()
+            ->where(function (Builder $q) {
+                $q->whereHas('assignedTickets', fn (Builder $q) => $q->whereNull('archived_at'))
+                    ->orWhereHas('createdTickets', fn (Builder $q) => $q->whereNull('archived_at'));
             })
-            ->whereHas('projects')
-            ->when(self::isFullManagementRole($user), function (Builder $query) {
+            ->when(self::isFullManagementRole($viewer), function (Builder $query) {
                 // Management sees all
             })
-            ->when(self::isHeadDivision($user) && !self::isFullManagementRole($user), function (Builder $query) use ($user) {
-                // Head Division sees only their division
-                $query->where('division', $user->division);
+            ->when(self::isHeadDivision($viewer) && !self::isFullManagementRole($viewer), function (Builder $query) use ($viewer) {
+                $query->where('division', $viewer->division);
             })
-            ->when(!self::isFullManagementRole($user) && !self::isHeadDivision($user), function (Builder $query) use ($user) {
-                // Regular users see only their own row
-                if ($user) {
-                    $query->where('id', $user->id);
+            ->when(!self::isFullManagementRole($viewer) && !self::isHeadDivision($viewer), function (Builder $query) use ($viewer) {
+                if ($viewer) {
+                    $query->where('id', $viewer->id);
                 }
             })
             ->withCount([
@@ -140,7 +143,30 @@ class EmployeeTicketsWidget extends BaseWidget
                              ->where('name', 'not like', '%closed%');
                       });
                 }
-            ]);
+            ])
+            ->selectSub(function (QueryBuilder $sub) use ($ticketsTable) {
+                $sub->from($ticketsTable)
+                    ->join('project_members', function ($join) use ($ticketsTable) {
+                        $join->on('project_members.project_id', '=', "{$ticketsTable}.project_id")
+                            ->whereColumn('project_members.user_id', 'users.id');
+                    })
+                    ->whereNull("{$ticketsTable}.archived_at")
+                    ->where(function (QueryBuilder $q) use ($ticketsTable) {
+                        $q->whereColumn("{$ticketsTable}.created_by", 'users.id')
+                            ->orWhereExists(function (QueryBuilder $q2) use ($ticketsTable) {
+                                $q2->selectRaw('1')
+                                    ->from('ticket_users')
+                                    ->whereColumn('ticket_users.ticket_id', "{$ticketsTable}.id")
+                                    ->whereColumn('ticket_users.user_id', 'users.id');
+                            });
+                    })
+                    ->selectRaw("count(distinct {$ticketsTable}.id)");
+            }, 'member_projects_tickets_count');
+    }
+
+    public function table(Table $table): Table
+    {
+        $query = self::employeeTicketsUserQuery(self::getAuthUser());
 
         return $table
             ->query($query)
@@ -157,6 +183,13 @@ class EmployeeTicketsWidget extends BaseWidget
                     ->color('gray')
                     ->sortable()
                     ->searchable(),
+
+                Tables\Columns\TextColumn::make('member_projects_tickets_count')
+                    ->label('Tickets (member projects)')
+                    ->sortable()
+                    ->badge()
+                    ->color('primary')
+                    ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('todo_tickets_count')
                     ->label('To Do')
