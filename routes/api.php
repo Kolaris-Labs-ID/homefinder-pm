@@ -46,6 +46,7 @@ Route::middleware(['auth:sanctum'])
     ->group(function () {
         Route::get('/profile', [ProfileController::class, 'show']);
         Route::put('/profile', [ProfileController::class, 'update']);
+        Route::put('/profile/mood', [ProfileController::class, 'updateMood']);
 
         Route::get('/leave-balances', [LeaveBalanceController::class, 'index']);
         Route::get('/leave-types', [LeaveBalanceController::class, 'leaveTypes']);

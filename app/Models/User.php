@@ -36,6 +36,8 @@ class User extends Authenticatable implements FilamentUser
         'avatar_url',
         'division',
         'is_division_head',
+        'mood_emoji',
+        'mood_text',
     ];
 
     /**

@@ -70,6 +70,8 @@ class TeamController extends Controller
                     'status_detail' => $status['detail'],
                     'check_in_time' => $attendance?->check_in_time ? Carbon::parse($attendance->check_in_time)->format('H:i:s') : null,
                     'is_on_break' => $attendance && $attendance->break_start_time && !$attendance->break_end_time,
+                    'mood_emoji' => $employee->user->mood_emoji ?? null,
+                    'mood_text' => $employee->user->mood_text ?? null,
                 ];
             });
 

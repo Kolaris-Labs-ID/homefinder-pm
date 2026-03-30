@@ -25,6 +25,8 @@ class ProfileController extends Controller
                 'email' => $user->email,
                 'division' => $user->division,
                 'is_division_head' => $user->is_division_head,
+                'mood_emoji' => $user->mood_emoji,
+                'mood_text' => $user->mood_text,
             ],
             'employee' => $user->employee->only([
                 'id',
@@ -81,6 +83,27 @@ class ProfileController extends Controller
         return response()->json([
             'message' => 'Profile updated successfully.',
             'employee' => $employee->fresh(),
+        ]);
+    }
+
+    public function updateMood(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'mood_emoji' => ['nullable', 'string', 'max:10'],
+            'mood_text'  => ['nullable', 'string', 'max:60'],
+        ]);
+
+        $user->update([
+            'mood_emoji' => $data['mood_emoji'] ?? null,
+            'mood_text'  => $data['mood_text'] ?? null,
+        ]);
+
+        return response()->json([
+            'message'    => 'Mood updated successfully.',
+            'mood_emoji' => $user->mood_emoji,
+            'mood_text'  => $user->mood_text,
         ]);
     }
 }
