@@ -18,7 +18,7 @@ class ContributionLeaderboardService
      */
     public function getLeaderboard(string $timeRange, int $topCount): array
     {
-        $users = User::orderBy('name')->get();
+        $users = User::with(['employee.primaryPosition.position'])->orderBy('name')->get();
         $leaderboardData = [];
 
         foreach ($users as $user) {
@@ -28,10 +28,12 @@ class ContributionLeaderboardService
             if ($totalScore > 0) {
                 $leaderboardData[] = [
                     'user' => [
-                        'id' => $user->id,
-                        'name' => $user->name ?? '',
-                        'avatar_url' => $user->avatar_url,
-                        'avatar_initials' => $user->avatar_initials,
+                        'id'               => $user->id,
+                        'name'             => $user->name ?? '',
+                        'avatar_url'       => $user->avatar_url,
+                        'avatar_initials'  => $user->avatar_initials,
+                        'position_title'   => $user->employee?->primaryPosition?->position?->title 
+                                              ?? $user->employee?->positions()->latest('start_date')->first()?->position?->title,
                     ],
                     'stats' => $stats,
                     'total_score' => $totalScore,
