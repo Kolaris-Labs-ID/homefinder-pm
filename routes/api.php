@@ -4,12 +4,13 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Hris\AnnouncementController;
 use App\Http\Controllers\Api\Hris\AttendanceController;
 use App\Http\Controllers\Api\Hris\ClientVisitController;
+use App\Http\Controllers\Api\Hris\LeaderboardController;
 use App\Http\Controllers\Api\Hris\LeaveBalanceController;
 use App\Http\Controllers\Api\Hris\LeaveRequestController;
 use App\Http\Controllers\Api\Hris\NotificationController;
+use App\Http\Controllers\Api\Hris\OvertimeController;
 use App\Http\Controllers\Api\Hris\PayslipController;
 use App\Http\Controllers\Api\Hris\ProfileController;
-use App\Http\Controllers\Api\Hris\OvertimeController;
 use App\Http\Controllers\Api\Hris\ReimbursementController;
 use App\Http\Controllers\Api\Hris\TeamController;
 use Illuminate\Support\Facades\Route;
@@ -98,6 +99,9 @@ Route::middleware(['auth:sanctum'])
         // Team endpoints
         Route::get('/team', [TeamController::class, 'index']);
 
+        // Leaderboard: any authenticated app user (not gated on page_Leaderboard)
+        Route::get('/leaderboard', [LeaderboardController::class, 'index']);
+
         // Announcement endpoints
         Route::get('/announcements', [AnnouncementController::class, 'index']);
 
@@ -111,4 +115,3 @@ Route::middleware(['auth:sanctum'])
             Route::put('/read-all', [NotificationController::class, 'markAllAsRead']);
         });
     });
-

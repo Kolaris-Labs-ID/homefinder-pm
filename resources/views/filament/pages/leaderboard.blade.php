@@ -70,7 +70,7 @@
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-2 mb-1">
                                             @php
-                                                $hash = substr(md5($entry['user']->name), 0, 6);
+                                                $hash = substr(md5($entry['user']['name']), 0, 6);
                                                 $r = hexdec(substr($hash, 0, 2));
                                                 $g = hexdec(substr($hash, 2, 2));
                                                 $b = hexdec(substr($hash, 4, 2));
@@ -78,12 +78,12 @@
                                             @endphp
                                             <div class="fi-avatar flex items-center justify-center text-white font-medium rounded-full h-8 w-8" style="background-color: {{ $avatarColor }}">
                                                 <span class="text-xs">
-                                                    {{ strtoupper(substr($entry['user']->name, 0, 2)) }}
+                                                    {{ $entry['user']['avatar_initials'] ?: strtoupper(substr($entry['user']['name'], 0, 2)) }}
                                                 </span>
                                             </div>
                                             <div class="min-w-0">
                                                 <h4 class="text-base font-semibold text-gray-900 dark:text-white truncate">
-                                                    {{ $entry['user']->name }}
+                                                    {{ $entry['user']['name'] }}
                                                 </h4>
                                             </div>
                                         </div>
@@ -140,7 +140,7 @@
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-3 mb-2">
                                             @php
-                                                $hash = substr(md5($entry['user']->name), 0, 6);
+                                                $hash = substr(md5($entry['user']['name']), 0, 6);
                                                 $r = hexdec(substr($hash, 0, 2));
                                                 $g = hexdec(substr($hash, 2, 2));
                                                 $b = hexdec(substr($hash, 4, 2));
@@ -148,12 +148,12 @@
                                             @endphp
                                             <div class="fi-avatar flex items-center justify-center text-white font-medium rounded-full h-10 w-10" style="background-color: {{ $avatarColor }}">
                                                 <span class="text-sm">
-                                                    {{ strtoupper(substr($entry['user']->name, 0, 2)) }}
+                                                    {{ $entry['user']['avatar_initials'] ?: strtoupper(substr($entry['user']['name'], 0, 2)) }}
                                                 </span>
                                             </div>
                                             <div>
                                                 <h4 class="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                                                    {{ $entry['user']->name }}
+                                                    {{ $entry['user']['name'] }}
                                                 </h4>
                                                 <p class="text-sm text-gray-500 dark:text-gray-400">
                                                     Total Score: <span class="font-bold text-blue-600 dark:text-blue-400 text-lg">{{ number_format($entry['total_score']) }}</span>
