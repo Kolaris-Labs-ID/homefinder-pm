@@ -13,6 +13,11 @@ use App\Http\Controllers\Api\Hris\PayslipController;
 use App\Http\Controllers\Api\Hris\ProfileController;
 use App\Http\Controllers\Api\Hris\ReimbursementController;
 use App\Http\Controllers\Api\Hris\TeamController;
+use App\Http\Controllers\Api\Pm\BoardController;
+use App\Http\Controllers\Api\Pm\ProjectController;
+use App\Http\Controllers\Api\Pm\TicketCommentController;
+use App\Http\Controllers\Api\Pm\TicketController;
+use App\Http\Controllers\Api\Pm\ActivityLogController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -114,4 +119,42 @@ Route::middleware(['auth:sanctum'])
             Route::put('/{notification}/read', [NotificationController::class, 'markAsRead']);
             Route::put('/read-all', [NotificationController::class, 'markAllAsRead']);
         });
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Project Management Routes
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth:sanctum'])
+    ->prefix('pm')
+    ->group(function () {
+        // Projects
+        Route::get('/projects', [ProjectController::class, 'index']);
+        Route::post('/projects', [ProjectController::class, 'store']);
+        Route::get('/projects/{project}', [ProjectController::class, 'show']);
+        Route::put('/projects/{project}', [ProjectController::class, 'update']);
+        Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);
+        Route::get('/projects/{project}/members', [ProjectController::class, 'members']);
+
+        // Kanban Board
+        Route::get('/projects/{project}/board', [BoardController::class, 'board']);
+        Route::put('/tickets/{ticket}/move', [BoardController::class, 'moveTicket']);
+
+        // Tickets
+        Route::get('/tickets/assigned-to-me', [TicketController::class, 'assignedToMe']);
+        Route::get('/projects/{project}/tickets', [TicketController::class, 'index']);
+        Route::post('/projects/{project}/tickets', [TicketController::class, 'store']);
+        Route::get('/tickets/{ticket}', [TicketController::class, 'show']);
+        Route::put('/tickets/{ticket}', [TicketController::class, 'update']);
+        Route::delete('/tickets/{ticket}', [TicketController::class, 'destroy']);
+
+        // Ticket Comments
+        Route::get('/tickets/{ticket}/comments', [TicketCommentController::class, 'index']);
+        Route::post('/tickets/{ticket}/comments', [TicketCommentController::class, 'store']);
+        Route::put('/comments/{comment}', [TicketCommentController::class, 'update']);
+        Route::delete('/comments/{comment}', [TicketCommentController::class, 'destroy']);
+        
+        // Activity Logs
+        Route::get('/activities', [ActivityLogController::class, 'index']);
     });
