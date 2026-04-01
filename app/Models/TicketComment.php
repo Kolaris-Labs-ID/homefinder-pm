@@ -19,6 +19,7 @@ class TicketComment extends Model
     protected static function booted()
     {
         static::created(function ($comment) {
+            ActivityLog::logTicketCommentCreated($comment, auth()->user());
             app(NotificationService::class)->notifyCommentAdded($comment);
         });
 
