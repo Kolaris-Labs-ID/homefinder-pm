@@ -52,6 +52,7 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'division' => $user->division,
                 'is_division_head' => $user->is_division_head,
+                'roles' => $user->getRoleNames(),
             ],
             'employee' => $user->employee ? [
                 'id' => $user->employee->id,
@@ -94,6 +95,7 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'division' => $user->division,
                 'is_division_head' => $user->is_division_head,
+                'roles' => $user->getRoleNames(),
             ],
             'employee' => $user->employee ? [
                 'id' => $user->employee->id,
@@ -183,6 +185,7 @@ class AuthController extends Controller
                 'division' => $user->division,
                 'is_division_head' => $user->is_division_head,
                 'avatar_url' => $user->avatar_url,
+                'roles' => $user->getRoleNames(),
             ],
             'employee' => [
                 'id' => $user->employee->id,

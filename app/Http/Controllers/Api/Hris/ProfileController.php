@@ -27,6 +27,7 @@ class ProfileController extends Controller
                 'is_division_head' => $user->is_division_head,
                 'mood_emoji' => $user->mood_emoji,
                 'mood_text' => $user->mood_text,
+                'roles' => $user->getRoleNames(),
             ],
             'employee' => $user->employee->only([
                 'id',
