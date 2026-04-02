@@ -274,7 +274,7 @@ class TicketController extends Controller
         }
 
         $tickets = $query
-            ->orderByRaw("CASE WHEN due_date IS NOT NULL AND due_date < CURDATE() THEN 0 ELSE 1 END")
+            ->orderByRaw('CASE WHEN due_date IS NOT NULL AND due_date < CURRENT_DATE THEN 0 ELSE 1 END')
             ->orderBy('due_date', 'asc')
             ->orderBy('updated_at', 'desc')
             ->simplePaginate($request->input('per_page', 20));
