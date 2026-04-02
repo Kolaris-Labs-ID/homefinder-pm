@@ -79,6 +79,8 @@ class RecentActivityTable extends BaseWidget
                     ->label('Type')
                     ->badge()
                     ->state(fn (ActivityLog $record): string => $this->getEventLabel($record))
+                    ->icon(fn (ActivityLog $record): string => $this->getEventIcon($record))
+                    ->iconPosition('before')
                     ->alignEnd()
                     ->color(fn (ActivityLog $record): string => $this->getEventColor($record)),
             ])
@@ -124,6 +126,7 @@ class RecentActivityTable extends BaseWidget
                         'ticket_created' => 'Ticket Created',
                         'ticket_updated' => 'Ticket Edited',
                         'ticket_status_changed' => 'Status Changed',
+                        'ticket_comment_created' => 'New Comment',
                         'project_created' => 'Project Created',
                     ]),
 
@@ -162,6 +165,7 @@ class RecentActivityTable extends BaseWidget
             'ticket_created' => "<span class='text-primary-600 font-medium'>{$userName}</span> created ticket \"{$subjectName}\"",
             'ticket_updated' => "<span class='text-primary-600 font-medium'>{$userName}</span> updated ticket \"{$subjectName}\"",
             'ticket_status_changed' => "<span class='text-primary-600 font-medium'>{$userName}</span> moved \"{$subjectName}\" to {$toStatus}",
+            'ticket_comment_created' => "<span class='text-primary-600 font-medium'>{$userName}</span> commented on ticket \"{$subjectName}\"",
             'project_created' => "<span class='text-primary-600 font-medium'>{$userName}</span> created project \"{$subjectName}\"",
             default => "<span class='text-primary-600 font-medium'>{$userName}</span> updated \"{$subjectName}\"",
         };
@@ -233,6 +237,7 @@ class RecentActivityTable extends BaseWidget
             'ticket_created' => 'Ticket Created',
             'ticket_updated' => 'Ticket Edited',
             'ticket_status_changed' => 'Status Changed',
+            'ticket_comment_created' => 'New Comment',
             'project_created' => 'Project Created',
             default => 'Activity',
         };
@@ -244,8 +249,21 @@ class RecentActivityTable extends BaseWidget
             'ticket_created' => 'success',
             'ticket_updated' => 'info',
             'ticket_status_changed' => 'warning',
+            'ticket_comment_created' => 'fuchsia',
             'project_created' => 'primary',
             default => 'gray',
+        };
+    }
+
+    private function getEventIcon(ActivityLog $record): string
+    {
+        return match ($record->event_type) {
+            'ticket_created' => 'heroicon-m-plus-circle',
+            'ticket_updated' => 'heroicon-m-pencil-square',
+            'ticket_status_changed' => 'heroicon-m-arrows-right-left',
+            'ticket_comment_created' => 'heroicon-m-chat-bubble-left-right',
+            'project_created' => 'heroicon-m-folder-plus',
+            default => 'heroicon-m-information-circle',
         };
     }
 
