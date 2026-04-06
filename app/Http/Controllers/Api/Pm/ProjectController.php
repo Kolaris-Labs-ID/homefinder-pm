@@ -26,10 +26,15 @@ class ProjectController extends Controller
             ->active()
             ->with(['owner:id,name,email,avatar_url', 'ticketStatuses']);
 
-        // Default: member-only. Allow ?all=true for super_admin.
-        if ($request->boolean('all') && $user->hasRole('super_admin')) {
-            // No membership filter
+        // 3-tier scoping: superadmin/C-level → all, division head → division, staff → own
+        if ($user->canSeeAllPmData()) {
+            // Superadmin + C-level: see all projects (no filter)
+        } elseif ($user->is_division_head && $user->division) {
+            // Division head: see projects where any division member is a member
+            $divisionUserIds = \App\Models\User::where('division', $user->division)->pluck('id');
+            $query->whereHas('members', fn ($q) => $q->whereIn('users.id', $divisionUserIds));
         } else {
+            // Staff: only projects they are a member of
             $query->whereHas('members', fn ($q) => $q->where('users.id', $user->id));
         }
 

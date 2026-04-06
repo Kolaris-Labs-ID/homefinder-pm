@@ -250,7 +250,6 @@ class TicketController extends Controller
 
         $query = Ticket::query()
             ->active()
-            ->whereHas('assignees', fn ($q) => $q->where('users.id', $user->id))
             ->with([
                 'status:id,name,color,is_completed',
                 'priority:id,name,color',
@@ -258,6 +257,18 @@ class TicketController extends Controller
                 'project:id,name,ticket_prefix',
                 'creator:id,name',
             ]);
+
+        // 3-tier scoping: superadmin/C-level → all, division head → division, staff → own
+        if ($user->canSeeAllPmData()) {
+            // Superadmin + C-level: see all active tickets (no assignee filter)
+        } elseif ($user->is_division_head && $user->division) {
+            // Division head: see tickets assigned to any division member
+            $divisionUserIds = \App\Models\User::where('division', $user->division)->pluck('id');
+            $query->whereHas('assignees', fn ($q) => $q->whereIn('users.id', $divisionUserIds));
+        } else {
+            // Staff: only their own assigned tickets
+            $query->whereHas('assignees', fn ($q) => $q->where('users.id', $user->id));
+        }
 
         // Optional status filter
         if ($request->input('completed') === 'true') {

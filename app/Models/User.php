@@ -121,6 +121,44 @@ class User extends Authenticatable implements FilamentUser
         return $this->assignedTickets()->where('ticket_id', $ticket->id)->exists();
     }
 
+    /**
+     * Check if user is a C-level executive.
+     * Checks Spatie roles (CEO, COO, CTO, CFO) first, then falls back to position title matching.
+     */
+    public function isCLevel(): bool
+    {
+        if ($this->hasAnyRole(['CEO', 'COO', 'CTO', 'CFO'])) {
+            return true;
+        }
+
+        $employee = $this->employee;
+        if (! $employee) {
+            return false;
+        }
+
+        $cLevelKeywords = ['CEO', 'COO', 'CTO', 'CFO', 'Chief Executive', 'Chief Operating', 'Chief Technology', 'Chief Financial'];
+
+        return $employee->positions()
+            ->active()
+            ->whereHas('position', function ($q) use ($cLevelKeywords) {
+                $q->where(function ($query) use ($cLevelKeywords) {
+                    foreach ($cLevelKeywords as $keyword) {
+                        $query->orWhere('title', 'LIKE', "%{$keyword}%");
+                    }
+                });
+            })
+            ->exists();
+    }
+
+    /**
+     * Whether this user can see ALL PM projects and tickets.
+     * True for super_admin and C-level executives.
+     */
+    public function canSeeAllPmData(): bool
+    {
+        return $this->hasRole('super_admin') || $this->isCLevel();
+    }
+
     public function assignToTicket(Ticket $ticket): void
     {
         $this->assignedTickets()->syncWithoutDetaching($ticket->id);

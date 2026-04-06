@@ -100,16 +100,9 @@ class ProjectArchiveService
 
         $allCompleted = $project->allTicketsCompleted();
 
-        if ($allCompleted) {
-            // All tickets completed - auto-mark as done if not already done
-            if (!$project->is_done) {
-                $this->markAsDone($project, true);
-            }
-        } else {
-            // Not all tickets completed - remove auto-done status if applicable
-            if ($project->is_done && $project->is_auto_done) {
-                $this->unmarkDone($project);
-            }
+        // Revert done status if there are incomplete tickets
+        if (!$allCompleted && $project->is_done) {
+            $this->unmarkDone($project);
         }
     }
 
