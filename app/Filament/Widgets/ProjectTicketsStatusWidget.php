@@ -26,7 +26,7 @@ class ProjectTicketsStatusWidget extends Widget
         'xl'      => 'full',
     ];
 
-    protected static ?int $sort = 4;
+    protected static ?int $sort = 1;
 
     protected static bool $isLazy = false;
 
