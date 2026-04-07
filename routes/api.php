@@ -143,6 +143,7 @@ Route::middleware(['auth:sanctum'])
 
         // Tickets
         Route::get('/tickets/assigned-to-me', [TicketController::class, 'assignedToMe']);
+        Route::get('/tickets/all', [TicketController::class, 'all']);
         Route::get('/projects/{project}/tickets', [TicketController::class, 'index']);
         Route::post('/projects/{project}/tickets', [TicketController::class, 'store']);
         Route::get('/tickets/{ticket}', [TicketController::class, 'show']);

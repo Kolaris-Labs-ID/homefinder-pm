@@ -295,6 +295,39 @@ class TicketController extends Controller
         return response()->json($tickets);
     }
 
+    /**
+     * Get ALL active tickets grouped for the C-level summary view.
+     *
+     * GET /api/pm/tickets/all
+     *
+     * Restricted to super_admin and C-level executives.
+     * Returns every active ticket (assigned or unassigned) with assignee divisions.
+     */
+    public function all(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_if(! $user->canSeeAllPmData(), 403, 'Access restricted to C-level executives and administrators.');
+
+        $tickets = Ticket::query()
+            ->active()
+            ->with([
+                'status:id,name,color,is_completed',
+                'priority:id,name,color',
+                'assignees:users.id,users.name,users.email,users.avatar_url,users.division',
+                'project:id,name,ticket_prefix',
+                'creator:id,name',
+            ])
+            ->orderBy('updated_at', 'desc')
+            ->get()
+            ->map(fn (Ticket $ticket) => $this->formatTicketWithDivision($ticket))
+            ->values();
+
+        return response()->json([
+            'data' => $tickets,
+        ]);
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
@@ -334,6 +367,7 @@ class TicketController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'avatar_url' => $user->avatar_url,
+                'division' => $user->division,
             ])->values(),
             'project' => $ticket->project ? [
                 'id' => $ticket->project->id,
@@ -345,6 +379,11 @@ class TicketController extends Controller
             'created_at' => $ticket->created_at?->toIso8601String(),
             'updated_at' => $ticket->updated_at?->toIso8601String(),
         ];
+    }
+
+    protected function formatTicketWithDivision(Ticket $ticket): array
+    {
+        return $this->formatTicket($ticket);
     }
 
     protected function formatTicketDetail(Ticket $ticket): array
