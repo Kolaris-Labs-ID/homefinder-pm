@@ -15,6 +15,7 @@ class AttendanceSetting extends Model
         'wfh_quota_per_week',
         'full_day_hours',
         'half_day_hours',
+        'late_penalty_tiers',
     ];
 
     protected $casts = [
@@ -23,6 +24,7 @@ class AttendanceSetting extends Model
         'wfh_quota_per_week' => 'integer',
         'full_day_hours' => 'decimal:2',
         'half_day_hours' => 'decimal:2',
+        'late_penalty_tiers' => 'array',
     ];
 
     /**
@@ -34,6 +36,11 @@ class AttendanceSetting extends Model
         'wfh_quota_per_week' => 1,
         'full_day_hours' => 8,
         'half_day_hours' => 4,
+        'late_penalty_tiers' => [
+            ['minutes_late' => 40,  'deduction_percent' => 25],
+            ['minutes_late' => 120, 'deduction_percent' => 50],
+            ['minutes_late' => 240, 'deduction_percent' => 100],
+        ],
     ];
 
     /**

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\AttendanceSetting;
 use App\Models\Hris\Employee;
+use App\Models\Hris\LateNotice;
 use App\Services\Hris\AttendanceService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -73,9 +74,15 @@ class AttendanceController extends Controller
 
             $attendanceLog = $this->attendanceService->checkIn($employee, $data);
 
-            // Compute status for the attendance log
+            // Compute and persist the attendance status
             $status = $this->attendanceService->computeStatus($attendanceLog);
             $attendanceLog->status = $status;
+            $attendanceLog->save();
+
+            // Auto-create a Late Notice report when employee checks in late
+            if ($status === AttendanceLog::STATUS_LATE) {
+                $this->attendanceService->createLateNoticeIfAbsent($attendanceLog);
+            }
 
             return response()->json([
                 'message' => 'Check-in recorded successfully.',

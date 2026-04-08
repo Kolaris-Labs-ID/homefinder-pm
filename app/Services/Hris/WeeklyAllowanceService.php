@@ -14,6 +14,12 @@ use Illuminate\Support\Facades\DB;
 
 class WeeklyAllowanceService
 {
+    protected AttendanceService $attendanceService;
+
+    public function __construct(?AttendanceService $attendanceService = null)
+    {
+        $this->attendanceService = $attendanceService ?? app(AttendanceService::class);
+    }
     /**
      * Generate a weekly allowance batch for the given week.
      *
@@ -142,10 +148,20 @@ class WeeklyAllowanceService
             return null;
         }
 
-        // Get attendance for the week (Mon-Fri)
+        // Get attendance for the week (Mon-Fri) with per-day penalty info
         $daysBreakdown = $this->getDaysBreakdown($employee, $weekStart, $weekEnd);
         $daysPresent = $this->countPresentDays($daysBreakdown);
-        $totalAmount = $dailyRate * $daysPresent;
+
+        // Calculate total applying late penalties per day
+        $totalAmount = 0.0;
+        foreach ($daysBreakdown as $day) {
+            if (!$day['present']) {
+                continue;
+            }
+            $penaltyPercent = $day['penalty_percent'] ?? 0;
+            $totalAmount += $dailyRate * (1 - $penaltyPercent / 100);
+        }
+        $totalAmount = round($totalAmount, 2);
 
         // Check bank info
         $hasBankWarning = empty($employee->bank_name)
@@ -162,12 +178,15 @@ class WeeklyAllowanceService
     }
 
     /**
-     * Get breakdown of which days employee was present.
+     * Get breakdown of which days employee was present, with late penalty info.
+     *
+     * Each entry is an array:
+     *   ['present' => bool, 'late' => bool, 'has_late_notice' => bool, 'penalty_percent' => int]
      *
      * @param Employee $employee
      * @param Carbon $weekStart
      * @param Carbon $weekEnd
-     * @return array
+     * @return array<string, array>
      */
     public function getDaysBreakdown(Employee $employee, Carbon $weekStart, Carbon $weekEnd): array
     {
@@ -176,12 +195,14 @@ class WeeklyAllowanceService
             ->get()
             ->keyBy(fn ($log) => $log->date->format('Y-m-d'));
 
+        $emptyDay = ['present' => false, 'late' => false, 'has_late_notice' => false, 'penalty_percent' => 0];
+
         $breakdown = [
-            'mon' => false,
-            'tue' => false,
-            'wed' => false,
-            'thu' => false,
-            'fri' => false,
+            'mon' => $emptyDay,
+            'tue' => $emptyDay,
+            'wed' => $emptyDay,
+            'thu' => $emptyDay,
+            'fri' => $emptyDay,
         ];
 
         $dayMap = [
@@ -208,7 +229,18 @@ class WeeklyAllowanceService
                         AttendanceLog::STATUS_LATE,
                     ]) || $log->mode === AttendanceLog::MODE_WFH;
 
-                    $breakdown[$dayMap[$dayOfWeek]] = $isPresent;
+                    $isLate = $log->status === AttendanceLog::STATUS_LATE;
+                    $penaltyPercent = $isPresent ? $this->attendanceService->calculateLatePenalty($log) : 0;
+                    $hasLateNotice = $isLate
+                        ? $this->attendanceService->hasApprovedLateNotice($log->employee_id, $log->date)
+                        : false;
+
+                    $breakdown[$dayMap[$dayOfWeek]] = [
+                        'present'         => $isPresent,
+                        'late'            => $isLate,
+                        'has_late_notice' => $hasLateNotice,
+                        'penalty_percent' => $penaltyPercent,
+                    ];
                 }
             }
 
@@ -221,12 +253,16 @@ class WeeklyAllowanceService
     /**
      * Count present days from breakdown.
      *
+     * Accepts both legacy bool values and the new rich array format.
+     *
      * @param array $daysBreakdown
      * @return int
      */
     public function countPresentDays(array $daysBreakdown): int
     {
-        return collect($daysBreakdown)->filter()->count();
+        return collect($daysBreakdown)->filter(function ($day) {
+            return is_array($day) ? ($day['present'] ?? false) : (bool) $day;
+        })->count();
     }
 
     // =====================

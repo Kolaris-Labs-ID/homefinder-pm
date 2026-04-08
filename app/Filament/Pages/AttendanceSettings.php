@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\Hris\AttendanceSetting;
 use App\Models\Hris\AttendanceSettingAudit;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
@@ -99,6 +100,35 @@ class AttendanceSettings extends Page implements HasForms
                             ]),
                     ]),
 
+                Section::make('Late Penalty Tiers')
+                    ->description('Define deduction tiers for employees arriving late without an approved late notice. Minutes are counted from the scheduled work start time.')
+                    ->schema([
+                        Repeater::make('late_penalty_tiers')
+                            ->label('')
+                            ->columns(2)
+                            ->addActionLabel('Add Tier')
+                            ->schema([
+                                TextInput::make('minutes_late')
+                                    ->label('Minutes Late (from start time)')
+                                    ->numeric()
+                                    ->integer()
+                                    ->required()
+                                    ->minValue(1)
+                                    ->suffix('min'),
+
+                                TextInput::make('deduction_percent')
+                                    ->label('Deduction')
+                                    ->numeric()
+                                    ->integer()
+                                    ->required()
+                                    ->minValue(1)
+                                    ->maxValue(100)
+                                    ->suffix('%'),
+                            ])
+                            ->reorderable()
+                            ->reorderableWithDragAndDrop(),
+                    ]),
+
                 Section::make('Day Duration')
                     ->columns(2)
                     ->schema([
@@ -156,6 +186,7 @@ class AttendanceSettings extends Page implements HasForms
             'wfh_quota_per_week',
             'full_day_hours',
             'half_day_hours',
+            'late_penalty_tiers',
         ];
 
         // Normalize work_start_time to HH:MM for comparison
@@ -165,14 +196,20 @@ class AttendanceSettings extends Page implements HasForms
 
         $changes = [];
         foreach ($fields as $field) {
-            $oldValue = (string) $settings->{$field};
-            $newValue = $field === 'work_start_time'
-                ? $submittedWorkStartTime
-                : (string) $data[$field];
+            if ($field === 'late_penalty_tiers') {
+                $oldValue = json_encode($settings->{$field} ?? []);
+                $newValue = json_encode(array_values((array) ($data[$field] ?? [])));
+            } elseif ($field === 'work_start_time') {
+                $oldValue = (string) $settings->{$field};
+                $newValue = $submittedWorkStartTime;
+            } else {
+                $oldValue = (string) $settings->{$field};
+                $newValue = (string) $data[$field];
+            }
 
             if ($oldValue !== $newValue) {
                 $changes[] = [
-                    'field' => $field,
+                    'field'     => $field,
                     'old_value' => $oldValue,
                     'new_value' => $newValue,
                 ];
@@ -190,11 +227,12 @@ class AttendanceSettings extends Page implements HasForms
             }
 
             $settings->update([
-                'work_start_time' => $submittedWorkStartTime,
+                'work_start_time'          => $submittedWorkStartTime,
                 'late_grace_period_minutes' => $data['late_grace_period_minutes'],
-                'wfh_quota_per_week' => $data['wfh_quota_per_week'],
-                'full_day_hours' => $data['full_day_hours'],
-                'half_day_hours' => $data['half_day_hours'],
+                'wfh_quota_per_week'       => $data['wfh_quota_per_week'],
+                'full_day_hours'           => $data['full_day_hours'],
+                'half_day_hours'           => $data['half_day_hours'],
+                'late_penalty_tiers'       => array_values((array) ($data['late_penalty_tiers'] ?? [])),
             ]);
         });
 

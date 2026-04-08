@@ -2,6 +2,7 @@
 
 namespace App\Services\Hris;
 
+use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Employee;
 use App\Models\Hris\PayrollRecord;
 use App\Models\Hris\PayrunBatch;
@@ -20,6 +21,7 @@ class PayrollCalculationService
     protected PayrollSettingService $settingService;
     protected WeeklyAllowanceService $weeklyAllowanceService;
     protected OvertimePayService $overtimePayService;
+    protected AttendanceService $attendanceCalculationService;
 
     public function __construct(
         protected BpjsCalculationService $bpjsService,
@@ -27,12 +29,14 @@ class PayrollCalculationService
         ?AttendancePayrollService $attendanceService = null,
         ?PayrollSettingService $settingService = null,
         ?WeeklyAllowanceService $weeklyAllowanceService = null,
-        ?OvertimePayService $overtimePayService = null
+        ?OvertimePayService $overtimePayService = null,
+        ?AttendanceService $attendanceCalculationService = null
     ) {
         $this->attendanceService = $attendanceService ?? app(AttendancePayrollService::class);
         $this->settingService = $settingService ?? app(PayrollSettingService::class);
         $this->weeklyAllowanceService = $weeklyAllowanceService ?? app(WeeklyAllowanceService::class);
         $this->overtimePayService = $overtimePayService ?? app(OvertimePayService::class);
+        $this->attendanceCalculationService = $attendanceCalculationService ?? app(AttendanceService::class);
     }
 
     /**
@@ -98,10 +102,16 @@ class PayrollCalculationService
             $totalVariableAllowances = $variableAllowancesResult['total'];
         }
 
-        // Calculate daily allowance (Uang Harian)
+        // Calculate daily allowance (Uang Harian) with per-day late penalties applied
         $dailyAllowanceTotal = 0;
         if ($salaryStructure->daily_allowance_rate && $salaryStructure->daily_allowance_rate > 0) {
-            $dailyAllowanceTotal = round($salaryStructure->daily_allowance_rate * $actualDaysWorked, 2);
+            $dailyRate = (float) $salaryStructure->daily_allowance_rate;
+            $dailyAllowanceTotal = $this->calculateDailyAllowanceWithPenalties(
+                $employee,
+                $dailyRate,
+                $batch->period_start_date,
+                $batch->period_end_date
+            );
         }
 
         // Weekly allowance reconciliation
@@ -353,5 +363,48 @@ class PayrollCalculationService
         }
 
         return $this->calculatePayrun($batch);
+    }
+
+    /**
+     * Calculate total daily allowance (Uang Harian) for a period, applying
+     * late-attendance deductions per day.
+     *
+     * For each working day:
+     * - Present/WFH  → full daily rate
+     * - Late (no notice) → daily rate × (1 - penalty%)
+     * - Late (approved notice) → full daily rate
+     * - Absent / Half-day → no daily allowance
+     *
+     * @param Employee $employee
+     * @param float $dailyRate
+     * @param Carbon $periodStart
+     * @param Carbon $periodEnd
+     * @return float
+     */
+    protected function calculateDailyAllowanceWithPenalties(
+        Employee $employee,
+        float $dailyRate,
+        Carbon $periodStart,
+        Carbon $periodEnd
+    ): float {
+        $logs = AttendanceLog::forEmployee($employee->id)
+            ->forDateRange($periodStart, $periodEnd)
+            ->whereIn('status', [
+                AttendanceLog::STATUS_PRESENT,
+                AttendanceLog::STATUS_LATE,
+            ])
+            ->get();
+
+        $total = 0.0;
+        foreach ($logs as $log) {
+            if ($log->mode === AttendanceLog::MODE_WFH || $log->status === AttendanceLog::STATUS_PRESENT) {
+                $total += $dailyRate;
+            } elseif ($log->status === AttendanceLog::STATUS_LATE) {
+                $penaltyPercent = $this->attendanceCalculationService->calculateLatePenalty($log);
+                $total += $dailyRate * (1 - $penaltyPercent / 100);
+            }
+        }
+
+        return round($total, 2);
     }
 }

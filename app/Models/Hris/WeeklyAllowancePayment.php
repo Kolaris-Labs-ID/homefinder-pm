@@ -171,8 +171,13 @@ class WeeklyAllowancePayment extends Model
         $present = [];
 
         foreach ($days as $key => $label) {
-            if ($this->days_breakdown[$key] ?? false) {
-                $present[] = $label;
+            $day = $this->days_breakdown[$key] ?? false;
+            $isPresent = is_array($day) ? ($day['present'] ?? false) : (bool) $day;
+            if ($isPresent) {
+                $penaltyPercent = is_array($day) ? ($day['penalty_percent'] ?? 0) : 0;
+                $present[] = $penaltyPercent > 0
+                    ? "{$label} (-{$penaltyPercent}%)"
+                    : $label;
             }
         }
 

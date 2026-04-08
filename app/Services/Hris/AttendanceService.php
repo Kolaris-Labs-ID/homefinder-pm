@@ -6,6 +6,7 @@ use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\AttendanceSetting;
 use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeePosition;
+use App\Models\Hris\LateNotice;
 use App\Models\Hris\LeaveRequest;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
@@ -508,6 +509,73 @@ class AttendanceService
     }
 
     /**
+     * Check if an employee has an approved late notice for a specific date.
+     *
+     * @param int $employeeId
+     * @param Carbon $date
+     * @return bool
+     */
+    public function hasApprovedLateNotice(int $employeeId, Carbon $date): bool
+    {
+        return LateNotice::where('employee_id', $employeeId)
+            ->where('status', LateNotice::STATUS_APPROVED)
+            ->whereDate('date', $date)
+            ->exists();
+    }
+
+    /**
+     * Calculate the deduction percentage for a late check-in.
+     *
+     * Returns 0 if:
+     * - Employee is not late
+     * - Employee has an approved late notice for the date
+     *
+     * Otherwise matches check-in time against penalty tiers (sorted ascending by
+     * minutes_late) and returns the highest applicable deduction_percent.
+     *
+     * @param AttendanceLog $log
+     * @return int Deduction percentage (0, 25, 50, or 100)
+     */
+    public function calculateLatePenalty(AttendanceLog $log): int
+    {
+        if ($log->status !== AttendanceLog::STATUS_LATE) {
+            return 0;
+        }
+
+        // Waive penalty if employee filed an approved late notice
+        if ($this->hasApprovedLateNotice($log->employee_id, $log->date)) {
+            return 0;
+        }
+
+        $settings = $this->getSettings();
+        $tiers = $settings->late_penalty_tiers ?? AttendanceSetting::DEFAULTS['late_penalty_tiers'];
+
+        if (empty($tiers)) {
+            return 0;
+        }
+
+        // Calculate minutes late relative to work_start_time (grace period already caused STATUS_LATE)
+        $workStartParsed = Carbon::parse($settings->work_start_time);
+        $workStartTime = $log->date->copy()->setTime(
+            $workStartParsed->hour,
+            $workStartParsed->minute,
+            0
+        );
+        $minutesLate = $workStartTime->diffInMinutes($log->check_in_time);
+
+        // Sort tiers ascending and find the highest matching tier
+        $sorted = collect($tiers)->sortBy('minutes_late');
+        $deduction = 0;
+        foreach ($sorted as $tier) {
+            if ($minutesLate >= (int) $tier['minutes_late']) {
+                $deduction = (int) $tier['deduction_percent'];
+            }
+        }
+
+        return $deduction;
+    }
+
+    /**
      * Get direct reports for a manager.
      *
      * Returns employees who have the given employee as their manager
@@ -659,5 +727,45 @@ class AttendanceService
             'leave_days' => $totalLeave,
             'by_employee' => $byEmployee,
         ];
+    }
+
+    /**
+     * Auto-create a Late Notice report for a late check-in.
+     *
+     * Called automatically after check-in when the employee's status is STATUS_LATE.
+     * Skips creation if a notice already exists for that employee+date.
+     * HR will fill the reason and decide to pardon or reject via the Filament dashboard.
+     *
+     * @param AttendanceLog $log
+     * @return LateNotice|null
+     */
+    public function createLateNoticeIfAbsent(AttendanceLog $log): ?LateNotice
+    {
+        $existing = LateNotice::where('employee_id', $log->employee_id)
+            ->whereDate('date', $log->date)
+            ->first();
+
+        if ($existing) {
+            return null;
+        }
+
+        $settings = $this->getSettings();
+        $workStartParsed = Carbon::parse($settings->work_start_time);
+        $workStartTime = $log->date->copy()->setTime(
+            $workStartParsed->hour,
+            $workStartParsed->minute,
+            0
+        );
+        $minutesLate = (int) $workStartTime->diffInMinutes($log->check_in_time);
+        $penaltyPercent = $this->calculateLatePenalty($log);
+
+        return LateNotice::create([
+            'employee_id'       => $log->employee_id,
+            'attendance_log_id' => $log->id,
+            'date'              => $log->date,
+            'minutes_late'      => $minutesLate,
+            'penalty_percent'   => $penaltyPercent,
+            'status'            => LateNotice::STATUS_PENDING,
+        ]);
     }
 }
