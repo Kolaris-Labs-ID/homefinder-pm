@@ -20,7 +20,7 @@ class NotificationController extends Controller
     {
         $request->validate([
             'token' => ['required', 'string'],
-            'platform' => ['required', 'string', 'in:ios,android'],
+            'platform' => ['required', 'string', 'in:ios,android,web'],
         ]);
 
         $user = $request->user();
@@ -262,5 +262,36 @@ class NotificationController extends Controller
         return response()->json([
             'message' => 'All notifications marked as read.',
         ]);
+    }
+
+    /**
+     * Get the count of unread notifications.
+     *
+     * GET /api/hris/notifications/unread-count
+     */
+    public function getUnreadCount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $employee = $user->employee;
+
+        if (!$employee) {
+            return response()->json([
+                'count' => 0,
+            ]);
+        }
+
+        try {
+            $count = UserNotification::where('employee_id', $employee->id)
+                ->whereNull('read_at')
+                ->count();
+
+            return response()->json([
+                'count' => $count,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'count' => 0,
+            ]);
+        }
     }
 }
