@@ -44,6 +44,8 @@ class PayrollRecord extends Model
         'weekly_allowance_earned',
         'weekly_allowance_paid',
         'weekly_allowance_adjustment',
+        // Overtime pay (paid weekly, shown on payslip)
+        'total_overtime_pay',
     ];
 
     protected $casts = [
@@ -75,6 +77,8 @@ class PayrollRecord extends Model
         'weekly_allowance_earned' => 'decimal:2',
         'weekly_allowance_paid' => 'decimal:2',
         'weekly_allowance_adjustment' => 'decimal:2',
+        // Overtime pay
+        'total_overtime_pay' => 'decimal:2',
     ];
 
     /**

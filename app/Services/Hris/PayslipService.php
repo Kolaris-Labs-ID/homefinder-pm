@@ -113,6 +113,7 @@ class PayslipService
                 'fixed_allowances' => (float) $record->total_fixed_allowances,
                 'variable_allowances' => (float) $record->total_variable_allowances,
                 'gross_income' => (float) $record->gross_income,
+                'overtime_pay' => (float) ($record->total_overtime_pay ?? 0),
             ],
             'deductions' => [
                 'bpjs_kesehatan' => (float) $record->bpjs_kesehatan_employee,

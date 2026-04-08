@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris\Traits;
 
+use App\Models\Hris\OvertimePayBatch;
 use App\Models\Hris\PayrollApprovalLog;
 use App\Models\Hris\PayrollWorkflowConfig;
 use App\Models\Hris\PayrunBatch;
@@ -85,6 +86,10 @@ trait HasPayrollApproval
 
         if ($this instanceof WeeklyAllowanceBatch) {
             return PayrollWorkflowConfig::MODULE_WEEKLY;
+        }
+
+        if ($this instanceof OvertimePayBatch) {
+            return PayrollWorkflowConfig::MODULE_OVERTIME;
         }
 
         throw new \InvalidArgumentException('Unsupported batch type: ' . get_class($this));

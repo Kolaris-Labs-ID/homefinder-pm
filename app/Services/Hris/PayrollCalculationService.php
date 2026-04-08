@@ -9,23 +9,30 @@ use App\Models\Hris\SalaryStructure;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use App\Services\Hris\AttendancePayrollService;
+use App\Services\Hris\PayrollSettingService;
+use App\Services\Hris\WeeklyAllowanceService;
+use App\Services\Hris\OvertimePayService;
 
 class PayrollCalculationService
 {
     protected AttendancePayrollService $attendanceService;
     protected PayrollSettingService $settingService;
     protected WeeklyAllowanceService $weeklyAllowanceService;
+    protected OvertimePayService $overtimePayService;
 
     public function __construct(
         protected BpjsCalculationService $bpjsService,
         protected Pph21CalculationService $pph21Service,
         ?AttendancePayrollService $attendanceService = null,
         ?PayrollSettingService $settingService = null,
-        ?WeeklyAllowanceService $weeklyAllowanceService = null
+        ?WeeklyAllowanceService $weeklyAllowanceService = null,
+        ?OvertimePayService $overtimePayService = null
     ) {
         $this->attendanceService = $attendanceService ?? app(AttendancePayrollService::class);
         $this->settingService = $settingService ?? app(PayrollSettingService::class);
         $this->weeklyAllowanceService = $weeklyAllowanceService ?? app(WeeklyAllowanceService::class);
+        $this->overtimePayService = $overtimePayService ?? app(OvertimePayService::class);
     }
 
     /**
@@ -163,6 +170,23 @@ class PayrollCalculationService
         // Calculate net income
         $netIncome = $grossIncome - $totalDeductions;
 
+        // Overtime pay: sum of all paid weekly overtime payments within this period
+        $overtimePayments = $this->overtimePayService->getMonthlyPayments(
+            $employee,
+            $batch->period_start_date,
+            $batch->period_end_date
+        );
+        $totalOvertimePay = $overtimePayments
+            ->where('status', 'paid')
+            ->sum('total_amount');
+        $overtimeSessions = $overtimePayments
+            ->where('status', 'paid')
+            ->map(fn ($p) => [
+                'week_label' => $p->batch->week_label ?? '-',
+                'sessions'   => $p->total_sessions,
+                'amount'     => (float) $p->total_amount,
+            ])->values()->all();
+
         // Build detailed breakdown
         $details = [
             'salary_structure_id' => $salaryStructure->id,
@@ -184,6 +208,9 @@ class PayrollCalculationService
             'weekly_allowance_earned' => $weeklyAllowanceEarned,
             'weekly_allowance_paid' => $weeklyAllowancePaid,
             'weekly_allowance_adjustment' => $weeklyAllowanceAdjustment,
+            // Overtime pay (paid weekly, shown as informational on payslip)
+            'total_overtime_pay' => $totalOvertimePay,
+            'overtime_sessions' => $overtimeSessions,
         ];
 
         // Create or update payroll record
@@ -223,6 +250,8 @@ class PayrollCalculationService
                 'weekly_allowance_earned' => $weeklyAllowanceEarned,
                 'weekly_allowance_paid' => $weeklyAllowancePaid,
                 'weekly_allowance_adjustment' => $weeklyAllowanceAdjustment,
+                // Overtime pay
+                'total_overtime_pay' => $totalOvertimePay,
             ]
         );
     }

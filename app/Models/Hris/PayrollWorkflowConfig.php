@@ -14,6 +14,7 @@ class PayrollWorkflowConfig extends Model
 
     const MODULE_MONTHLY = 'monthly_payroll';
     const MODULE_WEEKLY = 'weekly_allowance';
+    const MODULE_OVERTIME = 'overtime_pay';
 
     protected $fillable = [
         'module',

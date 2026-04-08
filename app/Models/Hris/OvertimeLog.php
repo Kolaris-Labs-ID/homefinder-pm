@@ -33,6 +33,7 @@ class OvertimeLog extends Model
         'status',
         'rejection_note',
         'auto_closed',
+        'overtime_payment_id',
     ];
 
     protected $casts = [
@@ -41,6 +42,7 @@ class OvertimeLog extends Model
         'duration_minutes' => 'integer',
         'hourly_rate'      => 'decimal:2',
         'auto_closed'      => 'boolean',
+        'overtime_payment_id' => 'integer',
     ];
 
     // -------------------------------------------------------------------------
@@ -55,6 +57,11 @@ class OvertimeLog extends Model
     public function manager(): BelongsTo
     {
         return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    public function overtimePayment(): BelongsTo
+    {
+        return $this->belongsTo(OvertimePayment::class);
     }
 
     // -------------------------------------------------------------------------
@@ -74,6 +81,16 @@ class OvertimeLog extends Model
     public function scopeForUser(Builder $query, int $userId): Builder
     {
         return $query->where('user_id', $userId);
+    }
+
+    public function scopeUnpaid(Builder $query): Builder
+    {
+        return $query->whereNull('overtime_payment_id');
+    }
+
+    public function scopeApproved(Builder $query): Builder
+    {
+        return $query->where('status', self::STATUS_APPROVED);
     }
 
     // -------------------------------------------------------------------------

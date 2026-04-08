@@ -148,6 +148,21 @@
                         @endforeach
                     @endif
                     
+                    @if(($record->total_overtime_pay ?? 0) > 0)
+                    <tr>
+                        <td class="label">Lembur / Overtime <span style="font-size:9px;color:#888;">(dibayar mingguan)</span></td>
+                        <td class="amount">Rp {{ number_format($record->total_overtime_pay, 0, ',', '.') }}</td>
+                    </tr>
+                    @if(!empty($record->details['total_overtime_pay']) && !empty($record->details['overtime_sessions']))
+                        @foreach($record->details['overtime_sessions'] as $session)
+                        <tr>
+                            <td class="label sub-item">{{ $session['week_label'] }} ({{ $session['sessions'] }} sesi)</td>
+                            <td class="amount">Rp {{ number_format($session['amount'], 0, ',', '.') }}</td>
+                        </tr>
+                        @endforeach
+                    @endif
+                    @endif
+
                     <tr class="total-row">
                         <td class="label">Total Penghasilan Kotor</td>
                         <td class="amount">Rp {{ number_format($record->gross_income, 0, ',', '.') }}</td>
