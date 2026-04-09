@@ -13,8 +13,12 @@ class PayrollWorkflowConfig extends Model
     use HasFactory;
 
     const MODULE_MONTHLY = 'monthly_payroll';
+
     const MODULE_WEEKLY = 'weekly_allowance';
+
     const MODULE_OVERTIME = 'overtime_pay';
+
+    const MODULE_LATE_PAY_COMPENSATION = 'late_pay_compensation';
 
     protected $fillable = [
         'module',
@@ -87,5 +91,4 @@ class PayrollWorkflowConfig extends Model
             'errors' => $errors,
         ];
     }
-
 }

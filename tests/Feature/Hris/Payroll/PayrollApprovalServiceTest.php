@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Hris\LatePayCompensationBatch;
+use App\Models\Hris\OvertimePayBatch;
 use App\Models\Hris\PayrollApprovalLog;
 use App\Models\Hris\PayrollWorkflowConfig;
 use App\Models\Hris\PayrollWorkflowStep;
@@ -8,13 +10,12 @@ use App\Models\Hris\WeeklyAllowanceBatch;
 use App\Models\User;
 use App\Services\Hris\PayrollApprovalService;
 use Illuminate\Auth\Access\AuthorizationException;
-use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
     PayrollApprovalLog::query()->forceDelete();
     PayrollWorkflowStep::query()->delete();
     PayrollWorkflowConfig::query()->delete();
-    $this->service = new PayrollApprovalService();
+    $this->service = new PayrollApprovalService;
 });
 
 function setupWorkflow(string $module, User $financeUser): PayrollWorkflowConfig
@@ -262,15 +263,27 @@ describe('PayrollApprovalService resubmit', function () {
 
 describe('PayrollApprovalService module detection', function () {
     it('identifies PayrunBatch as monthly module', function () {
-        $batch = new PayrunBatch();
+        $batch = new PayrunBatch;
 
         expect($this->service->getModuleForBatch($batch))->toBe(PayrollWorkflowConfig::MODULE_MONTHLY);
     });
 
     it('identifies WeeklyAllowanceBatch as weekly module', function () {
-        $batch = new WeeklyAllowanceBatch();
+        $batch = new WeeklyAllowanceBatch;
 
         expect($this->service->getModuleForBatch($batch))->toBe(PayrollWorkflowConfig::MODULE_WEEKLY);
+    });
+
+    it('identifies OvertimePayBatch as overtime module', function () {
+        $batch = new OvertimePayBatch;
+
+        expect($this->service->getModuleForBatch($batch))->toBe(PayrollWorkflowConfig::MODULE_OVERTIME);
+    });
+
+    it('identifies LatePayCompensationBatch as late pay compensation module', function () {
+        $batch = new LatePayCompensationBatch;
+
+        expect($this->service->getModuleForBatch($batch))->toBe(PayrollWorkflowConfig::MODULE_LATE_PAY_COMPENSATION);
     });
 });
 
@@ -543,4 +556,3 @@ describe('PayrollWorkflowConfig getFinanceStepsOrdered', function () {
             ->and($steps[2]->order)->toBe(3);
     });
 });
-

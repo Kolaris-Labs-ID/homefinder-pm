@@ -2,6 +2,8 @@
 
 namespace App\Services\Hris;
 
+use App\Models\Hris\LatePayCompensationBatch;
+use App\Models\Hris\OvertimePayBatch;
 use App\Models\Hris\PayrollApprovalLog;
 use App\Models\Hris\PayrollWorkflowConfig;
 use App\Models\Hris\PayrunBatch;
@@ -26,14 +28,14 @@ class PayrollApprovalService
                 throw new \LogicException("Cannot submit batch with status: {$batch->status}");
             }
 
-            if (!$batch->canSubmitForApproval()) {
+            if (! $batch->canSubmitForApproval()) {
                 throw new \LogicException("Cannot submit batch with status: {$batch->status}");
             }
 
             $module = $this->getModuleForBatch($batch);
             $config = PayrollWorkflowConfig::getActiveConfig($module);
 
-            if (!$config) {
+            if (! $config) {
                 throw new \InvalidArgumentException(
                     "No active workflow configuration exists for module: {$module}"
                 );
@@ -63,12 +65,12 @@ class PayrollApprovalService
                 throw new \LogicException("Cannot approve batch with status: {$batch->status}");
             }
 
-            if (!$this->canUserActOnBatch($batch, $approver)) {
-                throw new AuthorizationException("You are not authorized to act on this step.");
+            if (! $this->canUserActOnBatch($batch, $approver)) {
+                throw new AuthorizationException('You are not authorized to act on this step.');
             }
 
             if ($this->isFinalFinanceStep($batch)) {
-                throw new \LogicException("Use approveAndPay for the final step.");
+                throw new \LogicException('Use approveAndPay for the final step.');
             }
 
             $batch->current_finance_step_order += 1;
@@ -91,16 +93,16 @@ class PayrollApprovalService
                 throw new \LogicException("Cannot approve batch with status: {$batch->status}");
             }
 
-            if (!$batch->canBeApprovedByFinance()) {
+            if (! $batch->canBeApprovedByFinance()) {
                 throw new \LogicException("Cannot approve batch with status: {$batch->status}");
             }
 
-            if (!$this->canUserActOnBatch($batch, $approver)) {
-                throw new AuthorizationException("You are not authorized to act on this step.");
+            if (! $this->canUserActOnBatch($batch, $approver)) {
+                throw new AuthorizationException('You are not authorized to act on this step.');
             }
 
-            if (!$this->isFinalFinanceStep($batch)) {
-                throw new AuthorizationException("Only the final approver can pay the batch.");
+            if (! $this->isFinalFinanceStep($batch)) {
+                throw new AuthorizationException('Only the final approver can pay the batch.');
             }
 
             $previousStatus = $batch->status;
@@ -132,12 +134,12 @@ class PayrollApprovalService
                 throw new \LogicException("Cannot reject batch with status: {$batch->status}");
             }
 
-            if (!$batch->canBeRejected()) {
+            if (! $batch->canBeRejected()) {
                 throw new \LogicException("Cannot reject batch with status: {$batch->status}");
             }
 
-            if (!$this->canUserActOnBatch($batch, $rejector)) {
-                throw new AuthorizationException("You are not authorized to act on this step.");
+            if (! $this->canUserActOnBatch($batch, $rejector)) {
+                throw new AuthorizationException('You are not authorized to act on this step.');
             }
 
             $previousStatus = $batch->status;
@@ -163,7 +165,7 @@ class PayrollApprovalService
                 throw new \LogicException("Cannot resubmit batch with status: {$batch->status}");
             }
 
-            if (!$batch->canBeResubmitted()) {
+            if (! $batch->canBeResubmitted()) {
                 throw new \LogicException("Cannot resubmit batch with status: {$batch->status}");
             }
 
@@ -189,7 +191,15 @@ class PayrollApprovalService
             return PayrollWorkflowConfig::MODULE_WEEKLY;
         }
 
-        throw new \InvalidArgumentException('Unsupported batch type: ' . get_class($batch));
+        if ($batch instanceof OvertimePayBatch) {
+            return PayrollWorkflowConfig::MODULE_OVERTIME;
+        }
+
+        if ($batch instanceof LatePayCompensationBatch) {
+            return PayrollWorkflowConfig::MODULE_LATE_PAY_COMPENSATION;
+        }
+
+        throw new \InvalidArgumentException('Unsupported batch type: '.get_class($batch));
     }
 
     /**
@@ -204,14 +214,14 @@ class PayrollApprovalService
         $module = $this->getModuleForBatch($batch);
         $config = PayrollWorkflowConfig::getActiveConfig($module);
 
-        if (!$config || !$batch->current_finance_step_order) {
+        if (! $config || ! $batch->current_finance_step_order) {
             return false;
         }
 
         $steps = $config->getFinanceStepsOrdered();
         $currentStep = $steps->get($batch->current_finance_step_order - 1);
 
-        if (!$currentStep) {
+        if (! $currentStep) {
             return false;
         }
 
@@ -226,7 +236,7 @@ class PayrollApprovalService
         $module = $this->getModuleForBatch($batch);
         $config = PayrollWorkflowConfig::getActiveConfig($module);
 
-        if (!$config || !$batch->current_finance_step_order) {
+        if (! $config || ! $batch->current_finance_step_order) {
             return false;
         }
 
@@ -257,4 +267,3 @@ class PayrollApprovalService
         ]);
     }
 }
-

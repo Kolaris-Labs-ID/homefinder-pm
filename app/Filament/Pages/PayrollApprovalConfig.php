@@ -20,17 +20,27 @@ class PayrollApprovalConfig extends Page implements HasForms
     use InteractsWithForms;
 
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
+
     protected static ?string $navigationGroup = 'Payroll';
+
     protected static ?string $navigationLabel = 'Approval Configuration';
+
     protected static string $view = 'filament.pages.payroll-approval-config';
 
     public ?array $monthlyConfig = [];
+
     public ?array $weeklyConfig = [];
+
+    public ?array $overtimeConfig = [];
+
+    public ?array $latePayCompensationConfig = [];
 
     public function mount(): void
     {
         $this->monthlyConfig = $this->loadConfigData(PayrollWorkflowConfig::MODULE_MONTHLY);
         $this->weeklyConfig = $this->loadConfigData(PayrollWorkflowConfig::MODULE_WEEKLY);
+        $this->overtimeConfig = $this->loadConfigData(PayrollWorkflowConfig::MODULE_OVERTIME);
+        $this->latePayCompensationConfig = $this->loadConfigData(PayrollWorkflowConfig::MODULE_LATE_PAY_COMPENSATION);
     }
 
     protected function loadConfigData(string $module): array
@@ -64,6 +74,12 @@ class PayrollApprovalConfig extends Page implements HasForms
             'weeklyForm' => $this->weeklyForm(
                 $this->makeForm()->statePath('weeklyConfig'),
             ),
+            'overtimeForm' => $this->overtimeForm(
+                $this->makeForm()->statePath('overtimeConfig'),
+            ),
+            'latePayCompensationForm' => $this->latePayCompensationForm(
+                $this->makeForm()->statePath('latePayCompensationConfig'),
+            ),
         ];
     }
 
@@ -73,6 +89,16 @@ class PayrollApprovalConfig extends Page implements HasForms
     }
 
     public function weeklyForm(Form $form): Form
+    {
+        return $form->schema($this->buildStepSchema());
+    }
+
+    public function overtimeForm(Form $form): Form
+    {
+        return $form->schema($this->buildStepSchema());
+    }
+
+    public function latePayCompensationForm(Form $form): Form
     {
         return $form->schema($this->buildStepSchema());
     }
@@ -118,6 +144,18 @@ class PayrollApprovalConfig extends Page implements HasForms
     {
         $this->weeklyForm->getState();
         $this->persistConfig(PayrollWorkflowConfig::MODULE_WEEKLY, $this->weeklyConfig);
+    }
+
+    public function saveOvertime(): void
+    {
+        $this->overtimeForm->getState();
+        $this->persistConfig(PayrollWorkflowConfig::MODULE_OVERTIME, $this->overtimeConfig);
+    }
+
+    public function saveLatePayCompensation(): void
+    {
+        $this->latePayCompensationForm->getState();
+        $this->persistConfig(PayrollWorkflowConfig::MODULE_LATE_PAY_COMPENSATION, $this->latePayCompensationConfig);
     }
 
     protected function persistConfig(string $module, array $data): void

@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris\Traits;
 
+use App\Models\Hris\LatePayCompensationBatch;
 use App\Models\Hris\OvertimePayBatch;
 use App\Models\Hris\PayrollApprovalLog;
 use App\Models\Hris\PayrollWorkflowConfig;
@@ -92,7 +93,11 @@ trait HasPayrollApproval
             return PayrollWorkflowConfig::MODULE_OVERTIME;
         }
 
-        throw new \InvalidArgumentException('Unsupported batch type: ' . get_class($this));
+        if ($this instanceof LatePayCompensationBatch) {
+            return PayrollWorkflowConfig::MODULE_LATE_PAY_COMPENSATION;
+        }
+
+        throw new \InvalidArgumentException('Unsupported batch type: '.get_class($this));
     }
 
     /**
@@ -114,7 +119,7 @@ trait HasPayrollApproval
         $module = $this->getWorkflowModule();
         $config = PayrollWorkflowConfig::getActiveConfig($module);
 
-        if (!$config) {
+        if (! $config) {
             // No active config — no access for non-HR users
             return $query->whereRaw('1 = 0');
         }
@@ -135,14 +140,14 @@ trait HasPayrollApproval
      */
     public function getCurrentApproverNameAttribute(): ?string
     {
-        if ($this->status !== 'pending_finance' || !$this->current_finance_step_order) {
+        if ($this->status !== 'pending_finance' || ! $this->current_finance_step_order) {
             return null;
         }
 
         $module = $this->getWorkflowModule();
         $config = PayrollWorkflowConfig::getActiveConfig($module);
 
-        if (!$config) {
+        if (! $config) {
             return null;
         }
 
