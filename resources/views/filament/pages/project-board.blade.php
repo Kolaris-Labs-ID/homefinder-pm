@@ -89,25 +89,25 @@
                             <table class="w-full text-start border-separate" style="border-spacing: 0 0.75rem;">
                                 <thead>
                                     <tr>
-                                        <th class="px-5 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Project Name</th>
+                                        <th class="px-5 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent w-[28%] min-w-[220px]">Project Name</th>
                                         @if(!in_array('due_date', $hiddenColumns))
-                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Timeline / Due Date</th>
+                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent w-[14%] min-w-[130px]">Timeline / Due Date</th>
                                         @endif
                                         @if(!in_array('division', $hiddenColumns))
-                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Division</th>
+                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent w-[12%] min-w-[100px]">Division</th>
                                         @endif
                                         @if(!in_array('owner', $hiddenColumns))
-                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Owner</th>
+                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent w-[14%] min-w-[120px]">Owner</th>
                                         @endif
                                         @if(!in_array('members', $hiddenColumns))
-                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Members</th>
+                                            <th class="px-3 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent w-[17%] min-w-[150px]">Members</th>
                                         @endif
                                         @if(!in_array('progress', $hiddenColumns))
-                                            <th class="px-5 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent">Status & Progress</th>
+                                            <th class="px-5 py-2 text-start text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-transparent w-[15%] min-w-[160px]">Status & Progress</th>
                                         @endif
                                     </tr>
                                 </thead>
-                                <tbody class="whitespace-nowrap">
+                                <tbody class="divide-y divide-transparent">
                                     @foreach ($groupProjects as $project)
                                         @php
                                             $status = $this->getProjectStatus($project);
@@ -123,7 +123,7 @@
                                             {{-- Project Name --}}
                                             <td class="px-5 py-4 rounded-l-2xl border-y border-l border-gray-200 dark:border-gray-800 group-hover:border-primary-200 group-hover:bg-primary-50/50 dark:group-hover:bg-primary-900/20 dark:group-hover:border-primary-800">
                                                 <div class="flex flex-col gap-1.5">
-                                                    <span class="text-base font-bold text-gray-900 dark:text-white leading-tight group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                                                    <span class="text-base font-bold text-gray-900 dark:text-white leading-tight group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-1">
                                                         {{ $project->name }}
                                                     </span>
                                                     @if($project->ticket_prefix)
