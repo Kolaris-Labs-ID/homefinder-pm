@@ -86,7 +86,10 @@
                             <div class="flex flex-wrap items-center gap-1.5 pl-6 sm:pl-0">
                                 {{-- Overdue badge (always shown if > 0) --}}
                                 @if ($overdue > 0)
-                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-600 text-white dark:bg-red-500 border border-red-700 dark:border-red-400 shadow-sm">
+                                    <span 
+                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border shadow-sm"
+                                        style="background-color: #dc2626; color: white; border-color: #b91c1c;"
+                                    >
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                                         </svg>
@@ -137,7 +140,7 @@
                                 {{-- Overdue Tickets Section --}}
                                 @if ($overdueTickets->isNotEmpty())
                                     <div class="px-4 py-3 bg-red-50/50 dark:bg-red-950/20 border-l-4 border-red-500">
-                                        <p class="text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                        <p class="text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1" style="color: #b91c1c;">
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
                                             </svg>
@@ -215,7 +218,7 @@
                                                                 {{ $ticket->name }}
                                                             </span>
                                                             @if ($ticket->due_date)
-                                                                <span class="text-xs {{ $ticket->isOverdue() ? 'text-red-600 dark:text-red-400 font-bold' : 'text-gray-400 dark:text-gray-500' }} block mt-0.5">
+                                                                <span class="text-xs {{ $ticket->isOverdue() ? 'font-bold' : 'text-gray-400 dark:text-gray-500' }} block mt-0.5" style="{{ $ticket->isOverdue() ? 'color: #dc2626;' : '' }}">
                                                                     Due: {{ $ticket->due_date->format('d M Y') }}
                                                                     @if ($ticket->isOverdue())
                                                                         (overdue)
