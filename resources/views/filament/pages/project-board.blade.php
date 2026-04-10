@@ -59,23 +59,6 @@
                         </div>
                     </div>
 
-                    {{-- Sort Tabs --}}
-                    <div class="flex items-center overflow-x-auto pb-2 sm:pb-0 border-t border-gray-100 dark:border-white/10 pt-4">
-                        <span class="text-sm font-medium text-gray-500 mr-4 whitespace-nowrap">Sort by:</span>
-                        <x-filament::tabs>
-                            @foreach(['name' => 'Name', 'end_date' => 'Due Date', 'division' => 'Division', 'owner' => 'Owner'] as $field => $label)
-                                <x-filament::tabs.item
-                                    :active="$projectSortField === $field"
-                                    wire:click="sortProjectsBy('{{ $field }}')"
-                                >
-                                    {{ $label }}
-                                    @if($projectSortField === $field)
-                                        <x-heroicon-m-chevron-up class="ml-1 w-3 h-3 inline-block transition-transform {{ $projectSortDirection === 'desc' ? 'rotate-180' : '' }}" />
-                                    @endif
-                                </x-filament::tabs.item>
-                            @endforeach
-                        </x-filament::tabs>
-                    </div>
                 </div>
             </x-filament::section>
 
@@ -92,7 +75,7 @@
             @else
                 @php $groupedProjects = $this->getGroupedProjects(); @endphp
 
-                <div class="space-y-8">
+                <div class="space-y-16">
                 @forelse ($groupedProjects as $groupName => $groupProjects)
                     <x-filament::section collapsible :collapsed="in_array($groupName, $collapsedGroups)">
                         <x-slot name="heading">
@@ -234,17 +217,17 @@
                                             {{-- Progress --}}
                                             @if(!in_array('progress', $hiddenColumns))
                                                 <td class="px-5 py-4 rounded-r-2xl border-y border-r border-gray-200 dark:border-gray-800 group-hover:border-primary-200 group-hover:bg-primary-50/50 dark:group-hover:bg-primary-900/20 dark:group-hover:border-primary-800">
-                                                    <div class="flex flex-col gap-2 min-w-[150px]">
-                                                        <div class="flex items-center justify-between text-[11px] font-black uppercase tracking-wider">
-                                                            <span class="text-gray-500 dark:text-gray-400">Progress</span>
-                                                            <span class="{{ $progress >= 100 ? 'text-emerald-500' : ($progress >= 50 ? 'text-primary-500' : 'text-amber-500') }}">
+                                                    <div class="flex flex-col gap-2 min-w-[160px]">
+                                                        <div class="flex items-center justify-between">
+                                                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Progress</span>
+                                                            <span class="text-xs font-bold {{ $progress >= 100 ? 'text-emerald-600' : ($progress >= 50 ? 'text-primary-600' : 'text-amber-600') }}">
                                                                 {{ number_format(min($progress, 100), 0) }}%
                                                             </span>
                                                         </div>
-                                                        <div class="w-full h-2.5 rounded-full bg-gray-100 dark:bg-black/20 overflow-hidden shadow-inner">
+                                                        <div class="relative w-full h-3 rounded-full bg-gray-100 dark:bg-white/5 overflow-hidden shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] border border-gray-100 dark:border-white/10">
                                                             <div
-                                                                class="h-full rounded-full transition-all duration-1000 ease-out shadow-[inset_0_1px_rgba(255,255,255,0.4)]"
-                                                                style="width: {{ min($progress, 100) }}%; background: linear-gradient(90deg, {{ $progress >= 100 ? '#10B981, #059669' : ($progress >= 50 ? '#3B82F6, #2563EB' : '#F59E0B, #D97706') }});"
+                                                                class="h-full rounded-full transition-all duration-1000 ease-out shadow-[0_1px_3px_rgba(0,0,0,0.2)]"
+                                                                style="width: {{ min($progress, 100) }}%; background: linear-gradient(90deg, {{ $progress >= 100 ? '#10B981 0%, #059669 100%' : ($progress >= 50 ? '#3B82F6 0%, #2563EB 100%' : '#F59E0B 0%, #D97706 100%') }});"
                                                             ></div>
                                                         </div>
                                                     </div>
