@@ -132,7 +132,7 @@ class LatePayCompensationBatch extends Model
 
     public function isEditable(): bool
     {
-        return in_array($this->status, [self::STATUS_DRAFT, self::STATUS_REJECTED], true);
+        return in_array($this->status, [self::STATUS_DRAFT, self::STATUS_CALCULATED, self::STATUS_REJECTED], true);
     }
 
     public function isLocked(): bool
