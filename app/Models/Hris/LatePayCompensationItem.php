@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class LatePayCompensationItem extends Model
 {
@@ -71,6 +72,16 @@ class LatePayCompensationItem extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function partialPayments(): HasMany
+    {
+        return $this->hasMany(LatePayCompensationPartialPayment::class, 'late_pay_compensation_item_id');
+    }
+
+    public function totalPaidPercent(): float
+    {
+        return (float) $this->partialPayments()->sum('paid_percent');
     }
 
     public function scopeForEmployee(Builder $query, int $employeeId): Builder

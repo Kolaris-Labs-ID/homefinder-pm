@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\LatePayCompensationBatchResource\RelationManagers;
 
 use App\Models\Hris\LatePayCompensationItem;
+use App\Models\Hris\LatePayCompensationPartialPayment;
+use App\Services\Hris\LatePayCompensationService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -82,6 +84,15 @@ class ItemsRelationManager extends RelationManager
                     ->label('Amount')
                     ->money('IDR')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('partial_payments_count')
+                    ->label('Partials')
+                    ->counts('partialPayments')
+                    ->alignCenter()
+                    ->default(0),
+                Tables\Columns\TextColumn::make('paid_percent_display')
+                    ->label('Paid %')
+                    ->alignCenter()
+                    ->state(fn (LatePayCompensationItem $record): string => number_format($record->totalPaidPercent(), 2).'%'),
                 Tables\Columns\TextColumn::make('bank_name')
                     ->label('Bank')
                     ->toggleable(),
@@ -139,6 +150,110 @@ class ItemsRelationManager extends RelationManager
                     }),
             ])
             ->actions([
+                Tables\Actions\Action::make('add_partial_payment')
+                    ->label('Add partial payment')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('primary')
+                    ->visible(fn (LatePayCompensationItem $record) => $record->isEditable())
+                    ->form(fn (LatePayCompensationItem $record) => [
+                        Forms\Components\DatePicker::make('payment_date')
+                            ->label('Payment date')
+                            ->minDate($this->getOwnerRecord()->scheduled_pay_date)
+                            ->maxDate($this->getOwnerRecord()->actual_pay_date)
+                            ->required(),
+                        Forms\Components\TextInput::make('paid_percent')
+                            ->label('Paid %')
+                            ->numeric()
+                            ->minValue(0.01)
+                            ->maxValue(100 - $record->totalPaidPercent())
+                            ->suffix('%')
+                            ->required()
+                            ->helperText('Remaining available: '.number_format(100 - $record->totalPaidPercent(), 2).'%'),
+                    ])
+                    ->action(function (LatePayCompensationItem $record, array $data) {
+                        try {
+                            LatePayCompensationPartialPayment::create([
+                                'late_pay_compensation_item_id' => $record->id,
+                                'payment_date' => $data['payment_date'],
+                                'paid_percent' => $data['paid_percent'],
+                            ]);
+
+                            app(LatePayCompensationService::class)->recalculateItem($record);
+                            $this->getOwnerRecord()->recalculateSummary();
+
+                            Notification::make()
+                                ->title('Partial payment added & amount recalculated')
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
+                Tables\Actions\Action::make('view_partial_payments')
+                    ->label('View partials')
+                    ->icon('heroicon-o-list-bullet')
+                    ->color('gray')
+                    ->visible(fn (LatePayCompensationItem $record) => $record->partialPayments()->count() > 0)
+                    ->modalHeading('Partial payments')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close')
+                    ->infolist(fn (LatePayCompensationItem $record) => [
+                        \Filament\Infolists\Components\RepeatableEntry::make('partialPayments')
+                            ->label('')
+                            ->schema([
+                                \Filament\Infolists\Components\TextEntry::make('payment_date')
+                                    ->label('Date')
+                                    ->date(),
+                                \Filament\Infolists\Components\TextEntry::make('paid_percent')
+                                    ->label('Paid %')
+                                    ->suffix('%'),
+                            ])
+                            ->columns(2),
+                    ]),
+                Tables\Actions\Action::make('delete_partial_payment')
+                    ->label('Remove partial')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->visible(fn (LatePayCompensationItem $record) => $record->isEditable() && $record->partialPayments()->count() > 0)
+                    ->form(fn (LatePayCompensationItem $record) => [
+                        Forms\Components\Select::make('partial_payment_id')
+                            ->label('Select partial payment to remove')
+                            ->options(
+                                $record->partialPayments()
+                                    ->orderBy('payment_date')
+                                    ->get()
+                                    ->mapWithKeys(fn ($p) => [
+                                        $p->id => $p->payment_date->format('d M Y').' — '.$p->paid_percent.'%',
+                                    ])
+                            )
+                            ->required(),
+                    ])
+                    ->requiresConfirmation()
+                    ->action(function (LatePayCompensationItem $record, array $data) {
+                        try {
+                            LatePayCompensationPartialPayment::where('id', $data['partial_payment_id'])
+                                ->where('late_pay_compensation_item_id', $record->id)
+                                ->delete();
+
+                            app(LatePayCompensationService::class)->recalculateItem($record);
+                            $this->getOwnerRecord()->recalculateSummary();
+
+                            Notification::make()
+                                ->title('Partial payment removed & amount recalculated')
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
                 Tables\Actions\Action::make('exclude')
                     ->label('Exclude')
                     ->icon('heroicon-o-x-mark')
