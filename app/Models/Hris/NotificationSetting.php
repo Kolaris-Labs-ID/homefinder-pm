@@ -20,6 +20,8 @@ class NotificationSetting extends Model
         'reimbursement_updates',
         'payslip_notifications',
         'weekly_todo_reminder',
+        'ticket_updates',
+        'activity_updates',
     ];
 
     protected $casts = [
@@ -32,6 +34,8 @@ class NotificationSetting extends Model
         'reimbursement_updates' => 'boolean',
         'payslip_notifications' => 'boolean',
         'weekly_todo_reminder' => 'boolean',
+        'ticket_updates' => 'boolean',
+        'activity_updates' => 'boolean',
     ];
 
     public function employee(): BelongsTo

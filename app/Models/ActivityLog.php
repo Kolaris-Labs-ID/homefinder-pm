@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Model as EloquentModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use App\Events\ActivityLogCreated;
 
 class ActivityLog extends Model
 {
@@ -52,14 +53,19 @@ class ActivityLog extends Model
             default => null,
         };
 
-        return static::create([
+        $record = static::create([
             'subject_type' => $subject::class,
-            'subject_id' => $subject->getKey(),
-            'project_id' => $projectId,
-            'user_id' => $user?->id,
-            'event_type' => $eventType,
-            'meta' => $meta,
+            'subject_id'   => $subject->getKey(),
+            'project_id'   => $projectId,
+            'user_id'      => $user?->id,
+            'event_type'   => $eventType,
+            'meta'         => $meta,
         ]);
+
+        // Dispatch event so listeners can push-notify relevant users
+        ActivityLogCreated::dispatch($record);
+
+        return $record;
     }
 
     public static function logProjectCreated(Project $project, ?User $user = null): self

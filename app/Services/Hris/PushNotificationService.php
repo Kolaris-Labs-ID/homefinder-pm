@@ -6,12 +6,31 @@ use App\Models\Hris\Employee;
 use App\Models\Hris\NotificationSetting;
 use App\Models\Hris\PushToken;
 use App\Models\Hris\UserNotification;
+use App\Models\User;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class PushNotificationService
 {
     private const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+
+    /**
+     * Send push notification to a User (resolves Employee internally).
+     * Useful for PM-side code that works with User models.
+     */
+    public function sendToUser(
+        User $user,
+        string $type,
+        string $title,
+        string $body,
+        array $data = []
+    ): bool {
+        $employee = $user->employee;
+        if (!$employee) {
+            return false;
+        }
+        return $this->sendToEmployee($employee, $type, $title, $body, $data);
+    }
 
     /**
      * Send push notification to a specific employee.
@@ -171,6 +190,14 @@ class PushNotificationService
             'reimbursement_update' => $settings->reimbursement_updates,
             'payslip' => $settings->payslip_notifications,
             'weekly_todo_reminder' => $settings->weekly_todo_reminder,
+            'ticket_overdue',
+            'ticket_nearing_overdue',
+            'ticket_assigned',
+            'project_overdue',
+            'project_nearing_overdue',
+            'project_assigned',
+            'comment_added' => $settings->ticket_updates ?? true,
+            'activity_log' => $settings->activity_updates ?? true,
             default => true,
         };
     }

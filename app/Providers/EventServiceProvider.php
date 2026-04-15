@@ -2,10 +2,14 @@
 
 namespace App\Providers;
 
+use App\Events\ActivityLogCreated;
 use App\Events\ProjectMemberAttached;
 use App\Events\ProjectMemberDetached;
+use App\Events\TicketAssigneeChanged;
+use App\Listeners\SendActivityLogNotification;
 use App\Listeners\SendProjectAssignmentNotification;
 use App\Listeners\SendProjectRemovalNotification;
+use App\Listeners\SendTicketAssignmentNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
@@ -21,6 +25,12 @@ class EventServiceProvider extends ServiceProvider
         ],
         ProjectMemberDetached::class => [
             SendProjectRemovalNotification::class,
+        ],
+        TicketAssigneeChanged::class => [
+            SendTicketAssignmentNotification::class,
+        ],
+        ActivityLogCreated::class => [
+            SendActivityLogNotification::class,
         ],
     ];
 

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use App\Events\TicketAssigneeChanged;
 
 class Ticket extends Model
 {
@@ -190,10 +191,16 @@ class Ticket extends Model
             return;
         }
 
+        $addedIds   = array_values(array_diff($after, $before));
+        $removedIds = array_values(array_diff($before, $after));
+
         ActivityLog::logTicketUpdated($this, $actor, ['assignees'], [
-            'added_assignee_ids' => array_values(array_diff($after, $before)),
-            'removed_assignee_ids' => array_values(array_diff($before, $after)),
+            'added_assignee_ids'   => $addedIds,
+            'removed_assignee_ids' => $removedIds,
         ]);
+
+        // Dispatch event so listeners can send push notifications to new assignees
+        TicketAssigneeChanged::dispatch($this, $addedIds, $removedIds, $actor);
     }
 
     public function isAssignedTo(User $user): bool

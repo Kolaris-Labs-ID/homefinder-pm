@@ -12,6 +12,7 @@ use App\Models\Project;
 use App\Models\Ticket;
 use App\Models\TicketComment;
 use App\Models\User;
+use App\Services\Hris\PushNotificationService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -19,6 +20,9 @@ use Carbon\Carbon;
 
 class NotificationService
 {
+    public function __construct(
+        private PushNotificationService $pushService = new PushNotificationService()
+    ) {}
     public function notifyCommentAdded(TicketComment $comment): void
     {
         $ticket = $comment->ticket;
@@ -27,17 +31,30 @@ class NotificationService
         $usersToNotify = $this->getUsersToNotifyForComment($ticket, $commenter);
 
         foreach ($usersToNotify as $user) {
+            $notifData = array_merge($this->actorData($commenter), [
+                'ticket_id' => $ticket->id,
+                'ticket_name' => $ticket->name,
+                'comment_id' => $comment->id,
+            ]);
             Notification::create([
                 'user_id' => $user->id,
                 'type' => 'comment_added',
                 'title' => 'New Comment on Ticket',
                 'message' => "{$commenter->name} added a comment on ticket {$ticket->name}",
-                'data' => array_merge($this->actorData($commenter), [
-                    'ticket_id' => $ticket->id,
-                    'ticket_name' => $ticket->name,
-                    'comment_id' => $comment->id,
-                ]),
+                'data' => $notifData,
             ]);
+            // Push notification
+            try {
+                $this->pushService->sendToUser(
+                    $user,
+                    'comment_added',
+                    '💬 New Comment',
+                    "{$commenter->name} commented on {$ticket->name}",
+                    $notifData
+                );
+            } catch (\Exception $e) {
+                Log::warning('Push failed for comment_added: ' . $e->getMessage());
+            }
         }
     }
 
@@ -108,6 +125,11 @@ class NotificationService
 
     public function notifyProjectAssignment(Project $project, User $assignedUser, User $assignedBy): void
     {
+        $pushData = array_merge($this->actorData($assignedBy), [
+            'project_id' => $project->id,
+            'project_name' => $project->name,
+        ]);
+
         // Create in-app notification
         try {
             Notification::create([
@@ -115,10 +137,7 @@ class NotificationService
                 'type' => 'project_assigned',
                 'title' => 'Ditambahkan ke Project',
                 'message' => "Anda telah ditambahkan ke project '{$project->name}' oleh {$assignedBy->name}",
-                'data' => array_merge($this->actorData($assignedBy), [
-                    'project_id' => $project->id,
-                    'project_name' => $project->name,
-                ]),
+                'data' => $pushData,
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to create in-app notification: ' . $e->getMessage(), [
@@ -127,12 +146,24 @@ class NotificationService
             ]);
         }
 
+        // Send push notification
+        try {
+            $this->pushService->sendToUser(
+                $assignedUser,
+                'project_assigned',
+                '📁 Added to Project',
+                "You were added to project '{$project->name}' by {$assignedBy->name}",
+                $pushData
+            );
+        } catch (\Exception $e) {
+            Log::warning('Push failed for project_assigned: ' . $e->getMessage());
+        }
+
         // Send email notification
         try {
             $mail = new ProjectAssignmentNotification($project, $assignedUser, $assignedBy);
             Mail::to($assignedUser->email)->send($mail);
         } catch (\Exception $e) {
-            // Log error but don't fail the assignment
             Log::error('Failed to send project assignment email: ' . $e->getMessage(), [
                 'project_id' => $project->id,
                 'user_id' => $assignedUser->id,
@@ -195,6 +226,25 @@ class NotificationService
                 ]);
             }
 
+            // Send push notification
+            try {
+                $this->pushService->sendToUser(
+                    $user,
+                    'ticket_overdue',
+                    '🔴 Ticket Overdue',
+                    "Ticket '{$ticket->name}' is overdue by {$overdueDays} day(s)",
+                    [
+                        'ticket_id' => $ticket->id,
+                        'ticket_uuid' => $ticket->uuid,
+                        'ticket_name' => $ticket->name,
+                        'project_id' => $ticket->project_id,
+                        'overdue_days' => $overdueDays,
+                    ]
+                );
+            } catch (\Exception $e) {
+                Log::warning('Push failed for ticket_overdue: ' . $e->getMessage());
+            }
+
             // Send email notification
             try {
                 $mail = new TicketOverdueNotification($ticket, $user, $overdueDays);
@@ -244,6 +294,25 @@ class NotificationService
                     'ticket_id' => $ticket->id,
                     'user_id' => $user->id,
                 ]);
+            }
+
+            // Send push notification
+            try {
+                $this->pushService->sendToUser(
+                    $user,
+                    'ticket_nearing_overdue',
+                    '⚠️ Ticket Due Soon',
+                    "Ticket '{$ticket->name}' is due in {$daysUntilDue} day(s)",
+                    [
+                        'ticket_id' => $ticket->id,
+                        'ticket_uuid' => $ticket->uuid,
+                        'ticket_name' => $ticket->name,
+                        'project_id' => $ticket->project_id,
+                        'days_until_due' => $daysUntilDue,
+                    ]
+                );
+            } catch (\Exception $e) {
+                Log::warning('Push failed for ticket_nearing_overdue: ' . $e->getMessage());
             }
 
             // Send email notification
@@ -299,6 +368,19 @@ class NotificationService
                 ]);
             }
 
+            // Send push notification
+            try {
+                $this->pushService->sendToUser(
+                    $user,
+                    'project_overdue',
+                    '🔴 Project Overdue',
+                    "Project '{$project->name}' is overdue by {$overdueDays} day(s)",
+                    ['project_id' => $project->id, 'project_name' => $project->name, 'overdue_days' => $overdueDays]
+                );
+            } catch (\Exception $e) {
+                Log::warning('Push failed for project_overdue: ' . $e->getMessage());
+            }
+
             // Send email notification
             try {
                 $mail = new ProjectOverdueNotification($project, $user, $overdueDays);
@@ -349,6 +431,19 @@ class NotificationService
                     'project_id' => $project->id,
                     'user_id' => $user->id,
                 ]);
+            }
+
+            // Send push notification
+            try {
+                $this->pushService->sendToUser(
+                    $user,
+                    'project_nearing_overdue',
+                    '⚠️ Project Due Soon',
+                    "Project '{$project->name}' is due in {$daysUntilDue} day(s)",
+                    ['project_id' => $project->id, 'project_name' => $project->name, 'days_until_due' => $daysUntilDue]
+                );
+            } catch (\Exception $e) {
+                Log::warning('Push failed for project_nearing_overdue: ' . $e->getMessage());
             }
 
             // Send email notification
