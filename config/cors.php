@@ -24,12 +24,18 @@ return [
         'http://127.0.0.1:8081',
         'http://localhost:19006',
         'http://127.0.0.1:19006',
+        'https://expo.dev',
+        'https://snack.expo.dev',
         'https://*.vercel.app',
         env('FRONTEND_URL', 'https://phi-connect.vercel.app'),
     ],
 
     'allowed_origins_patterns' => [
         '#^https://.*\.vercel\.app$#',
+        '#^https://.*\.expo\.dev$#',
+        '#^https://.*\.expo\.app$#',
+        '#^https://.*\.exp\.host$#',
+        '#^https://.*\.exp\.direct$#',
     ],
 
     'allowed_headers' => ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With', 'Origin'],
