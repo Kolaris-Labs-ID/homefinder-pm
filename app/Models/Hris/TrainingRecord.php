@@ -14,16 +14,21 @@ class TrainingRecord extends Model
 
     // Status constants
     const STATUS_PLANNED = 'planned';
+
     const STATUS_IN_PROGRESS = 'in_progress';
+
     const STATUS_COMPLETED = 'completed';
 
     // Training type constants
     const TRAINING_TYPE_FREE = 'free';
+
     const TRAINING_TYPE_PAID = 'paid';
 
     // PGP point constants
     const PGP_FREE_TRAINING = 35;
+
     const PGP_PAID_MIN = 15;
+
     const PGP_PAID_MAX = 25;
 
     protected $fillable = [
@@ -155,7 +160,7 @@ class TrainingRecord extends Model
      */
     public function isExpiringWithinDays(int $days = 30): bool
     {
-        if (!$this->expiry_date) {
+        if (! $this->expiry_date) {
             return false;
         }
 
@@ -167,7 +172,7 @@ class TrainingRecord extends Model
      */
     public function isExpired(): bool
     {
-        if (!$this->expiry_date) {
+        if (! $this->expiry_date) {
             return false;
         }
 
@@ -179,7 +184,7 @@ class TrainingRecord extends Model
      */
     public function getDaysUntilExpiryAttribute(): ?int
     {
-        if (!$this->expiry_date) {
+        if (! $this->expiry_date) {
             return null;
         }
 
@@ -218,7 +223,27 @@ class TrainingRecord extends Model
      */
     public function isApprovedForPgp(): bool
     {
-        return $this->approved_at !== null && $this->pgp_points !== null;
+        return $this->approved_at !== null
+            && $this->pgp_points !== null
+            && $this->pgp_points > 0;
+    }
+
+    /**
+     * Called when the approval workflow completes successfully.
+     * Training completion status stays in planned / in_progress / completed — PGP is stored in approved_at / pgp_points.
+     */
+    public function markAsApproved(): void
+    {
+        // Intentionally empty: do not set status to "approved" (invalid for training_records enum).
+    }
+
+    /**
+     * Called when the approval workflow rejects the request.
+     * Do not set status to "rejected" (invalid for training_records enum); rejection is on approval_steps.
+     */
+    public function markAsRejected(string $reason): void
+    {
+        // Intentionally empty: completion status remains planned / in_progress / completed.
     }
 
     /**

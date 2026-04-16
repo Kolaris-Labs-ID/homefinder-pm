@@ -9,9 +9,7 @@ use App\Models\Hris\Reimbursement;
 use App\Models\Hris\TrainingRecord;
 use App\Services\Hris\ApprovalWorkflowService;
 use App\Services\Hris\PgpService;
-use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -35,16 +33,23 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     use InteractsWithTable;
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
+
     protected static ?string $navigationLabel = 'Approval Dashboard';
+
     protected static ?string $title = 'Approval Dashboard';
+
     protected static ?int $navigationSort = 5;
+
     protected static string $view = 'filament.pages.approval-dashboard';
+
     protected static ?string $navigationGroup = 'HRIS';
+
     protected static ?string $slug = 'approval-dashboard';
 
     public ?string $moduleFilter = null;
 
     protected ApprovalWorkflowService $approvalService;
+
     protected PgpService $pgpService;
 
     public function boot(ApprovalWorkflowService $approvalService, PgpService $pgpService): void
@@ -61,7 +66,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     public static function canAccess(): bool
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return false;
         }
 
@@ -74,7 +79,6 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
         ]) || $user->hasRole('super_admin');
     }
 
-
     public function getSubheading(): ?string
     {
         return 'Manage pending approval requests';
@@ -86,8 +90,8 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     public function getPendingApprovals(): Collection
     {
         $user = Auth::user();
-        if (!$user) {
-            return new Collection();
+        if (! $user) {
+            return new Collection;
         }
 
         if ($this->moduleFilter) {
@@ -103,7 +107,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     public function getApprovalStatistics(): array
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return ['pending' => 0, 'approved' => 0, 'rejected' => 0];
         }
 
@@ -116,7 +120,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     public static function getNavigationBadge(): ?string
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return null;
         }
 
@@ -174,7 +178,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
                         ApprovalWorkflow::MODULE_TRAINING => 'Training Records',
                     ])
                     ->query(function (Builder $query, array $data): Builder {
-                        if (!$data['value']) {
+                        if (! $data['value']) {
                             return $query;
                         }
 
@@ -220,7 +224,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
                                     ->minValue(TrainingRecord::PGP_PAID_MIN)
                                     ->maxValue(TrainingRecord::PGP_PAID_MAX)
                                     ->default(20)
-                                    ->helperText('Enter PGP points between ' . TrainingRecord::PGP_PAID_MIN . ' and ' . TrainingRecord::PGP_PAID_MAX . ' for paid training');
+                                    ->helperText('Enter PGP points between '.TrainingRecord::PGP_PAID_MIN.' and '.TrainingRecord::PGP_PAID_MAX.' for paid training');
                             } else {
                                 // Free training: show info placeholder
                                 $formFields[] = Placeholder::make('pgp_info')
@@ -292,14 +296,13 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
             ->emptyStateIcon('heroicon-o-clipboard-document-check');
     }
 
-
     /**
      * Get the table query for pending approvals.
      */
     protected function getTableQuery(): Builder
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return ApprovalStep::query()->whereRaw('1 = 0');
         }
 
@@ -307,11 +310,11 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
             ->where('status', ApprovalStep::STATUS_PENDING);
 
         // Super admins see all pending approvals
-        if (!$user->hasRole('super_admin')) {
+        if (! $user->hasRole('super_admin')) {
             $userRoles = $user->roles->pluck('name')->toArray();
             $query->where(function ($q) use ($user, $userRoles) {
                 $q->where('approver_id', $user->id);
-                if (!empty($userRoles)) {
+                if (! empty($userRoles)) {
                     $q->orWhereIn('approver_role', $userRoles);
                 }
             });
@@ -332,21 +335,8 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
                 $this->approvalService->approve($step, Auth::user(), $notes);
             }
 
-            // Handle PGP point assignment for training records
-            if ($step->approvable_type === TrainingRecord::class) {
-                $trainingRecord = $step->approvable;
-
-                if ($trainingRecord) {
-                    if ($trainingRecord->isPaidTraining()) {
-                        // Paid training: use provided points
-                        if ($pgpPoints !== null) {
-                            $this->pgpService->awardPoints($trainingRecord, $pgpPoints);
-                        }
-                    } else {
-                        // Free training: auto-assign 35 PGP
-                        $this->pgpService->awardPoints($trainingRecord, TrainingRecord::PGP_FREE_TRAINING);
-                    }
-                }
+            if ($step->approvable_type === TrainingRecord::class && $step->approvable instanceof TrainingRecord) {
+                $this->awardPgpForApprovedTrainingStep($step->approvable, $pgpPoints, false);
             }
 
             Notification::make()
@@ -394,9 +384,16 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
         $result = $this->approvalService->bulkApprove($stepIds, Auth::user(), $notes);
 
         if ($result['success']) {
+            foreach ($stepIds as $stepId) {
+                $step = ApprovalStep::with('approvable')->find($stepId);
+                if ($step && $step->approvable_type === TrainingRecord::class && $step->approvable instanceof TrainingRecord) {
+                    $this->awardPgpForApprovedTrainingStep($step->approvable, null, true);
+                }
+            }
+
             Notification::make()
                 ->title('Bulk Approval Successful')
-                ->body(count($stepIds) . ' items have been approved.')
+                ->body(count($stepIds).' items have been approved.')
                 ->success()
                 ->send();
         } else {
@@ -405,6 +402,27 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
                 ->body($result['error'] ?? 'An error occurred during bulk approval.')
                 ->danger()
                 ->send();
+        }
+    }
+
+    /**
+     * Assign PGP for a training record after an approval step is approved.
+     *
+     * @param  int|null  $paidPgpPoints  Explicit points for paid training (single-item approve form).
+     * @param  bool  $useDefaultPaidPointsWhenUnset  When true (bulk approve), paid trainings use midpoint PGP if points not provided.
+     */
+    protected function awardPgpForApprovedTrainingStep(TrainingRecord $trainingRecord, ?int $paidPgpPoints, bool $useDefaultPaidPointsWhenUnset): void
+    {
+        if ($trainingRecord->isPaidTraining()) {
+            $points = $paidPgpPoints;
+            if ($points === null && $useDefaultPaidPointsWhenUnset) {
+                $points = (int) round((TrainingRecord::PGP_PAID_MIN + TrainingRecord::PGP_PAID_MAX) / 2);
+            }
+            if ($points !== null && $this->pgpService->validatePaidTrainingPoints($points)) {
+                $this->pgpService->awardPoints($trainingRecord, $points);
+            }
+        } else {
+            $this->pgpService->awardPoints($trainingRecord, TrainingRecord::PGP_FREE_TRAINING);
         }
     }
 
@@ -475,7 +493,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     {
         $approvable = $step->approvable;
 
-        if (!$approvable) {
+        if (! $approvable) {
             return '#';
         }
 

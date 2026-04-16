@@ -46,6 +46,44 @@ test('isApprovedForPgp returns false when not approved', function () {
     expect($record->isApprovedForPgp())->toBeFalse();
 });
 
+test('isApprovedForPgp returns false when pgp_points is zero', function () {
+    $record = TrainingRecord::factory()
+        ->forEmployee($this->employee)
+        ->freeTraining()
+        ->create([
+            'pgp_points' => 0,
+            'approved_at' => now(),
+        ]);
+
+    expect($record->isApprovedForPgp())->toBeFalse();
+});
+
+test('markAsApproved does not change training status', function () {
+    $record = TrainingRecord::factory()
+        ->forEmployee($this->employee)
+        ->inProgress()
+        ->create();
+
+    $before = $record->status;
+    $record->markAsApproved();
+    $record->refresh();
+
+    expect($record->status)->toBe($before);
+});
+
+test('markAsRejected does not change training status', function () {
+    $record = TrainingRecord::factory()
+        ->forEmployee($this->employee)
+        ->completed()
+        ->create();
+
+    $before = $record->status;
+    $record->markAsRejected('Not valid');
+    $record->refresh();
+
+    expect($record->status)->toBe($before);
+});
+
 test('scopeApprovedInQuarter filters records by quarter', function () {
     TrainingRecord::factory()
         ->forEmployee($this->employee)

@@ -2,8 +2,8 @@
 
 namespace App\Policies\Hris;
 
-use App\Models\User;
 use App\Models\Hris\TrainingRecord;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class TrainingRecordPolicy
@@ -16,6 +16,7 @@ class TrainingRecordPolicy
     protected function isOwnRecord(User $user, TrainingRecord $trainingRecord): bool
     {
         $employee = $user->employee;
+
         return $employee && $trainingRecord->employee_id === $employee->id;
     }
 
@@ -55,12 +56,13 @@ class TrainingRecordPolicy
 
     /**
      * Determine whether the user can create models.
-     * Only hr-admin can create training records.
+     * HR permissions or hr-admin role; employees with an HRIS profile may submit their own training.
      */
     public function create(User $user): bool
     {
         return $user->can('create_training::record')
-            || $user->hasRole('hr-admin');
+            || $user->hasRole('hr-admin')
+            || $user->employee !== null;
     }
 
     /**

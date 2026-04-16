@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('approval_workflows', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->enum('for_module', ['leave', 'reimbursement', 'payroll_adjustment']);
+            $table->string('for_module', 32);
             $table->json('steps');
             $table->boolean('is_active')->default(true);
             $table->timestamps();

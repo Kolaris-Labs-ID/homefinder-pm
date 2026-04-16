@@ -10,14 +10,16 @@ use App\Http\Controllers\Api\Hris\LeaveRequestController;
 use App\Http\Controllers\Api\Hris\NotificationController;
 use App\Http\Controllers\Api\Hris\OvertimeController;
 use App\Http\Controllers\Api\Hris\PayslipController;
+use App\Http\Controllers\Api\Hris\PgpSummaryController;
 use App\Http\Controllers\Api\Hris\ProfileController;
 use App\Http\Controllers\Api\Hris\ReimbursementController;
 use App\Http\Controllers\Api\Hris\TeamController;
+use App\Http\Controllers\Api\Hris\TrainingRecordController;
+use App\Http\Controllers\Api\Pm\ActivityLogController;
 use App\Http\Controllers\Api\Pm\BoardController;
 use App\Http\Controllers\Api\Pm\ProjectController;
 use App\Http\Controllers\Api\Pm\TicketCommentController;
 use App\Http\Controllers\Api\Pm\TicketController;
-use App\Http\Controllers\Api\Pm\ActivityLogController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -81,6 +83,12 @@ Route::middleware(['auth:sanctum'])
         Route::get('/reimbursements', [ReimbursementController::class, 'index']);
         Route::post('/reimbursements', [ReimbursementController::class, 'store']);
         Route::put('/reimbursements/{reimbursement}/cancel', [ReimbursementController::class, 'cancel']);
+
+        // PGP / training records (mobile)
+        Route::get('/pgp/summary', [PgpSummaryController::class, 'show']);
+        Route::get('/training-records', [TrainingRecordController::class, 'index']);
+        Route::post('/training-records', [TrainingRecordController::class, 'store']);
+        Route::get('/training-records/{trainingRecord}', [TrainingRecordController::class, 'show']);
 
         // Client Visit endpoints
         Route::get('/visits/purposes', [ClientVisitController::class, 'purposes']);
@@ -156,7 +164,7 @@ Route::middleware(['auth:sanctum'])
         Route::post('/tickets/{ticket}/comments', [TicketCommentController::class, 'store']);
         Route::put('/comments/{comment}', [TicketCommentController::class, 'update']);
         Route::delete('/comments/{comment}', [TicketCommentController::class, 'destroy']);
-        
+
         // Activity Logs
         Route::get('/activities', [ActivityLogController::class, 'index']);
     });
