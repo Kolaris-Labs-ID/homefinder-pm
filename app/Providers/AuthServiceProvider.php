@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Hris\Announcement;
 use App\Models\Hris\Applicant;
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Department;
@@ -18,6 +19,7 @@ use App\Models\Hris\Reimbursement;
 use App\Models\Hris\SalaryStructure;
 use App\Models\Hris\TrainingRecord;
 use App\Models\TicketTemplate;
+use App\Policies\Hris\AnnouncementPolicy;
 use App\Policies\Hris\ApplicantPolicy;
 use App\Policies\Hris\AttendanceLogPolicy;
 use App\Policies\Hris\DepartmentPolicy;
@@ -45,6 +47,7 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
+        Announcement::class => AnnouncementPolicy::class,
         Applicant::class => ApplicantPolicy::class,
         AttendanceLog::class => AttendanceLogPolicy::class,
         Department::class => DepartmentPolicy::class,
