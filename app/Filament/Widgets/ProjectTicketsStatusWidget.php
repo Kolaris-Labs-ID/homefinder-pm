@@ -36,6 +36,8 @@ class ProjectTicketsStatusWidget extends Widget
 
     public array $expandedProjects = [];
 
+    public array $expandedDivisions = [];
+
     public static function canView(): bool
     {
         return auth()->check();
@@ -65,6 +67,15 @@ class ProjectTicketsStatusWidget extends Widget
         }
     }
 
+    public function toggleDivision(string $key): void
+    {
+        if (in_array($key, $this->expandedDivisions)) {
+            $this->expandedDivisions = array_values(array_diff($this->expandedDivisions, [$key]));
+        } else {
+            $this->expandedDivisions[] = $key;
+        }
+    }
+
     /**
      * Get projects visible to the current user.
      */
@@ -78,7 +89,10 @@ class ProjectTicketsStatusWidget extends Widget
         $query = Project::query()
             ->whereNull('archived_at')
             ->whereNull('done_at')
-            ->with(['ticketStatuses' => fn ($q) => $q->orderBy('sort_order')])
+            ->with([
+                'ticketStatuses' => fn ($q) => $q->orderBy('sort_order'),
+                'owner:id,division',
+            ])
             ->withCount('tickets');
 
         if (! $user->canSeeAllPmData()) {
@@ -173,6 +187,65 @@ class ProjectTicketsStatusWidget extends Widget
         }
 
         return $query->get();
+    }
+
+    /**
+     * Return projects grouped by division (for C-level/superadmin) or a flat list (for others).
+     *
+     * Each group:
+     *   [ key, label, project_count, total_tickets, total_overdue, rows, is_expanded, is_grouped ]
+     */
+    public function getGroupedWidgetData(): Collection
+    {
+        $user = $this->getAuthUser();
+        $rows = $this->getWidgetData();
+
+        if (! $user || ! $user->canSeeAllPmData()) {
+            return collect([[
+                'key'           => null,
+                'label'         => null,
+                'project_count' => $rows->count(),
+                'total_tickets' => $rows->sum('total'),
+                'total_overdue' => $rows->sum('overdue'),
+                'rows'          => $rows,
+                'is_expanded'   => true,
+                'is_grouped'    => false,
+            ]]);
+        }
+
+        $grouped = $rows->groupBy(function ($row) {
+            return $row['project']->owner?->division ?? '__unassigned__';
+        });
+
+        $divisions = $grouped->map(function ($groupRows, $key) {
+            return [
+                'key'           => $key,
+                'label'         => $key === '__unassigned__' ? 'Unassigned' : $key,
+                'project_count' => $groupRows->count(),
+                'total_tickets' => $groupRows->sum('total'),
+                'total_overdue' => $groupRows->sum('overdue'),
+                'rows'          => $groupRows->values(),
+                'is_expanded'   => in_array($key, $this->expandedDivisions),
+                'is_grouped'    => true,
+            ];
+        });
+
+        return $divisions->sort(function ($a, $b) {
+            // Unassigned always last
+            if ($a['key'] === '__unassigned__' && $b['key'] !== '__unassigned__') return 1;
+            if ($b['key'] === '__unassigned__' && $a['key'] !== '__unassigned__') return -1;
+
+            // Total overdue descending
+            if ($b['total_overdue'] !== $a['total_overdue']) {
+                return $b['total_overdue'] - $a['total_overdue'];
+            }
+            // Project count descending
+            if ($b['project_count'] !== $a['project_count']) {
+                return $b['project_count'] - $a['project_count'];
+            }
+            // Label ascending
+            return strcmp($a['label'], $b['label']);
+        })->values();
     }
 
     /**
