@@ -149,6 +149,10 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
                     ->label('Requestor')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('details')
+                    ->label('Details')
+                    ->html()
+                    ->state(fn (ApprovalStep $record): string => $this->getRequestDetails($record)),
                 TextColumn::make('step_order')
                     ->label('Step')
                     ->sortable(),
@@ -320,7 +324,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
             });
         }
 
-        return $query->with(['approvable.employee.user', 'workflow']);
+        return $query->with(['approvable', 'approvable.employee.user', 'workflow']);
     }
 
     /**
@@ -329,11 +333,7 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
     protected function approveStep(ApprovalStep $step, ?string $notes = null, ?int $pgpPoints = null): void
     {
         try {
-            if ($step->approvable_type === \App\Models\Hris\LeaveRequest::class) {
-                $this->approvalService->approveParallel($step, Auth::user(), $notes);
-            } else {
-                $this->approvalService->approve($step, Auth::user(), $notes);
-            }
+            $this->approvalService->approve($step, Auth::user(), $notes);
 
             if ($step->approvable_type === TrainingRecord::class && $step->approvable instanceof TrainingRecord) {
                 $this->awardPgpForApprovedTrainingStep($step->approvable, $pgpPoints, false);
@@ -456,6 +456,40 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
                 ->warning()
                 ->send();
         }
+    }
+
+    /**
+     * Build a human-readable details string for an approval step based on its approvable type.
+     * For Leave Requests, shows leave type, date range, and total days.
+     */
+    public function getRequestDetails(ApprovalStep $step): string
+    {
+        $approvable = $step->approvable;
+        if (! $approvable) {
+            return '—';
+        }
+
+        if ($step->approvable_type === LeaveRequest::class && $approvable instanceof LeaveRequest) {
+            $leaveType = optional($approvable->leaveType)->name ?? 'Leave';
+            $start = optional($approvable->start_date)->format('M j, Y');
+            $end = optional($approvable->end_date)->format('M j, Y');
+            $days = (int) $approvable->total_days;
+            $dayLabel = $days === 1 ? 'day' : 'days';
+
+            $dateRange = ($start && $end && $start !== $end)
+                ? "{$start} – {$end}"
+                : ($start ?? '');
+
+            return sprintf(
+                '<div class="flex flex-col gap-0.5"><span class="font-medium">%s</span><span class="text-xs text-gray-500">%s · %d %s</span></div>',
+                e($leaveType),
+                e($dateRange),
+                $days,
+                $dayLabel
+            );
+        }
+
+        return '—';
     }
 
     /**

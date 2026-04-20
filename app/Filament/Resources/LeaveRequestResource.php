@@ -379,7 +379,7 @@ class LeaveRequestResource extends Resource
 
         try {
             $service = app(ApprovalWorkflowService::class);
-            $service->approveParallel($step, $user, $data['notes'] ?? null);
+            $service->approve($step, $user, $data['notes'] ?? null);
 
             Notification::make()
                 ->title(__('Leave Request Approved'))

@@ -69,9 +69,9 @@ test('it can approve leave request through multi-step workflow', function () {
     $this->leaveWorkflowService->initializeWorkflow($leaveRequest);
     $leaveRequest->refresh();
 
-    // Verify initial state
+    // Verify initial state (sequential: only step 1 is pending)
     expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_PENDING);
-    expect($leaveRequest->current_approver_id)->toBeNull();
+    expect($leaveRequest->current_approver_id)->toBe($this->managerUser->id);
     expect($leaveRequest->approvalSteps)->toHaveCount(2);
 
     $step1 = $leaveRequest->approvalSteps()->where('step_order', 1)->first();
@@ -79,17 +79,26 @@ test('it can approve leave request through multi-step workflow', function () {
 
     expect($step1->status)->toBe(ApprovalStep::STATUS_PENDING);
     expect($step1->approver_id)->toBe($this->managerUser->id);
-    expect($step2->status)->toBe(ApprovalStep::STATUS_PENDING); // Also pending because parallel
+    expect($step2->status)->toBe(ApprovalStep::STATUS_SKIPPED); // Skipped until step 1 is approved
 
-    // 3. Approve first step (Manager)
-    $this->approvalWorkflowService->approveParallel($step1, $this->managerUser, 'Manager approved');
+    // 3. Approve first step (Manager) -> should advance to step 2
+    $this->approvalWorkflowService->approve($step1, $this->managerUser, 'Manager approved');
 
     $leaveRequest->refresh();
     $step1->refresh();
     $step2->refresh();
 
     expect($step1->status)->toBe(ApprovalStep::STATUS_APPROVED);
-    expect($step2->status)->toBe(ApprovalStep::STATUS_SKIPPED);
+    expect($step2->status)->toBe(ApprovalStep::STATUS_PENDING);
+    expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_PENDING);
+
+    // 4. Approve second step (HR Admin) -> final approval
+    $this->approvalWorkflowService->approve($step2, $this->hrAdminUser, 'HR approved');
+
+    $leaveRequest->refresh();
+    $step2->refresh();
+
+    expect($step2->status)->toBe(ApprovalStep::STATUS_APPROVED);
     expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_APPROVED);
     expect($leaveRequest->approved_at)->not->toBeNull();
 });
@@ -173,7 +182,7 @@ test('unauthorized users cannot approve a step', function () {
     // Create a random user
     $randomUser = User::factory()->create();
 
-    expect(fn() => $this->approvalWorkflowService->approveParallel($step, $randomUser))
+    expect(fn() => $this->approvalWorkflowService->approve($step, $randomUser))
         ->toThrow(\Exception::class, 'You are not authorized to approve this step.');
 });
 
@@ -202,13 +211,13 @@ test('it correctly resolves role-based approvers', function () {
 });
 
 // ---------------------------------------------------------------------------
-// Parallel approval regression tests
+// Sequential approval regression tests
 // ---------------------------------------------------------------------------
 
-test('a non-first assigned approver can approve in a parallel workflow', function () {
-    // Two-step parallel workflow: manager (step 1) and hr-admin (step 2) both pending
+test('a non-first assigned approver cannot approve until earlier steps are approved', function () {
+    // Two-step sequential workflow: manager (step 1) -> hr-admin (step 2)
     ApprovalWorkflow::create([
-        'name' => 'Parallel 2-Approver Workflow',
+        'name' => 'Sequential 2-Approver Workflow',
         'for_module' => ApprovalWorkflow::MODULE_LEAVE,
         'is_active' => true,
         'steps' => [
@@ -229,29 +238,28 @@ test('a non-first assigned approver can approve in a parallel workflow', functio
     $step1 = $leaveRequest->approvalSteps()->where('step_order', 1)->first();
     $step2 = $leaveRequest->approvalSteps()->where('step_order', 2)->first();
 
-    // Both steps are pending (parallel init)
+    // Sequential: only step 1 is pending; step 2 is skipped until step 1 is approved
     expect($step1->status)->toBe(ApprovalStep::STATUS_PENDING);
+    expect($step2->status)->toBe(ApprovalStep::STATUS_SKIPPED);
+
+    // HR Admin cannot approve step 2 while it is skipped
+    expect(fn() => $this->approvalWorkflowService->approve($step2, $this->hrAdminUser, 'HR approved first'))
+        ->toThrow(\Exception::class, 'This step has already been processed.');
+
+    // Manager approves step 1 -> step 2 becomes pending
+    $this->approvalWorkflowService->approve($step1, $this->managerUser, 'Manager approved');
+    $step2->refresh();
     expect($step2->status)->toBe(ApprovalStep::STATUS_PENDING);
 
-    // The second approver (hr-admin) approves, not the first
-    $this->approvalWorkflowService->approveParallel($step2, $this->hrAdminUser, 'HR approved first');
-
+    // Now HR Admin can approve
+    $this->approvalWorkflowService->approve($step2, $this->hrAdminUser, 'HR approved');
     $leaveRequest->refresh();
-    $step1->refresh();
-    $step2->refresh();
-
-    // HR Admin's step is approved, manager's step is skipped
-    expect($step2->status)->toBe(ApprovalStep::STATUS_APPROVED);
-    expect($step1->status)->toBe(ApprovalStep::STATUS_SKIPPED);
-
-    // Leave request is now approved
     expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_APPROVED);
-    expect($leaveRequest->approved_at)->not->toBeNull();
 });
 
-test('any assigned approver can reject in a parallel workflow', function () {
+test('rejecting the current step rejects the whole leave request', function () {
     ApprovalWorkflow::create([
-        'name' => 'Parallel Reject Workflow',
+        'name' => 'Sequential Reject Workflow',
         'for_module' => ApprovalWorkflow::MODULE_LEAVE,
         'is_active' => true,
         'steps' => [
@@ -268,23 +276,23 @@ test('any assigned approver can reject in a parallel workflow', function () {
 
     $this->leaveWorkflowService->initializeWorkflow($leaveRequest);
 
-    $step2 = $leaveRequest->approvalSteps()->where('step_order', 2)->first();
+    $step1 = $leaveRequest->approvalSteps()->where('step_order', 1)->first();
 
-    // HR Admin (second step) rejects
-    $this->approvalWorkflowService->reject($step2, $this->hrAdminUser, 'Does not comply with policy');
+    // Manager (first/current step) rejects
+    $this->approvalWorkflowService->reject($step1, $this->managerUser, 'Does not comply with policy');
 
     $leaveRequest->refresh();
-    $step2->refresh();
+    $step1->refresh();
 
-    expect($step2->status)->toBe(ApprovalStep::STATUS_REJECTED);
+    expect($step1->status)->toBe(ApprovalStep::STATUS_REJECTED);
     expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_REJECTED);
     expect($leaveRequest->rejection_reason)->toBe('Does not comply with policy');
     expect($leaveRequest->rejected_at)->not->toBeNull();
 });
 
-test('pendingStepFor returns the correct step for each parallel approver', function () {
+test('pendingStepFor returns the current step for the active approver only', function () {
     ApprovalWorkflow::create([
-        'name' => 'Parallel PendingStep Workflow',
+        'name' => 'Sequential PendingStep Workflow',
         'for_module' => ApprovalWorkflow::MODULE_LEAVE,
         'is_active' => true,
         'steps' => [
@@ -303,10 +311,15 @@ test('pendingStepFor returns the correct step for each parallel approver', funct
     $leaveRequest->refresh();
 
     $step1 = $leaveRequest->approvalSteps()->where('step_order', 1)->first();
-    $step2 = $leaveRequest->approvalSteps()->where('step_order', 2)->first();
 
-    // Each approver resolves to their own step
+    // Manager has a pending step; HR Admin does not (yet) because step 2 is skipped
     expect($leaveRequest->pendingStepFor($this->managerUser)?->id)->toBe($step1->id);
+    expect($leaveRequest->pendingStepFor($this->hrAdminUser))->toBeNull();
+
+    // After manager approves, HR Admin now has the pending step
+    $this->approvalWorkflowService->approve($step1, $this->managerUser);
+    $leaveRequest->refresh();
+    $step2 = $leaveRequest->approvalSteps()->where('step_order', 2)->first();
     expect($leaveRequest->pendingStepFor($this->hrAdminUser)?->id)->toBe($step2->id);
 
     // An unrelated user resolves to null
@@ -314,9 +327,9 @@ test('pendingStepFor returns the correct step for each parallel approver', funct
     expect($leaveRequest->pendingStepFor($unrelated))->toBeNull();
 });
 
-test('canBeApprovedBy returns true for all parallel assignees before any action', function () {
+test('canBeApprovedBy returns true only for the current step assignee', function () {
     ApprovalWorkflow::create([
-        'name' => 'canBeApprovedBy Parallel',
+        'name' => 'canBeApprovedBy Sequential',
         'for_module' => ApprovalWorkflow::MODULE_LEAVE,
         'is_active' => true,
         'steps' => [
@@ -334,16 +347,17 @@ test('canBeApprovedBy returns true for all parallel assignees before any action'
     $this->leaveWorkflowService->initializeWorkflow($leaveRequest);
     $leaveRequest->refresh();
 
+    // Only manager can approve initially
     expect($leaveRequest->canBeApprovedBy($this->managerUser))->toBeTrue();
-    expect($leaveRequest->canBeApprovedBy($this->hrAdminUser))->toBeTrue();
+    expect($leaveRequest->canBeApprovedBy($this->hrAdminUser))->toBeFalse();
 
     $unrelated = User::factory()->create();
     expect($leaveRequest->canBeApprovedBy($unrelated))->toBeFalse();
 });
 
-test('after one approver acts, the other approvers lose write access but the history is preserved', function () {
+test('after the first approver acts, the next step becomes active and history is preserved', function () {
     ApprovalWorkflow::create([
-        'name' => 'Post-Action Visibility',
+        'name' => 'Post-Action Sequential Visibility',
         'for_module' => ApprovalWorkflow::MODULE_LEAVE,
         'is_active' => true,
         'steps' => [
@@ -362,26 +376,28 @@ test('after one approver acts, the other approvers lose write access but the his
 
     $step1 = $leaveRequest->approvalSteps()->where('step_order', 1)->first();
 
-    // Manager approves
-    $this->approvalWorkflowService->approveParallel($step1, $this->managerUser, 'All good');
+    // Manager approves step 1
+    $this->approvalWorkflowService->approve($step1, $this->managerUser, 'All good');
 
     $leaveRequest->refresh();
 
-    // HR Admin no longer has a pending step — cannot approve
-    expect($leaveRequest->pendingStepFor($this->hrAdminUser))->toBeNull();
-    expect($leaveRequest->canBeApprovedBy($this->hrAdminUser))->toBeFalse();
+    // HR Admin now has a pending step (advanced by sequential workflow)
+    $step2 = $leaveRequest->approvalSteps()->where('step_order', 2)->first();
+    expect($step2->status)->toBe(ApprovalStep::STATUS_PENDING);
+    expect($leaveRequest->pendingStepFor($this->hrAdminUser)?->id)->toBe($step2->id);
+    expect($leaveRequest->canBeApprovedBy($this->hrAdminUser))->toBeTrue();
+
+    // Manager has already acted; no longer has a pending step
+    expect($leaveRequest->pendingStepFor($this->managerUser))->toBeNull();
+    expect($leaveRequest->canBeApprovedBy($this->managerUser))->toBeFalse();
 
     // Full approval history still has 2 rows
     expect($leaveRequest->approvalSteps)->toHaveCount(2);
 
     $approvedStep = $leaveRequest->approvalSteps->firstWhere('status', ApprovalStep::STATUS_APPROVED);
-    $skippedStep  = $leaveRequest->approvalSteps->firstWhere('status', ApprovalStep::STATUS_SKIPPED);
 
     // The approved step records who acted
     expect($approvedStep->approver_id)->toBe($this->managerUser->id);
     expect($approvedStep->approved_at)->not->toBeNull();
     expect($approvedStep->notes)->toBe('All good');
-
-    // The skipped step still shows the original assignee for the audit trail
-    expect($skippedStep->approver_id)->toBe($this->hrAdminUser->id);
 });
