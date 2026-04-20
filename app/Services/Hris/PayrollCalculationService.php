@@ -211,6 +211,7 @@ class PayrollCalculationService
             'pph21_rate' => $this->pph21Service->getTerRate($taxableIncome),
             // Attendance details
             'attendance_summary' => $attendanceSummary,
+            'weekend_holiday_work_days' => ($attendanceSummary['weekend_work_days'] ?? 0) + ($attendanceSummary['holiday_work_days'] ?? 0),
             'prorate_enabled' => $salaryStructure->prorate_enabled,
             'daily_allowance_rate' => $salaryStructure->daily_allowance_rate,
             // Weekly allowance reconciliation
@@ -397,6 +398,12 @@ class PayrollCalculationService
 
         $total = 0.0;
         foreach ($logs as $log) {
+            // Skip weekend days and public holiday logs — those are paid via overtime pay instead
+            $logDate = Carbon::parse($log->date);
+            if ($logDate->isWeekend()) {
+                continue;
+            }
+
             if ($log->mode === AttendanceLog::MODE_WFH || $log->status === AttendanceLog::STATUS_PRESENT) {
                 $total += $dailyRate;
             } elseif ($log->status === AttendanceLog::STATUS_LATE) {

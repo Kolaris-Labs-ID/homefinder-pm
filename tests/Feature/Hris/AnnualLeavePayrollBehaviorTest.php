@@ -2,6 +2,8 @@
 
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Employee;
+use App\Models\Hris\LeaveRequest;
+use App\Models\Hris\LeaveType;
 use App\Models\Hris\PayrunBatch;
 use App\Models\Hris\SalaryStructure;
 use App\Models\User;
@@ -51,6 +53,79 @@ function addLeaveTestLogs(Employee $employee, Carbon $startDate, int $count, str
 }
 
 // ---------------------------------------------------------------------------
+// Helper: get-or-create a paid (quota-consuming) annual-leave LeaveType.
+// ---------------------------------------------------------------------------
+function paidAnnualLeaveType(): LeaveType
+{
+    return LeaveType::firstOrCreate(
+        ['code' => 'ANNUAL'],
+        [
+            'name' => 'Annual Leave',
+            'description' => 'Cuti tahunan',
+            'requires_approval' => true,
+            'default_annual_quota' => 12,
+            'carry_forward_allowed' => false,
+            'is_special' => false,
+            'is_active' => true,
+        ]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Helper: get-or-create an unpaid (zero-quota) leave type.
+// ---------------------------------------------------------------------------
+function unpaidLeaveType(): LeaveType
+{
+    return LeaveType::firstOrCreate(
+        ['code' => 'UNPAID'],
+        [
+            'name' => 'Unpaid Leave',
+            'description' => 'Cuti tanpa bayar',
+            'requires_approval' => true,
+            'default_annual_quota' => 0,
+            'carry_forward_allowed' => false,
+            'is_special' => false,
+            'is_active' => true,
+        ]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Helper: create $count consecutive working-day STATUS_LEAVE logs AND an
+// approved LeaveRequest of the given LeaveType covering them. Returns the
+// Carbon date after the last-created log.
+// ---------------------------------------------------------------------------
+function addLeaveLogsWithRequest(Employee $employee, Carbon $startDate, int $count, LeaveType $leaveType): Carbon
+{
+    $date     = $startDate->copy();
+    $created  = 0;
+    $first    = null;
+    $last     = null;
+
+    while ($created < $count) {
+        if (!$date->isWeekend()) {
+            $first ??= $date->copy();
+            $last  = $date->copy();
+            leaveTestLog($employee, $date->copy(), AttendanceLog::STATUS_LEAVE);
+            $created++;
+        }
+        $date->addDay();
+    }
+
+    LeaveRequest::create([
+        'employee_id'  => $employee->id,
+        'leave_type_id' => $leaveType->id,
+        'start_date'   => $first,
+        'end_date'     => $last,
+        'total_days'   => $count,
+        'status'       => LeaveRequest::STATUS_APPROVED,
+        'approved_at'  => now(),
+    ]);
+
+    return $date;
+}
+
+// ---------------------------------------------------------------------------
 // Helper: create a fresh employee with salary structure.
 // ---------------------------------------------------------------------------
 function makePayrollTestEmployee(array $salaryOverrides = []): Employee
@@ -89,6 +164,7 @@ describe('Payroll basic salary is NOT deducted for annual leave', function () {
 
     it('full basic salary is paid even when employee takes annual leave (prorate disabled)', function () {
         $employee = makePayrollTestEmployee(['prorate_enabled' => false]);
+        $annual   = paidAnnualLeaveType();
 
         $batch = PayrunBatch::factory()->create([
             'period_start_date' => Carbon::parse('2025-10-01'),
@@ -97,7 +173,7 @@ describe('Payroll basic salary is NOT deducted for annual leave', function () {
         ]);
 
         $next = addLeaveTestLogs($employee, Carbon::parse('2025-10-01'), 15, AttendanceLog::STATUS_PRESENT);
-        addLeaveTestLogs($employee, $next, 3, AttendanceLog::STATUS_LEAVE);
+        addLeaveLogsWithRequest($employee, $next, 3, $annual);
 
         $record = $this->payrollService->calculateEmployee($employee, $batch);
 
@@ -105,8 +181,9 @@ describe('Payroll basic salary is NOT deducted for annual leave', function () {
             ->and((float) $record->prorate_ratio)->toBe(1.0);
     });
 
-    it('leave days are not counted as actual_days_worked when prorate is enabled', function () {
+    it('paid annual leave days ARE counted as actual_days_worked when prorate is enabled', function () {
         $employee = makePayrollTestEmployee(['prorate_enabled' => true]);
+        $annual   = paidAnnualLeaveType();
 
         $batch = PayrunBatch::factory()->create([
             'period_start_date' => Carbon::parse('2025-10-01'),
@@ -115,16 +192,18 @@ describe('Payroll basic salary is NOT deducted for annual leave', function () {
         ]);
 
         $next = addLeaveTestLogs($employee, Carbon::parse('2025-10-01'), 15, AttendanceLog::STATUS_PRESENT);
-        addLeaveTestLogs($employee, $next, 3, AttendanceLog::STATUS_LEAVE);
+        addLeaveLogsWithRequest($employee, $next, 3, $annual);
 
         $record = $this->payrollService->calculateEmployee($employee, $batch);
 
-        expect($record->actual_days_worked)->toBe(15);
+        // 15 present + 3 paid leave = 18 actual days worked
+        expect($record->actual_days_worked)->toBe(18);
     });
 
-    it('prorated salary is identical for same present days regardless of leave days', function () {
-        $employeeA = makePayrollTestEmployee(['prorate_enabled' => true]);
-        $employeeB = makePayrollTestEmployee(['prorate_enabled' => true]);
+    it('employee with paid leave has higher prorated basic salary than employee with plain absences', function () {
+        $employeeA = makePayrollTestEmployee(['prorate_enabled' => true]); // 15 present, rest absent
+        $employeeB = makePayrollTestEmployee(['prorate_enabled' => true]); // 15 present + 3 paid leave
+        $annual    = paidAnnualLeaveType();
 
         $batch = PayrunBatch::factory()->create([
             'period_start_date' => Carbon::parse('2025-10-01'),
@@ -134,14 +213,55 @@ describe('Payroll basic salary is NOT deducted for annual leave', function () {
 
         addLeaveTestLogs($employeeA, Carbon::parse('2025-10-01'), 15, AttendanceLog::STATUS_PRESENT);
         $next = addLeaveTestLogs($employeeB, Carbon::parse('2025-10-01'), 15, AttendanceLog::STATUS_PRESENT);
-        addLeaveTestLogs($employeeB, $next, 3, AttendanceLog::STATUS_LEAVE);
+        addLeaveLogsWithRequest($employeeB, $next, 3, $annual);
 
         $recordA = $this->payrollService->calculateEmployee($employeeA, $batch);
         $recordB = $this->payrollService->calculateEmployee($employeeB, $batch);
 
         expect($recordA->actual_days_worked)->toBe(15)
-            ->and($recordB->actual_days_worked)->toBe(15)
-            ->and($recordA->prorated_basic_salary)->toBe($recordB->prorated_basic_salary);
+            ->and($recordB->actual_days_worked)->toBe(18)
+            ->and((float) $recordB->prorated_basic_salary)
+                ->toBeGreaterThan((float) $recordA->prorated_basic_salary);
+    });
+
+    it('basic salary is full when present days + paid leave days cover all working days', function () {
+        $employee = makePayrollTestEmployee(['prorate_enabled' => true]);
+        $annual   = paidAnnualLeaveType();
+
+        // October 2025 has 23 working days. Fill all 23 with 20 present + 3 paid leave.
+        $batch = PayrunBatch::factory()->create([
+            'period_start_date' => Carbon::parse('2025-10-01'),
+            'period_end_date'   => Carbon::parse('2025-10-31'),
+            'status'            => 'draft',
+        ]);
+
+        $next = addLeaveTestLogs($employee, Carbon::parse('2025-10-01'), 20, AttendanceLog::STATUS_PRESENT);
+        addLeaveLogsWithRequest($employee, $next, 3, $annual);
+
+        $record = $this->payrollService->calculateEmployee($employee, $batch);
+
+        expect((float) $record->prorate_ratio)->toBe(1.0)
+            ->and((float) $record->prorated_basic_salary)->toBe(4_000_000.0);
+    });
+
+    it('unpaid leave days still prorate the basic salary', function () {
+        $employee = makePayrollTestEmployee(['prorate_enabled' => true]);
+        $unpaid   = unpaidLeaveType();
+
+        $batch = PayrunBatch::factory()->create([
+            'period_start_date' => Carbon::parse('2025-10-01'),
+            'period_end_date'   => Carbon::parse('2025-10-31'),
+            'status'            => 'draft',
+        ]);
+
+        $next = addLeaveTestLogs($employee, Carbon::parse('2025-10-01'), 15, AttendanceLog::STATUS_PRESENT);
+        addLeaveLogsWithRequest($employee, $next, 3, $unpaid);
+
+        $record = $this->payrollService->calculateEmployee($employee, $batch);
+
+        // Unpaid leave does NOT count as worked
+        expect($record->actual_days_worked)->toBe(15)
+            ->and((float) $record->prorated_basic_salary)->toBeLessThan(4_000_000.0);
     });
 });
 
@@ -151,11 +271,12 @@ describe('Payroll basic salary is NOT deducted for annual leave', function () {
 
 describe('Daily allowance in payroll is NOT paid for annual leave days', function () {
 
-    it('daily_allowance_total only counts present days, not leave days', function () {
+    it('daily_allowance_total only counts present days, not paid leave days', function () {
         $employee = makePayrollTestEmployee([
             'prorate_enabled'      => false,
             'daily_allowance_rate' => 70_000,
         ]);
+        $annual = paidAnnualLeaveType();
 
         $batch = PayrunBatch::factory()->create([
             'period_start_date' => Carbon::parse('2025-10-01'),
@@ -164,17 +285,22 @@ describe('Daily allowance in payroll is NOT paid for annual leave days', functio
         ]);
 
         $next = addLeaveTestLogs($employee, Carbon::parse('2025-10-01'), 15, AttendanceLog::STATUS_PRESENT);
-        addLeaveTestLogs($employee, $next, 3, AttendanceLog::STATUS_LEAVE);
+        addLeaveLogsWithRequest($employee, $next, 3, $annual);
 
         $record = $this->payrollService->calculateEmployee($employee, $batch);
 
-        expect($record->actual_days_worked)->toBe(15)
-            ->and((float) $record->daily_allowance_total)->toBe(15 * 70_000.0);
+        // Paid leave protects basic salary AND counts toward actual_days_worked
+        expect($record->actual_days_worked)->toBe(18)
+            // Daily allowance still skips leave days
+            ->and((float) $record->daily_allowance_total)->toBe(15 * 70_000.0)
+            // Basic salary is full because no absences exist
+            ->and((float) $record->basic_salary)->toBe(4_000_000.0);
     });
 
     it('basic salary stays the same but daily allowance is lower for employee with leave', function () {
-        $employeeA = makePayrollTestEmployee(['daily_allowance_rate' => 50_000, 'prorate_enabled' => false]);
-        $employeeB = makePayrollTestEmployee(['daily_allowance_rate' => 50_000, 'prorate_enabled' => false]);
+        $employeeA = makePayrollTestEmployee(['daily_allowance_rate' => 50_000, 'prorate_enabled' => true]);
+        $employeeB = makePayrollTestEmployee(['daily_allowance_rate' => 50_000, 'prorate_enabled' => true]);
+        $annual    = paidAnnualLeaveType();
 
         $batch = PayrunBatch::factory()->create([
             'period_start_date' => Carbon::parse('2025-10-01'),
@@ -184,13 +310,15 @@ describe('Daily allowance in payroll is NOT paid for annual leave days', functio
 
         addLeaveTestLogs($employeeA, Carbon::parse('2025-10-01'), 20, AttendanceLog::STATUS_PRESENT);
         $next = addLeaveTestLogs($employeeB, Carbon::parse('2025-10-01'), 15, AttendanceLog::STATUS_PRESENT);
-        addLeaveTestLogs($employeeB, $next, 5, AttendanceLog::STATUS_LEAVE);
+        addLeaveLogsWithRequest($employeeB, $next, 5, $annual);
 
         $recordA = $this->payrollService->calculateEmployee($employeeA, $batch);
         $recordB = $this->payrollService->calculateEmployee($employeeB, $batch);
 
-        expect($recordA->basic_salary)->toBe($recordB->basic_salary);
+        // Both worked the same combined countable days (20 vs 15+5) so basic salary equal
+        expect((float) $recordA->basic_salary)->toBe((float) $recordB->basic_salary);
 
+        // But daily allowance differs because leave days don't pay daily allowance
         expect((float) $recordA->daily_allowance_total)->toBeGreaterThan((float) $recordB->daily_allowance_total)
             ->and((float) $recordB->daily_allowance_total)->toBe(15 * 50_000.0);
     });

@@ -2,10 +2,12 @@
 
 namespace App\Services\Hris;
 
+use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Employee;
 use App\Models\Hris\OvertimeLog;
 use App\Models\Hris\OvertimePayBatch;
 use App\Models\Hris\OvertimePayment;
+use App\Models\Hris\SalaryStructure;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -49,9 +51,6 @@ class OvertimePayService
                 ->get();
 
             $byEmployee = $logs->groupBy(fn (OvertimeLog $log) => $log->user->employee?->id);
-
-            $totalAmount   = 0;
-            $warningCount  = 0;
 
             foreach ($byEmployee as $employeeId => $employeeLogs) {
                 if (!$employeeId) {
@@ -100,19 +99,13 @@ class OvertimePayService
                 // Link OvertimeLogs to this payment to prevent double-counting
                 OvertimeLog::whereIn('id', $employeeLogs->pluck('id'))
                     ->update(['overtime_payment_id' => $payment->id]);
-
-                $totalAmount += round($totalPay, 2);
-                if ($hasBankWarning) {
-                    $warningCount++;
-                }
             }
 
-            $batch->update([
-                'total_employees'          => $batch->payments()->count(),
-                'employees_with_warnings'  => $warningCount,
-                'total_amount'             => $totalAmount,
-                'status'                   => OvertimePayBatch::STATUS_CALCULATED,
-            ]);
+            // Append weekend and holiday attendance sessions to the batch
+            $this->appendWeekendAttendanceSessions($batch, $weekStart, $weekEnd);
+
+            // Recompute totals from all payments (including weekend sessions)
+            $this->finalizeBatch($batch);
 
             return $batch->fresh();
         });
@@ -164,5 +157,151 @@ class OvertimePayService
             'end'     => $end,
             'payment' => $payment,
         ];
+    }
+
+    /**
+     * Recompute and persist batch-level totals from all child payments.
+     * Extracted so it can be called after weekend sessions are appended.
+     */
+    private function finalizeBatch(OvertimePayBatch $batch): void
+    {
+        $payments = $batch->payments()->get();
+
+        $totalAmount  = $payments->sum(fn ($p) => (float) $p->total_amount);
+        $warningCount = $payments->where('has_bank_warning', true)->count();
+
+        $batch->update([
+            'total_employees'         => $payments->count(),
+            'employees_with_warnings' => $warningCount,
+            'total_amount'            => round($totalAmount, 2),
+            'status'                  => OvertimePayBatch::STATUS_CALCULATED,
+        ]);
+    }
+
+    /**
+     * For each active employee, find weekend (Sat/Sun) and weekday-holiday
+     * AttendanceLogs in the given week and append them as virtual sessions
+     * to the employee's OvertimePayment for this batch.
+     *
+     * Rules:
+     * - Qualifying statuses: present or late on Sat/Sun; OR status=holiday
+     *   (with check_in) on a weekday.
+     * - Amount per qualifying day = salary_structure.daily_allowance_rate (full, no penalty).
+     * - Half-day weekend/holiday logs are excluded.
+     * - Idempotent: skips sessions whose attendance_log_id is already recorded.
+     */
+    private function appendWeekendAttendanceSessions(
+        OvertimePayBatch $batch,
+        Carbon $weekStart,
+        Carbon $weekEnd
+    ): void {
+        $employees = Employee::active()->get();
+
+        foreach ($employees as $employee) {
+            // Fetch all logs for this employee in the week
+            $allLogs = AttendanceLog::forEmployee($employee->id)
+                ->forDateRange($weekStart, $weekEnd)
+                ->get();
+
+            // Filter to weekend-work and weekday-holiday-work logs
+            $qualifyingLogs = $allLogs->filter(function (AttendanceLog $log) {
+                $date      = Carbon::parse($log->date);
+                $isWeekend = $date->isWeekend();
+
+                $isWeekendWork = $isWeekend
+                    && in_array($log->status, [
+                        AttendanceLog::STATUS_PRESENT,
+                        AttendanceLog::STATUS_LATE,
+                    ]);
+
+                $isHolidayWork = ! $isWeekend
+                    && $log->status === AttendanceLog::STATUS_HOLIDAY
+                    && $log->check_in_time !== null;
+
+                return $isWeekendWork || $isHolidayWork;
+            });
+
+            if ($qualifyingLogs->isEmpty()) {
+                continue;
+            }
+
+            // Resolve daily allowance rate from the employee's active salary structure
+            $salaryStructure = SalaryStructure::forEmployee($employee->id)
+                ->activeForDate($weekEnd)
+                ->first();
+
+            if (! $salaryStructure || (float) $salaryStructure->daily_allowance_rate <= 0) {
+                continue;
+            }
+
+            $dailyRate = (float) $salaryStructure->daily_allowance_rate;
+
+            // Find existing OvertimePayment for this employee in the batch
+            $payment = $batch->payments()->where('employee_id', $employee->id)->first();
+
+            // Collect attendance_log_ids already in existing sessions (idempotency guard)
+            $existingLogIds = [];
+            if ($payment) {
+                foreach ($payment->sessions_breakdown ?? [] as $session) {
+                    if (isset($session['attendance_log_id'])) {
+                        $existingLogIds[] = (int) $session['attendance_log_id'];
+                    }
+                }
+            }
+
+            $newSessions  = [];
+            $addedAmount  = 0.0;
+
+            foreach ($qualifyingLogs as $log) {
+                if (in_array($log->id, $existingLogIds)) {
+                    continue; // Already recorded — skip to keep idempotent
+                }
+
+                $isHoliday     = $log->status === AttendanceLog::STATUS_HOLIDAY;
+                $newSessions[] = [
+                    'overtime_log_id'   => null,
+                    'attendance_log_id' => $log->id,
+                    'task_name'         => $isHoliday ? 'Holiday attendance' : 'Weekend attendance',
+                    'session_type'      => $isHoliday ? 'holiday_attendance' : 'weekend_attendance',
+                    'date'              => Carbon::parse($log->date)->toDateString(),
+                    'duration_minutes'  => 0,
+                    'hourly_rate'       => 0.0,
+                    'pay'               => round($dailyRate, 2),
+                ];
+                $addedAmount += $dailyRate;
+            }
+
+            if (empty($newSessions)) {
+                continue;
+            }
+
+            if ($payment) {
+                // Merge new sessions into the existing payment
+                $payment->update([
+                    'sessions_breakdown' => array_merge($payment->sessions_breakdown ?? [], $newSessions),
+                    'total_sessions'     => $payment->total_sessions + count($newSessions),
+                    'total_amount'       => round((float) $payment->total_amount + $addedAmount, 2),
+                ]);
+            } else {
+                // Create a new payment row for this employee (no OvertimeLog-based sessions)
+                $hasBankWarning = empty($employee->bank_name)
+                    || empty($employee->bank_account_number)
+                    || empty($employee->bank_account_holder);
+
+                OvertimePayment::create([
+                    'overtime_pay_batch_id'  => $batch->id,
+                    'employee_id'            => $employee->id,
+                    'total_sessions'         => count($newSessions),
+                    'total_duration_minutes' => 0,
+                    'total_amount'           => round($addedAmount, 2),
+                    'sessions_breakdown'     => $newSessions,
+                    'bank_name'              => $employee->bank_name,
+                    'bank_account_number'    => $employee->bank_account_number,
+                    'bank_account_holder'    => $employee->bank_account_holder,
+                    'has_bank_warning'       => $hasBankWarning,
+                    'status'                 => OvertimePayment::STATUS_PENDING,
+                ]);
+            }
+        }
     }
 }

@@ -24,6 +24,7 @@ class LatePayCompensationItem extends Model
         'late_pay_compensation_batch_id',
         'employee_id',
         'basic_salary_snapshot',
+        'thp_snapshot',
         'days_late',
         'rate_percent',
         'total_amount',
@@ -38,6 +39,7 @@ class LatePayCompensationItem extends Model
 
     protected $casts = [
         'basic_salary_snapshot' => 'decimal:2',
+        'thp_snapshot' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'rate_percent' => 'decimal:2',
         'has_bank_warning' => 'boolean',

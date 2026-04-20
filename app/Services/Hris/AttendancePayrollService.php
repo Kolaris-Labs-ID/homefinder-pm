@@ -4,6 +4,7 @@ namespace App\Services\Hris;
 
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Employee;
+use App\Models\Hris\LeaveRequest;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 
@@ -38,6 +39,31 @@ class AttendancePayrollService
         $officeDays = $logs->where('mode', AttendanceLog::MODE_OFFICE)->count();
         $missingCheckoutDays = $logs->where('missing_checkout', true)->count();
 
+        // Count weekend work days (Sat/Sun with actual attendance)
+        $weekendWorkDays = $logs->filter(function ($log) {
+            return in_array($log->status, [
+                    AttendanceLog::STATUS_PRESENT,
+                    AttendanceLog::STATUS_LATE,
+                ])
+                && Carbon::parse($log->date)->isWeekend();
+        })->count();
+
+        // Count holiday work days (weekday holiday logs where employee actually checked in)
+        $holidayWorkDays = $logs->filter(function ($log) {
+            return $log->status === AttendanceLog::STATUS_HOLIDAY
+                && $log->check_in_time !== null
+                && ! Carbon::parse($log->date)->isWeekend();
+        })->count();
+
+        // Classify leave days as paid (quota-consuming) vs unpaid so that
+        // paid leave can protect the employee's basic salary from prorate.
+        [$paidLeaveDays, $unpaidLeaveDays] = $this->classifyLeaveDays(
+            $employee,
+            $logs->where('status', AttendanceLog::STATUS_LEAVE),
+            $periodStart,
+            $periodEnd
+        );
+
         return [
             'total_working_days' => $this->calculateWorkingDays($periodStart, $periodEnd),
             'present_days' => $presentDays,
@@ -45,12 +71,76 @@ class AttendancePayrollService
             'half_days' => $halfDays,
             'absent_days' => $absentDays,
             'leave_days' => $leaveDays,
+            'paid_leave_days' => $paidLeaveDays,
+            'unpaid_leave_days' => $unpaidLeaveDays,
             'holiday_days' => $holidayDays,
             'wfh_days' => $wfhDays,
             'office_days' => $officeDays,
             'missing_checkout_days' => $missingCheckoutDays,
             'total_attendance_days' => $presentDays + $lateDays + $halfDays,
+            // Weekend/holiday work — excluded from prorate, paid via overtime pay
+            'weekend_work_days' => $weekendWorkDays,
+            'holiday_work_days' => $holidayWorkDays,
         ];
+    }
+
+    /**
+     * Split leave-status attendance logs into paid vs unpaid leave days.
+     *
+     * A leave day is considered paid when it is covered by an approved
+     * LeaveRequest whose LeaveType has a positive default_annual_quota
+     * (i.e., the leave consumed quota). Any leave day that cannot be
+     * matched to such a request (including unpaid leave types with
+     * default_annual_quota = 0) is treated as unpaid and will still
+     * prorate the basic salary.
+     *
+     * @param Employee $employee
+     * @param \Illuminate\Support\Collection $leaveLogs AttendanceLog entries with status=leave
+     * @param Carbon $periodStart
+     * @param Carbon $periodEnd
+     * @return array{0:int,1:int} [paidLeaveDays, unpaidLeaveDays]
+     */
+    protected function classifyLeaveDays(
+        Employee $employee,
+        $leaveLogs,
+        Carbon $periodStart,
+        Carbon $periodEnd
+    ): array {
+        if ($leaveLogs->isEmpty()) {
+            return [0, 0];
+        }
+
+        $approvedLeaves = LeaveRequest::with('leaveType')
+            ->where('employee_id', $employee->id)
+            ->where('status', LeaveRequest::STATUS_APPROVED)
+            ->where('start_date', '<=', $periodEnd)
+            ->where('end_date', '>=', $periodStart)
+            ->get();
+
+        $paid = 0;
+        $unpaid = 0;
+
+        foreach ($leaveLogs as $log) {
+            $logDate = $log->date instanceof Carbon
+                ? $log->date
+                : Carbon::parse($log->date);
+
+            $matching = $approvedLeaves->first(function (LeaveRequest $lr) use ($logDate) {
+                return $lr->start_date->lte($logDate) && $lr->end_date->gte($logDate);
+            });
+
+            $quota = $matching && $matching->leaveType
+                ? (int) ($matching->leaveType->default_annual_quota ?? 0)
+                : 0;
+
+            if ($quota > 0) {
+                $paid++;
+            } else {
+                $unpaid++;
+            }
+        }
+
+        return [$paid, $unpaid];
     }
 
     /**
@@ -78,6 +168,10 @@ class AttendancePayrollService
     /**
      * Calculate actual days worked (countable for payroll).
      *
+     * Paid leave days (approved leave covered by a quota-consuming leave type)
+     * are treated as worked so they do NOT prorate the basic salary. Unpaid
+     * leave days and unexcused absences still reduce actual days worked.
+     *
      * @param array $attendanceSummary
      * @param array $config Configuration for what to count
      * @return float
@@ -87,6 +181,7 @@ class AttendancePayrollService
         $countLate = $config['count_late'] ?? true;
         $halfDayRatio = $config['half_day_ratio'] ?? 0.5;
         $countWfh = $config['count_wfh'] ?? true;
+        $countPaidLeave = $config['count_paid_leave'] ?? true;
 
         $days = $attendanceSummary['present_days'];
 
@@ -97,7 +192,15 @@ class AttendancePayrollService
         // Half days count as configured ratio
         $days += $attendanceSummary['half_days'] * $halfDayRatio;
 
-        return $days;
+        // Paid leave (quota-consuming) protects basic salary from prorate.
+        if ($countPaidLeave) {
+            $days += $attendanceSummary['paid_leave_days'] ?? 0;
+        }
+
+        // Exclude weekend and holiday work days — those are paid via overtime, not prorate
+        $days -= ($attendanceSummary['weekend_work_days'] ?? 0);
+
+        return max(0.0, $days);
     }
 
     /**
