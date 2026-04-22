@@ -139,7 +139,7 @@ class AttendanceService
         // Use backend geocoding when possible, fall back to frontend-provided address
         $latitude = $data['latitude'] ?? null;
         $longitude = $data['longitude'] ?? null;
-        $address = $data['address'] ?? null;
+        $address = !empty($data['address']) ? $data['address'] : null;
 
         if ($latitude !== null && $longitude !== null) {
             $geocodedAddress = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $employee->id);
@@ -163,7 +163,7 @@ class AttendanceService
         ]);
 
         if ($photo instanceof UploadedFile && $photoPath === null) {
-            $photoAddress = $address ?? 'Unknown Location';
+            $photoAddress = !empty($address) ? $address : 'Unknown Location';
             \Log::info('Processing check-in photo', [
                 'employee_id' => $employee->id,
                 'photo_size' => $photo->getSize(),
@@ -245,7 +245,7 @@ class AttendanceService
         // Use backend geocoding when possible, fall back to frontend-provided address
         $latitude = $data['latitude'] ?? null;
         $longitude = $data['longitude'] ?? null;
-        $address = $data['address'] ?? null;
+        $address = !empty($data['address']) ? $data['address'] : null;
 
         if ($latitude !== null && $longitude !== null) {
             $geocodedAddress = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $attendanceLog->employee_id);
@@ -269,7 +269,7 @@ class AttendanceService
         ]);
 
         if ($photo instanceof UploadedFile && $photoPath === null) {
-            $photoAddress = $address ?? 'Unknown Location';
+            $photoAddress = !empty($address) ? $address : 'Unknown Location';
             \Log::info('Processing check-out photo', [
                 'employee_id' => $attendanceLog->employee_id,
                 'photo_size' => $photo->getSize(),
