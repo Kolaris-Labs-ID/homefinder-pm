@@ -139,6 +139,13 @@ class PayrollCalculationService
         $bpjsBaseSalary = $fullBasicSalary + $salaryStructure->total_fixed_allowances;
         if ($salaryStructure->isBpjsEnabled()) {
             $bpjsConfig = $salaryStructure->getBpjsConfig();
+
+            if ($salaryStructure->isBpjsPaidByCompany() && empty($salaryStructure->bpjs_config)) {
+                foreach (['kesehatan', 'jht', 'jp'] as $component) {
+                    $bpjsConfig[$component]['paid_by'] = 'company';
+                }
+            }
+
             $bpjs = $this->bpjsService->calculateAllPerComponent(
                 $bpjsBaseSalary,
                 $salaryStructure->jkk_risk_level ?? 'low',

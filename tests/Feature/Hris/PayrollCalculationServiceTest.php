@@ -2,6 +2,7 @@
 
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Employee;
+use App\Models\Hris\MasterHoliday;
 use App\Models\Hris\PayrunBatch;
 use App\Models\Hris\SalaryStructure;
 use App\Services\Hris\AttendancePayrollService;
@@ -100,6 +101,60 @@ describe('PayrollCalculationService prorate calculation', function () {
         // Basic salary should be full amount (not prorated)
         expect($record->basic_salary)->toBe('4000000.00')
             ->and((float) $record->prorate_ratio)->toBe(1.0);
+    });
+
+    it('calculates mid-month join prorate with paid weekday holidays', function () {
+        $employee = Employee::factory()->create([
+            'hire_date' => '2025-10-10',
+            'employment_end_date' => null,
+            'is_active' => true,
+        ]);
+
+        $batch = PayrunBatch::factory()->create([
+            'period_start_date' => Carbon::parse('2025-10-01'),
+            'period_end_date' => Carbon::parse('2025-10-31'),
+            'status' => 'draft',
+        ]);
+
+        MasterHoliday::create(['date' => '2025-10-13', 'name' => 'Weekday Holiday 1', 'is_active' => true]);
+        MasterHoliday::create(['date' => '2025-10-20', 'name' => 'Weekday Holiday 2', 'is_active' => true]);
+        MasterHoliday::create(['date' => '2025-10-19', 'name' => 'Weekend Holiday', 'is_active' => true]);
+
+        SalaryStructure::create([
+            'employee_id' => $employee->id,
+            'effective_date' => Carbon::parse('2025-01-01'),
+            'basic_salary' => 4200000,
+            'allowances_fixed' => [],
+            'allowances_variable' => [],
+            'deductions' => [],
+            'prorate_enabled' => true,
+            'bpjs_enabled' => false,
+            'pph21_method' => 'gross',
+            'jkk_risk_level' => 'low',
+        ]);
+
+        foreach (['2025-10-10', '2025-10-14', '2025-10-15', '2025-10-16', '2025-10-17'] as $date) {
+            AttendanceLog::create([
+                'employee_id' => $employee->id,
+                'date' => $date,
+                'status' => AttendanceLog::STATUS_PRESENT,
+                'mode' => AttendanceLog::MODE_OFFICE,
+                'source' => AttendanceLog::SOURCE_WEB,
+                'check_in_time' => Carbon::parse("{$date} 09:00:00"),
+            ]);
+        }
+
+        $record = $this->service->calculateEmployee($employee, $batch);
+        $summary = $record->details['attendance_summary'];
+
+        expect($record)->not->toBeNull()
+            ->and($record->total_working_days)->toBe(21)
+            ->and($record->actual_days_worked)->toBe(7)
+            ->and((float) $record->prorate_ratio)->toEqualWithDelta(7 / 21, 0.0001)
+            ->and((float) $record->prorated_basic_salary)->toBe(1400000.00)
+            ->and($summary['actual_attendance_days'])->toBe(5)
+            ->and($summary['eligible_paid_holiday_days'])->toBe(2)
+            ->and($summary['total_paid_days'])->toBe(7);
     });
 });
 
@@ -334,7 +389,7 @@ describe('PayrollCalculationService full calculation', function () {
 
         // Verify net income is calculated
         expect((float) $record->net_income)->toBeGreaterThan(0)
-            ->and((float) $record->net_income)->toBeLessThan((float) $record->gross_income);
+            ->and((float) $record->net_income)->toBeLessThanOrEqual((float) $record->gross_income);
     });
 });
 

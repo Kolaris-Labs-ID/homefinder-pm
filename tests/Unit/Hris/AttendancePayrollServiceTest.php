@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\Hris\AttendanceLog;
+use App\Models\Hris\ClientVisit;
 use App\Models\Hris\Employee;
+use App\Models\Hris\MasterHoliday;
 use App\Services\Hris\AttendancePayrollService;
 use App\Services\Hris\PayrollSettingService;
 use Carbon\Carbon;
@@ -49,6 +51,109 @@ describe('AttendancePayrollService calculateWorkingDays', function () {
         );
 
         expect($days)->toBe(1);
+    });
+});
+
+describe('AttendancePayrollService holiday-aware prorate helpers', function () {
+    it('subtracts active weekday holidays but ignores weekend and inactive holidays', function () {
+        MasterHoliday::create(['date' => '2025-10-02', 'name' => 'Weekday Holiday', 'is_active' => true]);
+        MasterHoliday::create(['date' => '2025-10-04', 'name' => 'Weekend Holiday', 'is_active' => true]);
+        MasterHoliday::create(['date' => '2025-10-03', 'name' => 'Inactive Holiday', 'is_active' => false]);
+
+        expect($this->service->getEffectiveWorkingDays(10, 2025))->toBe(22);
+    });
+
+    it('counts paid holidays only inside employee hire and end dates', function () {
+        MasterHoliday::create(['date' => '2025-10-02', 'name' => 'First Holiday', 'is_active' => true]);
+        MasterHoliday::create(['date' => '2025-10-13', 'name' => 'Second Holiday', 'is_active' => true]);
+
+        $activeEmployee = Employee::factory()->create([
+            'hire_date' => '2025-10-01',
+            'employment_end_date' => null,
+            'is_active' => true,
+        ]);
+        $lateHire = Employee::factory()->create([
+            'hire_date' => '2025-10-03',
+            'employment_end_date' => null,
+            'is_active' => true,
+        ]);
+        $endedBeforeSecondHoliday = Employee::factory()->create([
+            'hire_date' => '2025-10-01',
+            'employment_end_date' => '2025-10-10',
+            'is_active' => true,
+        ]);
+
+        expect($this->service->getPaidHolidaysForEmployee($activeEmployee->id, 10, 2025))->toBe(2)
+            ->and($this->service->getPaidHolidaysForEmployee($lateHire->id, 10, 2025))->toBe(1)
+            ->and($this->service->getPaidHolidaysForEmployee($endedBeforeSecondHoliday->id, 10, 2025))->toBe(1);
+    });
+
+    it('counts distinct clock-in and visit days without requiring check-out', function () {
+        $employee = Employee::factory()->create();
+
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'date' => '2025-10-01',
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
+            'check_in_time' => Carbon::parse('2025-10-01 09:00:00'),
+            'check_out_time' => null,
+        ]);
+
+        ClientVisit::create([
+            'employee_id' => $employee->id,
+            'client_name' => 'PT Test',
+            'client_address' => 'Jakarta',
+            'purpose' => ClientVisit::PURPOSE_OTHER,
+            'visit_date' => '2025-10-02',
+            'actual_check_in' => Carbon::parse('2025-10-02 10:00:00'),
+            'status' => ClientVisit::STATUS_COMPLETED,
+            'visit_type' => ClientVisit::TYPE_PLANNED,
+        ]);
+
+        ClientVisit::create([
+            'employee_id' => $employee->id,
+            'client_name' => 'PT Planned',
+            'client_address' => 'Jakarta',
+            'purpose' => ClientVisit::PURPOSE_OTHER,
+            'visit_date' => '2025-10-03',
+            'status' => ClientVisit::STATUS_PLANNED,
+            'visit_type' => ClientVisit::TYPE_PLANNED,
+        ]);
+
+        expect($this->service->getTotalActualAttendance($employee->id, 10, 2025))->toBe(2);
+    });
+
+    it('adds virtual paid holidays to payroll paid days', function () {
+        $employee = Employee::factory()->create([
+            'hire_date' => '2025-10-01',
+            'employment_end_date' => null,
+            'is_active' => true,
+        ]);
+
+        MasterHoliday::create(['date' => '2025-10-02', 'name' => 'Paid Holiday', 'is_active' => true]);
+
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'date' => '2025-10-01',
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
+            'check_in_time' => Carbon::parse('2025-10-01 09:00:00'),
+        ]);
+
+        $summary = $this->service->getAttendanceSummary(
+            $employee,
+            Carbon::parse('2025-10-01'),
+            Carbon::parse('2025-10-03')
+        );
+
+        expect($summary['total_working_days'])->toBe(2)
+            ->and($summary['actual_attendance_days'])->toBe(1)
+            ->and($summary['eligible_paid_holiday_days'])->toBe(1)
+            ->and($summary['total_paid_days'])->toBe(2)
+            ->and($this->service->calculateActualDaysWorked($summary))->toBe(2.0);
     });
 });
 

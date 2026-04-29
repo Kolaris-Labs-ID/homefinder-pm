@@ -3,8 +3,10 @@
 namespace App\Services\Hris;
 
 use App\Models\Hris\AttendanceLog;
+use App\Models\Hris\ClientVisit;
 use App\Models\Hris\Employee;
 use App\Models\Hris\LeaveRequest;
+use App\Models\Hris\MasterHoliday;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 
@@ -24,8 +26,11 @@ class AttendancePayrollService
      */
     public function getAttendanceSummary(Employee $employee, Carbon $periodStart, Carbon $periodEnd): array
     {
+        $periodStart = $periodStart->copy()->startOfDay();
+        $periodEnd = $periodEnd->copy()->endOfDay();
+
         $logs = AttendanceLog::forEmployee($employee->id)
-            ->forDateRange($periodStart, $periodEnd)
+            ->forDateRange($periodStart->toDateString(), $periodEnd->toDateString())
             ->get();
 
         $presentDays = $logs->where('status', AttendanceLog::STATUS_PRESENT)->count();
@@ -38,6 +43,10 @@ class AttendancePayrollService
         $wfhDays = $logs->where('mode', AttendanceLog::MODE_WFH)->count();
         $officeDays = $logs->where('mode', AttendanceLog::MODE_OFFICE)->count();
         $missingCheckoutDays = $logs->where('missing_checkout', true)->count();
+        $visitDays = $logs->filter(function ($log) {
+            return $log->source === AttendanceLog::SOURCE_VISIT
+                || $log->status === AttendanceLog::STATUS_VISIT;
+        })->pluck('date')->map(fn ($date) => Carbon::parse($date)->toDateString())->unique()->count();
 
         // Count weekend work days (Sat/Sun with actual attendance)
         $weekendWorkDays = $logs->filter(function ($log) {
@@ -55,6 +64,10 @@ class AttendancePayrollService
                 && ! Carbon::parse($log->date)->isWeekend();
         })->count();
 
+        $actualAttendanceDays = $this->getPayrollActualAttendanceDays($employee, $periodStart, $periodEnd);
+        $eligiblePaidHolidayDays = $this->getPaidHolidaysForEmployeeInPeriod($employee, $periodStart, $periodEnd);
+        $effectiveWorkingDays = $this->calculateEffectiveWorkingDays($periodStart, $periodEnd);
+
         // Classify leave days as paid (quota-consuming) vs unpaid so that
         // paid leave can protect the employee's basic salary from prorate.
         [$paidLeaveDays, $unpaidLeaveDays] = $this->classifyLeaveDays(
@@ -65,7 +78,9 @@ class AttendancePayrollService
         );
 
         return [
-            'total_working_days' => $this->calculateWorkingDays($periodStart, $periodEnd),
+            'total_working_days' => $effectiveWorkingDays,
+            'weekday_working_days' => $this->calculateWorkingDays($periodStart, $periodEnd),
+            'effective_working_days' => $effectiveWorkingDays,
             'present_days' => $presentDays,
             'late_days' => $lateDays,
             'half_days' => $halfDays,
@@ -74,10 +89,14 @@ class AttendancePayrollService
             'paid_leave_days' => $paidLeaveDays,
             'unpaid_leave_days' => $unpaidLeaveDays,
             'holiday_days' => $holidayDays,
+            'eligible_paid_holiday_days' => $eligiblePaidHolidayDays,
             'wfh_days' => $wfhDays,
             'office_days' => $officeDays,
+            'visit_days' => $visitDays,
             'missing_checkout_days' => $missingCheckoutDays,
-            'total_attendance_days' => $presentDays + $lateDays + $halfDays,
+            'actual_attendance_days' => $actualAttendanceDays,
+            'total_attendance_days' => $presentDays + $lateDays + $halfDays + $visitDays,
+            'total_paid_days' => $actualAttendanceDays + $eligiblePaidHolidayDays + $paidLeaveDays,
             // Weekend/holiday work — excluded from prorate, paid via overtime pay
             'weekend_work_days' => $weekendWorkDays,
             'holiday_work_days' => $holidayWorkDays,
@@ -166,6 +185,164 @@ class AttendancePayrollService
     }
 
     /**
+     * Return effective working days for a calendar month.
+     */
+    public function getEffectiveWorkingDays(int $month, int $year): int
+    {
+        $startDate = Carbon::create($year, $month, 1)->startOfDay();
+        $endDate = $startDate->copy()->endOfMonth();
+
+        return $this->calculateEffectiveWorkingDays($startDate, $endDate);
+    }
+
+    /**
+     * Return active weekday holidays an employee is entitled to in a month.
+     */
+    public function getPaidHolidaysForEmployee(int $employeeId, int $month, int $year): int
+    {
+        $employee = Employee::find($employeeId);
+
+        if (!$employee) {
+            return 0;
+        }
+
+        $startDate = Carbon::create($year, $month, 1)->startOfDay();
+        $endDate = $startDate->copy()->endOfMonth();
+
+        return $this->getPaidHolidaysForEmployeeInPeriod($employee, $startDate, $endDate);
+    }
+
+    /**
+     * Count distinct days in a month where the employee clocked in or made a visit.
+     */
+    public function getTotalActualAttendance(int $employeeId, int $month, int $year): int
+    {
+        $startDate = Carbon::create($year, $month, 1)->startOfDay();
+        $endDate = $startDate->copy()->endOfMonth();
+
+        return $this->getActualAttendanceDaysInPeriod($employeeId, $startDate, $endDate);
+    }
+
+    protected function calculateEffectiveWorkingDays(Carbon $startDate, Carbon $endDate): int
+    {
+        return max(0, $this->calculateWorkingDays($startDate, $endDate) - $this->countActiveWeekdayHolidays($startDate, $endDate));
+    }
+
+    protected function countActiveWeekdayHolidays(Carbon $startDate, Carbon $endDate): int
+    {
+        return MasterHoliday::active()
+            ->forDateRange($startDate->toDateString(), $endDate->toDateString())
+            ->get()
+            ->filter(fn (MasterHoliday $holiday) => ! $holiday->date->isWeekend())
+            ->pluck('date')
+            ->map(fn ($date) => Carbon::parse($date)->toDateString())
+            ->unique()
+            ->count();
+    }
+
+    protected function getPaidHolidaysForEmployeeInPeriod(Employee $employee, Carbon $startDate, Carbon $endDate): int
+    {
+        if (! $employee->is_active) {
+            return 0;
+        }
+
+        $hireDate = $employee->hire_date?->copy()->startOfDay();
+        $endEmploymentDate = $employee->employment_end_date?->copy()->startOfDay();
+
+        return MasterHoliday::active()
+            ->forDateRange($startDate->toDateString(), $endDate->toDateString())
+            ->get()
+            ->filter(function (MasterHoliday $holiday) use ($hireDate, $endEmploymentDate) {
+                $holidayDate = $holiday->date->copy()->startOfDay();
+
+                if ($holidayDate->isWeekend()) {
+                    return false;
+                }
+
+                if ($hireDate && $hireDate->gt($holidayDate)) {
+                    return false;
+                }
+
+                if ($endEmploymentDate && $endEmploymentDate->lt($holidayDate)) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->pluck('date')
+            ->map(fn ($date) => Carbon::parse($date)->toDateString())
+            ->unique()
+            ->count();
+    }
+
+    protected function getPayrollActualAttendanceDays(Employee $employee, Carbon $startDate, Carbon $endDate): int
+    {
+        $holidayDates = MasterHoliday::active()
+            ->forDateRange($startDate->toDateString(), $endDate->toDateString())
+            ->get()
+            ->filter(fn (MasterHoliday $holiday) => ! $holiday->date->isWeekend())
+            ->map(fn (MasterHoliday $holiday) => $holiday->date->toDateString())
+            ->all();
+
+        $dates = collect($this->getActualAttendanceDateStrings($employee->id, $startDate, $endDate));
+
+        return $dates
+            ->filter(function (string $date) use ($holidayDates) {
+                $carbonDate = Carbon::parse($date);
+
+                return ! $carbonDate->isWeekend()
+                    && ! in_array($date, $holidayDates, true);
+            })
+            ->unique()
+            ->count();
+    }
+
+    protected function getActualAttendanceDaysInPeriod(int $employeeId, Carbon $startDate, Carbon $endDate): int
+    {
+        return count($this->getActualAttendanceDateStrings($employeeId, $startDate, $endDate));
+    }
+
+    protected function getActualAttendanceDateStrings(int $employeeId, Carbon $startDate, Carbon $endDate): array
+    {
+        $attendanceDates = AttendanceLog::query()
+            ->where('employee_id', $employeeId)
+            ->forDateRange($startDate->toDateString(), $endDate->toDateString())
+            ->where(function ($query) {
+                // Imported/manual present records may not have a check-in timestamp.
+                $query->whereNotNull('check_in_time')
+                    ->orWhere('source', AttendanceLog::SOURCE_VISIT)
+                    ->orWhere('status', AttendanceLog::STATUS_VISIT)
+                    ->orWhereIn('status', [
+                        AttendanceLog::STATUS_PRESENT,
+                        AttendanceLog::STATUS_LATE,
+                        AttendanceLog::STATUS_HALF_DAY,
+                    ]);
+            })
+            ->pluck('date')
+            ->map(fn ($date) => Carbon::parse($date)->toDateString());
+
+        $visitDates = ClientVisit::query()
+            ->where('employee_id', $employeeId)
+            ->whereDate('visit_date', '>=', $startDate->toDateString())
+            ->whereDate('visit_date', '<=', $endDate->toDateString())
+            ->where(function ($query) {
+                $query->whereNotNull('actual_check_in')
+                    ->orWhereIn('status', [
+                        ClientVisit::STATUS_IN_PROGRESS,
+                        ClientVisit::STATUS_COMPLETED,
+                    ]);
+            })
+            ->pluck('visit_date')
+            ->map(fn ($date) => Carbon::parse($date)->toDateString());
+
+        return $attendanceDates
+            ->merge($visitDates)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * Calculate actual days worked (countable for payroll).
      *
      * Paid leave days (approved leave covered by a quota-consuming leave type)
@@ -180,25 +357,30 @@ class AttendancePayrollService
     {
         $countLate = $config['count_late'] ?? true;
         $halfDayRatio = $config['half_day_ratio'] ?? 0.5;
-        $countWfh = $config['count_wfh'] ?? true;
         $countPaidLeave = $config['count_paid_leave'] ?? true;
 
-        $days = $attendanceSummary['present_days'];
+        $days = $attendanceSummary['actual_attendance_days'] ?? $attendanceSummary['present_days'];
 
-        if ($countLate) {
+        if (! array_key_exists('actual_attendance_days', $attendanceSummary) && $countLate) {
             $days += $attendanceSummary['late_days'];
         }
 
         // Half days count as configured ratio
-        $days += $attendanceSummary['half_days'] * $halfDayRatio;
+        if (! array_key_exists('actual_attendance_days', $attendanceSummary)) {
+            $days += $attendanceSummary['half_days'] * $halfDayRatio;
+        }
 
         // Paid leave (quota-consuming) protects basic salary from prorate.
         if ($countPaidLeave) {
             $days += $attendanceSummary['paid_leave_days'] ?? 0;
         }
 
-        // Exclude weekend and holiday work days — those are paid via overtime, not prorate
-        $days -= ($attendanceSummary['weekend_work_days'] ?? 0);
+        $days += $attendanceSummary['eligible_paid_holiday_days'] ?? 0;
+
+        if (! array_key_exists('actual_attendance_days', $attendanceSummary)) {
+            // Exclude weekend and holiday work days — those are paid via overtime, not prorate
+            $days -= ($attendanceSummary['weekend_work_days'] ?? 0);
+        }
 
         return max(0.0, $days);
     }
