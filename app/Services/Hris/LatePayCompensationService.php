@@ -93,18 +93,23 @@ class LatePayCompensationService
                     continue;
                 }
 
-                $basic = (float) $structure->basic_salary;
-                $amount = round($basic * ($ratePercent / 100.0) * $daysLate, 2);
-
-                if ($amount <= 0) {
-                    continue;
-                }
-
                 $thp = PayrollRecord::whereHas('payrunBatch', function ($q) use ($scheduled) {
                     $q->whereDate('pay_date', $scheduled);
                 })
                     ->where('employee_id', $employee->id)
                     ->value('net_income');
+
+                if ($thp === null || (float) $thp <= 0) {
+                    continue;
+                }
+
+                $basic = (float) $structure->basic_salary;
+                $thp = round((float) $thp, 2);
+                $amount = round($thp * ($ratePercent / 100.0) * $daysLate, 2);
+
+                if ($amount <= 0) {
+                    continue;
+                }
 
                 $hasBankWarning = empty($employee->bank_name)
                     || empty($employee->bank_account_number)
@@ -114,7 +119,7 @@ class LatePayCompensationService
                     'late_pay_compensation_batch_id' => $batch->id,
                     'employee_id' => $employee->id,
                     'basic_salary_snapshot' => $basic,
-                    'thp_snapshot' => $thp ? round((float) $thp, 2) : null,
+                    'thp_snapshot' => $thp,
                     'days_late' => $daysLate,
                     'rate_percent' => round($ratePercent, 2),
                     'total_amount' => $amount,
@@ -152,10 +157,13 @@ class LatePayCompensationService
     /**
      * Compute the compensation amount for a single item, accounting for partial payments.
      *
-     * Phase 1 (before the first partial payment): rate × basic_salary × days.
-     * Phase 2+ (after the first partial payment): rate × remaining_thp × days,
-     * where remaining_thp = thp_snapshot × (1 − cumulative_paid_percent / 100).
-     * Falls back to basic_salary as the phase 2+ base when thp_snapshot is null or zero.
+     * Uniform formula for every phase: rate × thp_snapshot × (1 − cumulative_paid_percent / 100) × days.
+     * Phase 1 has cumulative_paid_percent = 0, so it reduces to rate × thp_snapshot × days.
+     *
+     * The $basicSalary parameter is retained for backward compatibility and historical
+     * reference only; it is not used in the calculation.
+     *
+     * @throws \InvalidArgumentException when $thpSnapshot is null or non-positive.
      */
     public static function computeItemAmount(
         float $basicSalary,
@@ -165,6 +173,12 @@ class LatePayCompensationService
         iterable $partialPayments = [],
         ?float $thpSnapshot = null
     ): float {
+        if ($thpSnapshot === null || $thpSnapshot <= 0) {
+            throw new \InvalidArgumentException(
+                'Late pay compensation requires a positive Take Home Pay (thp_snapshot); none provided.'
+            );
+        }
+
         $scheduled = $scheduledPayDate->copy()->startOfDay();
         $actual = $actualPayDate->copy()->startOfDay();
         $rate = $ratePercent / 100.0;
@@ -177,16 +191,12 @@ class LatePayCompensationService
         if ($partials->isEmpty()) {
             $daysLate = (int) $scheduled->diffInDays($actual);
 
-            return round($basicSalary * $rate * $daysLate, 2);
+            return round($thpSnapshot * $rate * $daysLate, 2);
         }
-
-        // For phase 2+ the base is THP; fall back to basic_salary when unavailable.
-        $thpBase = ($thpSnapshot !== null && $thpSnapshot > 0) ? $thpSnapshot : $basicSalary;
 
         $totalAmount = 0.0;
         $paidPercent = 0.0;
         $phaseStart = $scheduled->copy();
-        $isFirstPhase = true;
 
         foreach ($partials as $partial) {
             $paymentDate = Carbon::parse($partial->payment_date)->startOfDay();
@@ -195,33 +205,20 @@ class LatePayCompensationService
             $phaseDays = (int) $phaseStart->diffInDays($paymentDate);
 
             if ($phaseDays > 0) {
-                if ($isFirstPhase) {
-                    // Phase 1: penalty on full basic salary (no paid percent yet)
-                    $totalAmount += $basicSalary * $rate * $phaseDays;
-                } else {
-                    // Phase 2+: penalty on remaining THP
-                    $remainingFraction = 1.0 - ($paidPercent / 100.0);
-                    $totalAmount += $thpBase * $remainingFraction * $rate * $phaseDays;
-                }
+                $remainingFraction = 1.0 - ($paidPercent / 100.0);
+                $totalAmount += $thpSnapshot * $remainingFraction * $rate * $phaseDays;
             }
 
             $paidPercent += (float) $partial->paid_percent;
             $phaseStart = $paymentDate->copy();
-            $isFirstPhase = false;
         }
 
         // Final phase: from last partial payment to actual pay date
         $finalDays = (int) $phaseStart->diffInDays($actual);
 
         if ($finalDays > 0) {
-            if ($isFirstPhase) {
-                // No partials were processed (all had 0 days before them); treat as phase 1
-                $totalAmount += $basicSalary * $rate * $finalDays;
-            } else {
-                // Phase 2+: penalty on remaining THP
-                $remainingFraction = 1.0 - ($paidPercent / 100.0);
-                $totalAmount += $thpBase * $remainingFraction * $rate * $finalDays;
-            }
+            $remainingFraction = 1.0 - ($paidPercent / 100.0);
+            $totalAmount += $thpSnapshot * $remainingFraction * $rate * $finalDays;
         }
 
         return round($totalAmount, 2);

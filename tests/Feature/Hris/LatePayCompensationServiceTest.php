@@ -6,6 +6,8 @@ use App\Models\Hris\Employee;
 use App\Models\Hris\LatePayCompensationBatch;
 use App\Models\Hris\LatePayCompensationItem;
 use App\Models\Hris\LatePayCompensationPartialPayment;
+use App\Models\Hris\PayrollRecord;
+use App\Models\Hris\PayrunBatch;
 use App\Models\Hris\SalaryStructure;
 use App\Models\User;
 use App\Services\Hris\LatePayCompensationService;
@@ -45,6 +47,25 @@ class LatePayCompensationServiceTest extends TestCase
             ]);
     }
 
+    /**
+     * Create a PayrunBatch + PayrollRecord so generateBatch() can read THP for $this->employee.
+     */
+    protected function createPayrollFor(Carbon $scheduledPayDate, float $netIncome = 8_000_000.0): PayrollRecord
+    {
+        $batch = PayrunBatch::factory()->create([
+            'pay_date' => $scheduledPayDate->toDateString(),
+            'period_start_date' => $scheduledPayDate->copy()->startOfMonth()->toDateString(),
+            'period_end_date' => $scheduledPayDate->copy()->endOfMonth()->toDateString(),
+        ]);
+
+        return PayrollRecord::factory()
+            ->forBatch($batch)
+            ->forEmployee($this->employee)
+            ->create([
+                'net_income' => $netIncome,
+            ]);
+    }
+
     #[Test]
     public function it_calculates_calendar_days_late(): void
     {
@@ -63,6 +84,8 @@ class LatePayCompensationServiceTest extends TestCase
         $scheduled = Carbon::parse('2026-04-25');
         $actual = Carbon::parse('2026-04-27');
 
+        $this->createPayrollFor($scheduled, 8_000_000);
+
         $batch = $this->latePayCompensationService->generateBatch($scheduled, $actual, null, 1.0);
 
         $this->assertEquals(LatePayCompensationBatch::STATUS_CALCULATED, $batch->status);
@@ -71,7 +94,9 @@ class LatePayCompensationServiceTest extends TestCase
         $item = $batch->items()->where('employee_id', $this->employee->id)->first();
         $this->assertNotNull($item);
         $this->assertEquals(10_000_000.0, (float) $item->basic_salary_snapshot);
-        $this->assertSame(200_000.0, (float) $item->total_amount);
+        $this->assertEquals(8_000_000.0, (float) $item->thp_snapshot);
+        // 8M (THP) * 1% * 2 days = 160,000
+        $this->assertSame(160_000.0, (float) $item->total_amount);
     }
 
     #[Test]
@@ -79,6 +104,8 @@ class LatePayCompensationServiceTest extends TestCase
     {
         $scheduled = Carbon::parse('2026-05-01');
         $actual = Carbon::parse('2026-05-03');
+
+        $this->createPayrollFor($scheduled);
 
         $this->latePayCompensationService->generateBatch($scheduled, $actual);
 
@@ -109,8 +136,11 @@ class LatePayCompensationServiceTest extends TestCase
             'is_active' => true,
         ]);
 
+        $scheduled = Carbon::parse('2026-06-01');
+        $this->createPayrollFor($scheduled);
+
         $batch = $this->latePayCompensationService->generateBatch(
-            Carbon::parse('2026-06-01'),
+            $scheduled,
             Carbon::parse('2026-06-05')
         );
 
@@ -142,20 +172,22 @@ class LatePayCompensationServiceTest extends TestCase
             1.0,
             Carbon::parse('2026-04-25'),
             Carbon::parse('2026-04-27'),
+            [],
+            8_000_000
         );
 
-        // 10M * 1% * 2 days = 200,000
-        $this->assertSame(200_000.0, $amount);
+        // 8M (THP) * 1% * 2 days = 160,000
+        $this->assertSame(160_000.0, $amount);
     }
 
     #[Test]
     public function compute_item_amount_with_single_partial_payment(): void
     {
-        // basic=10M, THP=8M, 1%/day, scheduled Apr 25, actual Apr 30 (5 days late)
+        // THP=8M, 1%/day, scheduled Apr 25, actual Apr 30 (5 days late)
         // Partial: 50% paid on Apr 27
-        // Phase 1: Apr 25–27 (2 days) → 1% × 10M × 2 = 200,000
+        // Phase 1: Apr 25–27 (2 days) → 1% × 8M × 2 = 160,000
         // Phase 2: Apr 27–30 (3 days) → 1% × (8M × 50%) × 3 = 1% × 4M × 3 = 120,000
-        // Total: 320,000
+        // Total: 280,000
         $partials = collect([
             (object) ['payment_date' => '2026-04-27', 'paid_percent' => 50.0],
         ]);
@@ -169,19 +201,19 @@ class LatePayCompensationServiceTest extends TestCase
             8_000_000
         );
 
-        $this->assertSame(320_000.0, $amount);
+        $this->assertSame(280_000.0, $amount);
     }
 
     #[Test]
     public function compute_item_amount_with_multiple_partial_payments(): void
     {
-        // basic=10M, THP=8M, 1%/day, scheduled Apr 25, actual May 2 (7 days)
+        // THP=8M, 1%/day, scheduled Apr 25, actual May 2 (7 days)
         // Partial 1: 30% paid on Apr 28 (day 3)
         // Partial 2: 20% paid on Apr 30 (day 5)
-        // Phase 1: Apr 25–28 (3 days) → 1% × 10M × 3 = 300,000
+        // Phase 1: Apr 25–28 (3 days) → 1% × 8M × 3 = 240,000
         // Phase 2: Apr 28–30 (2 days) → 1% × (8M × 70%) × 2 = 1% × 5.6M × 2 = 112,000
         // Phase 3: Apr 30–May 2 (2 days) → 1% × (8M × 50%) × 2 = 1% × 4M × 2 = 80,000
-        // Total: 492,000
+        // Total: 432,000
         $partials = collect([
             (object) ['payment_date' => '2026-04-28', 'paid_percent' => 30.0],
             (object) ['payment_date' => '2026-04-30', 'paid_percent' => 20.0],
@@ -196,21 +228,21 @@ class LatePayCompensationServiceTest extends TestCase
             8_000_000
         );
 
-        $this->assertSame(492_000.0, $amount);
+        $this->assertSame(432_000.0, $amount);
     }
 
     #[Test]
     public function compute_item_amount_with_three_partial_payments(): void
     {
-        // basic=10M, THP=8M, 1%/day, scheduled Apr 25, actual May 5 (10 days)
+        // THP=8M, 1%/day, scheduled Apr 25, actual May 5 (10 days)
         // Partial 1: 20% on Apr 27 (day 2)
         // Partial 2: 30% on Apr 30 (day 5)
         // Partial 3: 30% on May 3 (day 8)
-        // Phase 1: Apr 25–27 (2 days) → 1% × 10M × 2 = 200,000
+        // Phase 1: Apr 25–27 (2 days) → 1% × 8M × 2 = 160,000
         // Phase 2: Apr 27–30 (3 days) → 1% × (8M × 80%) × 3 = 1% × 6.4M × 3 = 192,000
         // Phase 3: Apr 30–May 3 (3 days) → 1% × (8M × 50%) × 3 = 1% × 4M × 3 = 120,000
         // Phase 4: May 3–May 5 (2 days) → 1% × (8M × 20%) × 2 = 1% × 1.6M × 2 = 32,000
-        // Total: 544,000
+        // Total: 504,000
         $partials = collect([
             (object) ['payment_date' => '2026-04-27', 'paid_percent' => 20.0],
             (object) ['payment_date' => '2026-04-30', 'paid_percent' => 30.0],
@@ -226,16 +258,16 @@ class LatePayCompensationServiceTest extends TestCase
             8_000_000
         );
 
-        $this->assertSame(544_000.0, $amount);
+        $this->assertSame(504_000.0, $amount);
     }
 
     #[Test]
-    public function phase_one_uses_basic_phase_two_uses_thp(): void
+    public function all_phases_use_thp_with_partial_reductions(): void
     {
-        // basic=10M, THP=6M, 1%/day, Apr 25 → May 1 (6 days), partial 40% on Apr 27
-        // Phase 1: Apr 25–27 (2 days) → 1% × 10M × 2 = 200,000
+        // THP=6M, 1%/day, Apr 25 → May 1 (6 days), partial 40% on Apr 27
+        // Phase 1: Apr 25–27 (2 days) → 1% × 6M × 2 = 120,000
         // Phase 2: Apr 27–May 1 (4 days) → 1% × (6M × 60%) × 4 = 1% × 3.6M × 4 = 144,000
-        // Total: 344,000
+        // Total: 264,000
         $partials = collect([
             (object) ['payment_date' => '2026-04-27', 'paid_percent' => 40.0],
         ]);
@@ -249,21 +281,20 @@ class LatePayCompensationServiceTest extends TestCase
             6_000_000
         );
 
-        $this->assertSame(344_000.0, $amount);
+        $this->assertSame(264_000.0, $amount);
     }
 
     #[Test]
-    public function falls_back_to_basic_when_thp_snapshot_missing(): void
+    public function throws_when_thp_snapshot_missing(): void
     {
-        // basic=10M, THP=null (fallback), 1%/day, Apr 25 → Apr 30 (5 days), partial 50% on Apr 27
-        // Phase 1: Apr 25–27 (2 days) → 1% × 10M × 2 = 200,000
-        // Phase 2: Apr 27–30 (3 days) → 1% × (10M × 50%) × 3 = 1% × 5M × 3 = 150,000 (fallback to basic)
-        // Total: 350,000
         $partials = collect([
             (object) ['payment_date' => '2026-04-27', 'paid_percent' => 50.0],
         ]);
 
-        $amount = LatePayCompensationService::computeItemAmount(
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Take Home Pay');
+
+        LatePayCompensationService::computeItemAmount(
             10_000_000,
             1.0,
             Carbon::parse('2026-04-25'),
@@ -271,15 +302,16 @@ class LatePayCompensationServiceTest extends TestCase
             $partials,
             null
         );
-
-        $this->assertSame(350_000.0, $amount);
     }
 
     #[Test]
     public function recalculate_item_updates_total_amount_with_partial_payments(): void
     {
+        $scheduled = Carbon::parse('2026-08-25');
+        $this->createPayrollFor($scheduled, 8_000_000);
+
         $batch = $this->latePayCompensationService->generateBatch(
-            Carbon::parse('2026-08-25'),
+            $scheduled,
             Carbon::parse('2026-08-30'),
             null,
             1.0
@@ -287,8 +319,8 @@ class LatePayCompensationServiceTest extends TestCase
 
         $item = $batch->items()->where('employee_id', $this->employee->id)->first();
 
-        // Before partials: 10M * 1% * 5 days = 500,000
-        $this->assertSame(500_000.0, (float) $item->total_amount);
+        // Before partials: 8M (THP) * 1% * 5 days = 400,000
+        $this->assertSame(400_000.0, (float) $item->total_amount);
 
         // Add 50% partial on day 3
         LatePayCompensationPartialPayment::create([
@@ -299,17 +331,20 @@ class LatePayCompensationServiceTest extends TestCase
 
         $item = $this->latePayCompensationService->recalculateItem($item);
 
-        // Phase 1: Aug 25–28 (3 days) → 1% × 10M × 3 = 300,000
-        // Phase 2: Aug 28–30 (2 days) → 1% × 5M × 2 = 100,000
-        // Total: 400,000
-        $this->assertSame(400_000.0, (float) $item->total_amount);
+        // Phase 1: Aug 25–28 (3 days) → 1% × 8M × 3 = 240,000
+        // Phase 2: Aug 28–30 (2 days) → 1% × 4M × 2 = 80,000
+        // Total: 320,000
+        $this->assertSame(320_000.0, (float) $item->total_amount);
     }
 
     #[Test]
     public function recalculate_batch_updates_all_items_and_totals(): void
     {
+        $scheduled = Carbon::parse('2026-09-25');
+        $this->createPayrollFor($scheduled, 8_000_000);
+
         $batch = $this->latePayCompensationService->generateBatch(
-            Carbon::parse('2026-09-25'),
+            $scheduled,
             Carbon::parse('2026-09-30'),
             null,
             1.0
@@ -327,18 +362,21 @@ class LatePayCompensationServiceTest extends TestCase
 
         $item->refresh();
 
-        // Phase 1: Sep 25–27 (2 days) → 1% × 10M × 2 = 200,000
-        // Phase 2: Sep 27–30 (3 days) → 1% × 5M × 3 = 150,000
-        // Total: 350,000
-        $this->assertSame(350_000.0, (float) $item->total_amount);
-        $this->assertEquals(350_000.0, (float) $batch->total_amount);
+        // Phase 1: Sep 25–27 (2 days) → 1% × 8M × 2 = 160,000
+        // Phase 2: Sep 27–30 (3 days) → 1% × 4M × 3 = 120,000
+        // Total: 280,000
+        $this->assertSame(280_000.0, (float) $item->total_amount);
+        $this->assertEquals(280_000.0, (float) $batch->total_amount);
     }
 
     #[Test]
     public function partial_payment_total_percent_cannot_exceed_100(): void
     {
+        $scheduled = Carbon::parse('2026-10-25');
+        $this->createPayrollFor($scheduled);
+
         $batch = $this->latePayCompensationService->generateBatch(
-            Carbon::parse('2026-10-25'),
+            $scheduled,
             Carbon::parse('2026-10-30'),
             null,
             1.0
@@ -365,8 +403,11 @@ class LatePayCompensationServiceTest extends TestCase
     #[Test]
     public function partial_payment_date_must_be_within_batch_range(): void
     {
+        $scheduled = Carbon::parse('2026-11-25');
+        $this->createPayrollFor($scheduled);
+
         $batch = $this->latePayCompensationService->generateBatch(
-            Carbon::parse('2026-11-25'),
+            $scheduled,
             Carbon::parse('2026-11-30'),
             null,
             1.0
@@ -387,8 +428,11 @@ class LatePayCompensationServiceTest extends TestCase
     #[Test]
     public function removing_partial_payment_recalculates_to_original_amount(): void
     {
+        $scheduled = Carbon::parse('2026-12-25');
+        $this->createPayrollFor($scheduled, 8_000_000);
+
         $batch = $this->latePayCompensationService->generateBatch(
-            Carbon::parse('2026-12-25'),
+            $scheduled,
             Carbon::parse('2026-12-27'),
             null,
             1.0
@@ -397,8 +441,8 @@ class LatePayCompensationServiceTest extends TestCase
         $item = $batch->items()->where('employee_id', $this->employee->id)->first();
         $originalAmount = (float) $item->total_amount;
 
-        // 10M * 1% * 2 = 200,000
-        $this->assertSame(200_000.0, $originalAmount);
+        // 8M (THP) * 1% * 2 = 160,000
+        $this->assertSame(160_000.0, $originalAmount);
 
         $partial = LatePayCompensationPartialPayment::create([
             'late_pay_compensation_item_id' => $item->id,
