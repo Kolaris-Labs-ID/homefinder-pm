@@ -94,11 +94,6 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(Ticket::class, 'created_by');
     }
 
-    public function weeklyTodos(): HasMany
-    {
-        return $this->hasMany(WeeklyTodo::class);
-    }
-
     public function leaveRequests(): HasMany
     {
         return $this->hasMany(LeaveRequest::class, 'current_approver_id');

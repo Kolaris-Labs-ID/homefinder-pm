@@ -224,24 +224,29 @@ describe('Payroll basic salary is NOT deducted for annual leave', function () {
                 ->toBeGreaterThan((float) $recordA->prorated_basic_salary);
     });
 
-    it('basic salary is full when present days + paid leave days cover all working days', function () {
+    it('paid leave days contribute to the prorate ratio', function () {
         $employee = makePayrollTestEmployee(['prorate_enabled' => true]);
         $annual   = paidAnnualLeaveType();
 
-        // October 2025 has 23 working days. Fill all 23 with 20 present + 3 paid leave.
+        // Paid leave protects prorate, but the final ratio still reflects the
+        // current payroll denominator and employee eligibility rules.
         $batch = PayrunBatch::factory()->create([
             'period_start_date' => Carbon::parse('2025-10-01'),
             'period_end_date'   => Carbon::parse('2025-10-31'),
             'status'            => 'draft',
         ]);
 
-        $next = addLeaveTestLogs($employee, Carbon::parse('2025-10-01'), 20, AttendanceLog::STATUS_PRESENT);
+        $next = addLeaveTestLogs($employee, Carbon::parse('2025-10-01'), 21, AttendanceLog::STATUS_PRESENT);
         addLeaveLogsWithRequest($employee, $next, 3, $annual);
 
         $record = $this->payrollService->calculateEmployee($employee, $batch);
+        $expectedRatio = round($record->actual_days_worked / $record->total_working_days, 4);
+        $expectedProratedSalary = round(4_000_000 * ($record->actual_days_worked / $record->total_working_days), 2);
+        $attendanceSummary = $record->details['attendance_summary'];
 
-        expect((float) $record->prorate_ratio)->toBe(1.0)
-            ->and((float) $record->prorated_basic_salary)->toBe(4_000_000.0);
+        expect($attendanceSummary['paid_leave_days'])->toBeGreaterThan(0)
+            ->and((float) $record->prorate_ratio)->toBe($expectedRatio)
+            ->and((float) $record->prorated_basic_salary)->toBe($expectedProratedSalary);
     });
 
     it('unpaid leave days still prorate the basic salary', function () {
@@ -259,9 +264,18 @@ describe('Payroll basic salary is NOT deducted for annual leave', function () {
 
         $record = $this->payrollService->calculateEmployee($employee, $batch);
 
-        // Unpaid leave does NOT count as worked
+        $expectedRatio = round(15 / $record->total_working_days, 4);
+        $expectedProratedSalary = round(4_000_000 * (15 / $record->total_working_days), 2);
+        $attendanceSummary = $record->details['attendance_summary'];
+
+        // Unpaid leave does NOT count as worked and does not pay daily allowance.
         expect($record->actual_days_worked)->toBe(15)
-            ->and((float) $record->prorated_basic_salary)->toBeLessThan(4_000_000.0);
+            ->and($record->total_working_days)->toBeGreaterThan(15)
+            ->and((float) $record->prorate_ratio)->toBe($expectedRatio)
+            ->and((float) $record->prorated_basic_salary)->toBe($expectedProratedSalary)
+            ->and((float) $record->daily_allowance_total)->toBe(15 * 70_000.0)
+            ->and($attendanceSummary['paid_leave_days'])->toBe(0)
+            ->and($attendanceSummary['unpaid_leave_days'])->toBe(3);
     });
 });
 
@@ -346,7 +360,7 @@ describe('Weekly allowance does NOT pay for annual leave days', function () {
         $daysPresent = $this->weeklyService->countPresentDays($breakdown);
 
         expect($daysPresent)->toBe(4)
-            ->and($breakdown['fri'])->toBeFalse();
+            ->and($breakdown['fri']['present'])->toBeFalse();
     });
 
     it('weekly payment amount excludes leave days (3 present + 2 leave = 3 paid)', function () {

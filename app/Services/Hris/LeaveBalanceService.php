@@ -11,9 +11,25 @@ use Illuminate\Support\Facades\DB;
 
 class LeaveBalanceService
 {
+    public const CODE_UNPAID = 'UNPAID';
+    public const CODE_ANNUAL = 'ANNUAL';
+
     public function ensureBalance(Employee $employee, LeaveType $leaveType, ?int $year = null): LeaveBalance
     {
         $year ??= Carbon::now()->year;
+
+        // Unpaid leave has no tracked balance; return a transient zero balance
+        // so callers can read remaining_days without persisting a row.
+        if ($leaveType->code === self::CODE_UNPAID) {
+            return new LeaveBalance([
+                'employee_id' => $employee->id,
+                'leave_type_id' => $leaveType->id,
+                'year' => $year,
+                'starting_balance' => 0,
+                'used_days' => 0,
+                'remaining_days' => 0,
+            ]);
+        }
 
         $startingBalance = $this->determineStartingBalance($employee, $leaveType, $year);
 
@@ -33,6 +49,10 @@ class LeaveBalanceService
 
     public function canConsume(Employee $employee, LeaveType $leaveType, int $days, Carbon $startDate): bool
     {
+        if ($leaveType->code === self::CODE_UNPAID) {
+            return $this->annualLeaveExhausted($employee, $startDate->year);
+        }
+
         $balance = $this->ensureBalance($employee, $leaveType, $startDate->year);
 
         return $balance->remaining_days >= $days;
@@ -43,6 +63,16 @@ class LeaveBalanceService
      */
     public function getIneligibilityReason(Employee $employee, LeaveType $leaveType, int $days, Carbon $startDate): ?string
     {
+        if ($leaveType->code === self::CODE_UNPAID) {
+            if ($this->annualLeaveExhausted($employee, $startDate->year)) {
+                return null;
+            }
+
+            $annualRemaining = $this->annualLeaveRemaining($employee, $startDate->year);
+
+            return "Unpaid Leave is only available after your annual leave quota is exhausted. You still have {$annualRemaining} day(s) of annual leave remaining.";
+        }
+
         $balance = $this->ensureBalance($employee, $leaveType, $startDate->year);
 
         if ($balance->remaining_days < $days) {
@@ -52,10 +82,37 @@ class LeaveBalanceService
         return null;
     }
 
+    protected function annualLeaveRemaining(Employee $employee, int $year): int
+    {
+        $annualType = LeaveType::where('code', self::CODE_ANNUAL)->first();
+
+        if (! $annualType) {
+            return 0;
+        }
+
+        $balance = LeaveBalance::query()
+            ->where('employee_id', $employee->id)
+            ->where('leave_type_id', $annualType->id)
+            ->where('year', $year)
+            ->first();
+
+        return (int) ($balance?->remaining_days ?? 0);
+    }
+
+    protected function annualLeaveExhausted(Employee $employee, int $year): bool
+    {
+        return $this->annualLeaveRemaining($employee, $year) <= 0;
+    }
+
     public function consume(LeaveRequest $leaveRequest): void
     {
         // Ensure we have the relationships loaded
         $leaveRequest->loadMissing(['employee', 'leaveType']);
+
+        // Unpaid leave does not consume any tracked balance.
+        if ($leaveRequest->leaveType && $leaveRequest->leaveType->code === self::CODE_UNPAID) {
+            return;
+        }
 
         $year = $leaveRequest->start_date->year;
 
@@ -89,6 +146,13 @@ class LeaveBalanceService
 
     public function release(LeaveRequest $leaveRequest): void
     {
+        $leaveRequest->loadMissing(['employee', 'leaveType']);
+
+        // Unpaid leave does not track balance; nothing to release.
+        if ($leaveRequest->leaveType && $leaveRequest->leaveType->code === self::CODE_UNPAID) {
+            return;
+        }
+
         DB::transaction(function () use ($leaveRequest) {
             $balance = $this->ensureBalance(
                 $leaveRequest->employee,
@@ -105,7 +169,11 @@ class LeaveBalanceService
 
     protected function determineStartingBalance(Employee $employee, LeaveType $leaveType, int $year): int
     {
-        if ($leaveType->code === 'ANNUAL') {
+        if ($leaveType->code === self::CODE_UNPAID) {
+            return 0;
+        }
+
+        if ($leaveType->code === self::CODE_ANNUAL) {
             return 12;
         }
 
@@ -130,4 +198,3 @@ class LeaveBalanceService
         return true;
     }
 }
-

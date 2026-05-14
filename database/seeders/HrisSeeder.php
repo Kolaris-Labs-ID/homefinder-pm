@@ -99,6 +99,16 @@ class HrisSeeder extends Seeder
                 'gender_constraint' => 'male',
                 'is_special' => true,
             ],
+            [
+                'code' => 'UNPAID',
+                'name' => 'Unpaid Leave',
+                'description' => 'Unpaid leave, available only when annual leave quota is exhausted. Days will prorate basic salary.',
+                'default_annual_quota' => 0,
+                'carry_forward_allowed' => false,
+                'requires_approval' => true,
+                'requires_attachment' => false,
+                'is_special' => false,
+            ],
         ];
 
         foreach ($leaveTypes as $leaveType) {

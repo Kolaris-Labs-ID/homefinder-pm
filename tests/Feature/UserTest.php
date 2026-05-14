@@ -3,7 +3,6 @@
 use App\Models\Project;
 use App\Models\Ticket;
 use App\Models\User;
-use App\Models\WeeklyTodo;
 use App\Models\Notification;
 use Spatie\Permission\Models\Role;
 
@@ -53,12 +52,6 @@ test('user can assign to ticket', function () {
     $this->user->assignToTicket($ticket);
 
     expect($this->user->assignedTickets()->where('ticket_id', $ticket->id)->exists())->toBeTrue();
-});
-
-test('user can have weekly todos', function () {
-    WeeklyTodo::factory()->count(2)->create(['user_id' => $this->user->id]);
-
-    expect($this->user->weeklyTodos)->toHaveCount(2);
 });
 
 test('user can have notifications', function () {

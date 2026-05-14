@@ -2,7 +2,6 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\WeeklyTodo;
 use App\Models\Ticket;
 use App\Models\Project;
 use App\Models\Epic;
@@ -38,33 +37,7 @@ class CalendarWidget extends Widget
         $user = Auth::user();
         $events = [];
 
-        // 1. Weekly Todos - Only user's own todos
-        $weeklyTodos = WeeklyTodo::query()
-            ->whereNotNull('deadline')
-            ->where('user_id', $user->id)
-            ->get();
-
-        foreach ($weeklyTodos as $todo) {
-            $events[] = [
-                'id' => 'todo_' . $todo->id,
-                'title' => '📋 ' . $todo->title,
-                'start' => $todo->deadline->format('Y-m-d'),
-                'end' => $todo->deadline->format('Y-m-d'),
-                'allDay' => true,
-                'backgroundColor' => $this->getTodoStatusColor($todo->status),
-                'textColor' => '#ffffff',
-                'borderColor' => $this->getTodoStatusColor($todo->status),
-                'extendedProps' => [
-                    'type' => 'weekly_todo',
-                    'description' => $todo->description,
-                    'status' => $todo->status,
-                    'user' => $todo->user?->name ?? 'Unknown',
-                    'url' => route('filament.admin.resources.weekly-todos.view', $todo->id),
-                ],
-            ];
-        }
-
-        // 2. Projects - Only active projects user is a member of (exclude archived/done)
+        // 1. Projects - Only active projects user is a member of (exclude archived/done)
         $projects = Project::query()
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
@@ -171,15 +144,6 @@ class CalendarWidget extends Widget
         return $events;
     }
 
-    private function getTodoStatusColor(string $status): string
-    {
-        return match($status) {
-            'done' => '#10b981',      // green
-            'in_progress' => '#f59e0b', // amber
-            'pending' => '#6b7280',    // gray
-            default => '#6b7280',
-        };
-    }
 
     private function getTicketColor(Ticket $ticket, bool $isOverdue, bool $isCompleted): string
     {

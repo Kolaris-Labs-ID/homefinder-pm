@@ -189,7 +189,6 @@ class PushNotificationService
             'leave_update' => $settings->leave_updates,
             'reimbursement_update' => $settings->reimbursement_updates,
             'payslip' => $settings->payslip_notifications,
-            'weekly_todo_reminder' => $settings->weekly_todo_reminder,
             'ticket_overdue',
             'ticket_nearing_overdue',
             'ticket_assigned',

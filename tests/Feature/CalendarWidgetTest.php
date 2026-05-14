@@ -1,7 +1,6 @@
 <?php
 
 use App\Filament\Widgets\CalendarWidget;
-use App\Models\WeeklyTodo;
 use App\Models\Ticket;
 use App\Models\Project;
 use App\Models\Epic;
@@ -15,7 +14,6 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->user = User::factory()->create();
-    $this->otherUser = User::factory()->create();
     $this->project = Project::factory()->create([
         'start_date' => Carbon::now()->subDays(10),
         'end_date' => Carbon::now()->addDays(20),
@@ -45,52 +43,6 @@ test('calendar widget requires authentication', function () {
     
     $this->actingAs($this->user);
     expect(CalendarWidget::canView())->toBeTrue();
-});
-
-test('calendar widget generates events for weekly todos', function () {
-    $this->actingAs($this->user);
-    
-    $todo = WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'deadline' => Carbon::now()->addDays(5),
-        'status' => 'pending',
-        'title' => 'Test Todo',
-    ]);
-    
-    $widget = new CalendarWidget();
-    $events = $widget->getCalendarEvents();
-    
-    expect($events)->toBeArray();
-    $todoEvents = array_filter($events, fn($e) => str_starts_with($e['id'], 'todo_'));
-    expect($todoEvents)->not->toBeEmpty();
-    
-    $todoEvent = collect($todoEvents)->first();
-    expect($todoEvent['title'])->toContain('Test Todo');
-    expect($todoEvent['start'])->toBe($todo->deadline->format('Y-m-d'));
-    expect($todoEvent['end'])->toBe($todo->deadline->format('Y-m-d'));
-    expect($todoEvent['allDay'])->toBeTrue();
-    expect($todoEvent['extendedProps']['type'])->toBe('weekly_todo');
-    expect($todoEvent['extendedProps']['status'])->toBe('pending');
-});
-
-test('calendar widget filters todos by user role - regular user sees only own todos', function () {
-    $this->actingAs($this->user);
-    
-    // Create todos for different users
-    WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'deadline' => Carbon::now()->addDays(5),
-    ]);
-    WeeklyTodo::factory()->create([
-        'user_id' => $this->otherUser->id,
-        'deadline' => Carbon::now()->addDays(6),
-    ]);
-    
-    $widget = new CalendarWidget();
-    $events = $widget->getCalendarEvents();
-    
-    $todoEvents = array_filter($events, fn($e) => str_starts_with($e['id'], 'todo_'));
-    expect(count($todoEvents))->toBe(1);
 });
 
 test('calendar widget generates events for projects', function () {
@@ -217,42 +169,6 @@ test('calendar widget uses ticket start_date when available, otherwise falls bac
     expect($eventWithoutStart['start'])->toBe($ticketWithoutStartDate->due_date->copy()->subDays(1)->format('Y-m-d'));
 });
 
-test('calendar widget colors todos correctly based on status', function () {
-    $this->actingAs($this->user);
-    
-    $pendingTodo = WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'deadline' => Carbon::now()->addDays(5),
-        'status' => 'pending',
-    ]);
-    
-    $inProgressTodo = WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'deadline' => Carbon::now()->addDays(6),
-        'status' => 'in_progress',
-    ]);
-    
-    $doneTodo = WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'deadline' => Carbon::now()->addDays(7),
-        'status' => 'done',
-    ]);
-    
-    $widget = new CalendarWidget();
-    $events = $widget->getCalendarEvents();
-    
-    $todoEvents = array_filter($events, fn($e) => str_starts_with($e['id'], 'todo_'));
-    
-    $pendingEvent = collect($todoEvents)->first(fn($e) => $e['extendedProps']['status'] === 'pending');
-    expect($pendingEvent['backgroundColor'])->toBe('#6b7280'); // gray
-    
-    $inProgressEvent = collect($todoEvents)->first(fn($e) => $e['extendedProps']['status'] === 'in_progress');
-    expect($inProgressEvent['backgroundColor'])->toBe('#f59e0b'); // amber
-    
-    $doneEvent = collect($todoEvents)->first(fn($e) => $e['extendedProps']['status'] === 'done');
-    expect($doneEvent['backgroundColor'])->toBe('#10b981'); // green
-});
-
 test('calendar widget colors tickets correctly - completed tickets are green', function () {
     $this->actingAs($this->user);
     
@@ -340,26 +256,6 @@ test('calendar widget uses default blue color when ticket has no priority color'
     expect($ticketEvent['backgroundColor'])->toBe('#3b82f6'); // default blue
 });
 
-test('calendar widget excludes todos without deadlines', function () {
-    $this->actingAs($this->user);
-    
-    WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'deadline' => null, // No deadline
-    ]);
-    
-    WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'deadline' => Carbon::now()->addDays(5),
-    ]);
-    
-    $widget = new CalendarWidget();
-    $events = $widget->getCalendarEvents();
-    
-    $todoEvents = array_filter($events, fn($e) => str_starts_with($e['id'], 'todo_'));
-    expect(count($todoEvents))->toBe(1); // Only the one with deadline
-});
-
 test('calendar widget excludes projects without start_date or end_date', function () {
     $this->actingAs($this->user);
     
@@ -396,11 +292,6 @@ test('calendar widget excludes tickets without due_date', function () {
 test('calendar widget generates correct URLs for events', function () {
     $this->actingAs($this->user);
     
-    $todo = WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'deadline' => Carbon::now()->addDays(5),
-    ]);
-    
     $this->project->members()->attach($this->user->id);
     
     $ticket = Ticket::factory()->create([
@@ -413,10 +304,6 @@ test('calendar widget generates correct URLs for events', function () {
     $widget = new CalendarWidget();
     $events = $widget->getCalendarEvents();
     
-    $todoEvent = collect($events)->first(fn($e) => str_starts_with($e['id'], 'todo_'));
-    expect($todoEvent['extendedProps']['url'])->toContain('weekly-todos');
-    expect($todoEvent['extendedProps']['url'])->toContain($todo->id);
-    
     $projectEvent = collect($events)->first(fn($e) => str_starts_with($e['id'], 'project_'));
     expect($projectEvent['extendedProps']['url'])->toContain('projects');
     expect($projectEvent['extendedProps']['url'])->toContain($this->project->id);
@@ -424,93 +311,6 @@ test('calendar widget generates correct URLs for events', function () {
     $ticketEvent = collect($events)->first(fn($e) => str_starts_with($e['id'], 'ticket_'));
     expect($ticketEvent['extendedProps']['url'])->toContain('tickets');
     expect($ticketEvent['extendedProps']['url'])->toContain($ticket->id);
-});
-
-test('calendar widget handles missing user relationship gracefully', function () {
-    // Test that the code handles user relationship correctly
-    // The code uses: $todo->user->name ?? 'Unknown'
-    // This ensures graceful handling when user relationship is missing
-    
-    $this->actingAs($this->user);
-    
-    $todo = WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'deadline' => Carbon::now()->addDays(5),
-    ]);
-    
-    $widget = new CalendarWidget();
-    $events = $widget->getCalendarEvents();
-    
-    $todoEvents = array_filter($events, fn($e) => str_starts_with($e['id'], 'todo_'));
-    expect($todoEvents)->not->toBeEmpty();
-    
-    // Verify the event has user name when user exists
-    $todoEvent = collect($todoEvents)->first(fn($e) => $e['id'] === 'todo_' . $todo->id);
-    expect($todoEvent)->not->toBeNull();
-    expect($todoEvent['extendedProps']['user'])->toBe($this->user->name);
-    
-    // Verify the code structure handles null user gracefully
-    // The code uses: $todo->user->name ?? 'Unknown'
-    // If $todo->user is null, accessing ->name would throw, but the ?? operator
-    // catches it. However, PHP's null-safe operator would be better, but the
-    // current code structure with ?? 'Unknown' works when user relationship exists
-    // but name is null, or when the entire expression evaluates to null.
-    
-    // Test the fallback directly
-    $testTodo = WeeklyTodo::find($todo->id);
-    $userName = $testTodo->user->name ?? 'Unknown';
-    expect($userName)->toBe($this->user->name);
-    
-    // The graceful handling is verified by the code structure:
-    // 'user' => $todo->user->name ?? 'Unknown'
-    // This ensures 'Unknown' is returned if user relationship is missing or name is null
-});
-
-test('super admin sees only their own events like regular users', function () {
-    // Create super_admin role if it doesn't exist
-    $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
-    
-    $superAdmin = User::factory()->create();
-    $superAdmin->assignRole('super_admin');
-    
-    $this->actingAs($superAdmin);
-    
-    // Create events for different users
-    WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'deadline' => Carbon::now()->addDays(5),
-    ]);
-    WeeklyTodo::factory()->create([
-        'user_id' => $superAdmin->id,
-        'deadline' => Carbon::now()->addDays(6),
-    ]);
-    
-    $otherProject = Project::factory()->create([
-        'start_date' => Carbon::now()->subDays(5),
-        'end_date' => Carbon::now()->addDays(15),
-    ]);
-    
-    // Add super admin to project
-    $this->project->members()->attach($superAdmin->id);
-    
-    $ticket = Ticket::factory()->create([
-        'project_id' => $this->project->id,
-        'ticket_status_id' => $this->status->id,
-        'due_date' => Carbon::now()->addDays(7),
-    ]);
-    $ticket->assignees()->attach($superAdmin->id);
-    
-    $widget = new CalendarWidget();
-    $events = $widget->getCalendarEvents();
-    
-    $todoEvents = array_filter($events, fn($e) => str_starts_with($e['id'], 'todo_'));
-    expect(count($todoEvents))->toBe(1); // Only super admin's todo
-    
-    $projectEvents = array_filter($events, fn($e) => str_starts_with($e['id'], 'project_'));
-    expect(count($projectEvents))->toBe(1); // Only project super admin is member of
-    
-    $ticketEvents = array_filter($events, fn($e) => str_starts_with($e['id'], 'ticket_'));
-    expect(count($ticketEvents))->toBe(1); // Only ticket assigned to super admin
 });
 
 test('calendar widget generates events for epics', function () {

@@ -19,7 +19,6 @@ class NotificationSetting extends Model
         'leave_updates',
         'reimbursement_updates',
         'payslip_notifications',
-        'weekly_todo_reminder',
         'ticket_updates',
         'activity_updates',
     ];
@@ -33,7 +32,6 @@ class NotificationSetting extends Model
         'leave_updates' => 'boolean',
         'reimbursement_updates' => 'boolean',
         'payslip_notifications' => 'boolean',
-        'weekly_todo_reminder' => 'boolean',
         'ticket_updates' => 'boolean',
         'activity_updates' => 'boolean',
     ];

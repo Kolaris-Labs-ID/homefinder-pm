@@ -5,7 +5,7 @@
         </x-filament::section.heading>
         
         <x-filament::section.description>
-            View your weekly todos, projects, epics, and tickets in one place
+            View your projects, epics, and tickets in one place
         </x-filament::section.description>
 
         <div class="mt-6 calendar-wrapper" wire:ignore>
@@ -106,13 +106,6 @@
                             tooltip += `<div class="text-xs mt-1">`;
                             tooltip += `<span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-700 mr-1">${props.status}</span>`;
                             tooltip += `<span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-700">${props.priority}</span>`;
-                            tooltip += `</div>`;
-                        } else if (props.type === 'weekly_todo') {
-                            tooltip += `<div class="text-xs mt-1">`;
-                            tooltip += `<span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-700 mr-1">${props.status}</span>`;
-                            if (props.user) {
-                                tooltip += `<span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-700">${props.user}</span>`;
-                            }
                             tooltip += `</div>`;
                         } else if (props.type === 'epic') {
                             tooltip += `<div class="text-xs mt-1">`;

@@ -77,7 +77,6 @@ class NotificationController extends Controller
                     'leave_updates' => true,
                     'reimbursement_updates' => true,
                     'payslip_notifications' => true,
-                    'weekly_todo_reminder' => true,
                 ]
             );
 
@@ -91,7 +90,6 @@ class NotificationController extends Controller
                     'leaveUpdates' => $settings->leave_updates,
                     'reimbursementUpdates' => $settings->reimbursement_updates,
                     'payslipNotifications' => $settings->payslip_notifications,
-                    'weeklyTodoReminder' => $settings->weekly_todo_reminder,
                 ],
             ]);
         } catch (\Exception $e) {
@@ -108,7 +106,6 @@ class NotificationController extends Controller
                     'leaveUpdates' => true,
                     'reimbursementUpdates' => true,
                     'payslipNotifications' => true,
-                    'weeklyTodoReminder' => true,
                 ],
             ]);
         }
@@ -130,7 +127,6 @@ class NotificationController extends Controller
             'leaveUpdates' => ['required', 'boolean'],
             'reimbursementUpdates' => ['required', 'boolean'],
             'payslipNotifications' => ['required', 'boolean'],
-            'weeklyTodoReminder' => ['required', 'boolean'],
         ]);
 
         $user = $request->user();
@@ -153,7 +149,6 @@ class NotificationController extends Controller
                 'leave_updates' => $request->leaveUpdates,
                 'reimbursement_updates' => $request->reimbursementUpdates,
                 'payslip_notifications' => $request->payslipNotifications,
-                'weekly_todo_reminder' => $request->weeklyTodoReminder,
             ]
         );
 

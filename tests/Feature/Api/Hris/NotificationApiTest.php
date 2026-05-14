@@ -52,7 +52,6 @@ class NotificationApiTest extends TestCase
             'leaveUpdates' => true,
             'reimbursementUpdates' => false,
             'payslipNotifications' => true,
-            'weeklyTodoReminder' => false,
         ]);
 
         $response->assertStatus(200)

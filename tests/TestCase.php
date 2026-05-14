@@ -16,6 +16,9 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
  * @property \App\Services\Hris\Pph21CalculationService $pph21Service
  * @property \App\Services\Hris\AttendancePayrollService $attendanceService
  * @property \App\Services\Hris\PayrollCalculationService $service
+ * @property \App\Models\Hris\Employee $employee
+ * @property \App\Models\Hris\LeaveType $annualType
+ * @property \App\Models\Hris\LeaveType $unpaidType
  */
 abstract class TestCase extends BaseTestCase
 {
@@ -30,6 +33,9 @@ abstract class TestCase extends BaseTestCase
     public $pph21Service;
     public $attendanceService;
     public $service;
+    public $employee;
+    public $annualType;
+    public $unpaidType;
 
     protected function setUp(): void
     {

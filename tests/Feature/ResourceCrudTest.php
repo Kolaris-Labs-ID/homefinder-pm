@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\WeeklyTodo;
 use App\Models\Project;
 use App\Models\Ticket;
 use App\Models\User;
@@ -16,40 +15,6 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->user->assignRole($this->role);
     $this->actingAs($this->user);
-});
-
-test('weekly todo can be created', function () {
-    $todo = WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'title' => 'Test Todo',
-        'status' => 'pending',
-    ]);
-    
-    expect($todo)->toBeInstanceOf(WeeklyTodo::class);
-    expect($todo->title)->toBe('Test Todo');
-    expect($todo->user_id)->toBe($this->user->id);
-});
-
-test('weekly todo can be updated', function () {
-    $todo = WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-        'status' => 'pending',
-    ]);
-    
-    $todo->update(['status' => 'done']);
-    
-    expect($todo->fresh()->status)->toBe('done');
-});
-
-test('weekly todo can be deleted', function () {
-    $todo = WeeklyTodo::factory()->create([
-        'user_id' => $this->user->id,
-    ]);
-    
-    $todoId = $todo->id;
-    $todo->delete();
-    
-    expect(WeeklyTodo::find($todoId))->toBeNull();
 });
 
 test('project can be created', function () {

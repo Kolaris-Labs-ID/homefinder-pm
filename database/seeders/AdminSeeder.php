@@ -76,7 +76,6 @@ class AdminSeeder extends Seeder
             'ticket_comment',
             'notification',
             'user',
-            'weekly_todo',
         ];
 
         // Standard resource permissions from Filament Shield config
@@ -127,8 +126,6 @@ class AdminSeeder extends Seeder
             'ProjectTimeline',
             'RecentActivityTable',
             'StatsOverview',
-            'UserWeeklyTodoWidget',
-            'WeeklyTodoOverviewWidget',
         ];
 
         foreach ($widgets as $widget) {
