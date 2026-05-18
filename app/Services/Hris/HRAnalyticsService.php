@@ -9,6 +9,7 @@ use App\Models\Hris\Employee;
 use App\Models\Hris\EmployeePosition;
 use App\Models\Hris\JobPosting;
 use App\Models\Hris\LeaveBalance;
+use App\Models\Hris\LeaveRequest;
 use App\Models\Hris\LeaveType;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -239,6 +240,32 @@ class HRAnalyticsService
             ->orderBy('users.name')
             ->orderBy('leave_types.name')
             ->get();
+    }
+
+    /**
+     * Get headline unpaid-leave stats for a given year.
+     * Counts only APPROVED unpaid leave requests whose start_date falls in the year.
+     *
+     * @param int $year
+     * @return array{employee_count:int,total_days:int,request_count:int}
+     */
+    public function getUnpaidLeaveStats(int $year): array
+    {
+        $row = LeaveRequest::query()
+            ->join('leave_types', 'leave_requests.leave_type_id', '=', 'leave_types.id')
+            ->where('leave_types.code', LeaveBalanceService::CODE_UNPAID)
+            ->where('leave_requests.status', LeaveRequest::STATUS_APPROVED)
+            ->whereYear('leave_requests.start_date', $year)
+            ->selectRaw('COUNT(DISTINCT leave_requests.employee_id) as employee_count')
+            ->selectRaw('COALESCE(SUM(leave_requests.total_days), 0) as total_days')
+            ->selectRaw('COUNT(leave_requests.id) as request_count')
+            ->first();
+
+        return [
+            'employee_count' => (int) ($row->employee_count ?? 0),
+            'total_days' => (int) ($row->total_days ?? 0),
+            'request_count' => (int) ($row->request_count ?? 0),
+        ];
     }
 
     /**

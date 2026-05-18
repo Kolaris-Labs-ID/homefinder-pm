@@ -66,8 +66,8 @@ class HrisSeeder extends Seeder
             [
                 'code' => 'SICK',
                 'name' => 'Sick Leave',
-                'description' => 'Sick leave requires a doctor\'s letter/medical certificate.',
-                'default_annual_quota' => 14,
+                'description' => 'Sick leave is unlimited but requires a doctor\'s letter / medical certificate.',
+                'default_annual_quota' => null,
                 'carry_forward_allowed' => false,
                 'requires_approval' => true,
                 'requires_attachment' => true,

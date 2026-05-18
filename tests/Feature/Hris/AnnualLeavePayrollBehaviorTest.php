@@ -91,6 +91,26 @@ function unpaidLeaveType(): LeaveType
 }
 
 // ---------------------------------------------------------------------------
+// Helper: get-or-create a non-quota sick leave type.
+// ---------------------------------------------------------------------------
+function sickLeaveType(): LeaveType
+{
+    return LeaveType::firstOrCreate(
+        ['code' => 'SICK'],
+        [
+            'name' => 'Sick Leave',
+            'description' => 'Cuti sakit',
+            'requires_approval' => true,
+            'requires_attachment' => true,
+            'default_annual_quota' => 0,
+            'carry_forward_allowed' => false,
+            'is_special' => false,
+            'is_active' => true,
+        ]
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Helper: create $count consecutive working-day STATUS_LEAVE logs AND an
 // approved LeaveRequest of the given LeaveType covering them. Returns the
 // Carbon date after the last-created log.
@@ -335,6 +355,71 @@ describe('Daily allowance in payroll is NOT paid for annual leave days', functio
         // But daily allowance differs because leave days don't pay daily allowance
         expect((float) $recordA->daily_allowance_total)->toBeGreaterThan((float) $recordB->daily_allowance_total)
             ->and((float) $recordB->daily_allowance_total)->toBe(15 * 50_000.0);
+    });
+});
+
+// ============================================================
+// PREDICTABLE FIXTURE: Annual/Sick/Unpaid leave payroll impact
+// ============================================================
+
+describe('Predictable one-day leave payroll impact', function () {
+
+    it('matches the leave test fixture for basic salary and daily allowance', function () {
+        $batch = PayrunBatch::factory()->create([
+            'period_start_date' => Carbon::parse('2025-02-03'),
+            'period_end_date'   => Carbon::parse('2025-03-01'),
+            'status'            => 'draft',
+        ]);
+
+        $salary = [
+            'basic_salary' => 10_000_000,
+            'daily_allowance_rate' => 50_000,
+            'prorate_enabled' => true,
+        ];
+
+        $noLeaveEmployee = makePayrollTestEmployee($salary);
+        $annualEmployee = makePayrollTestEmployee($salary);
+        $sickEmployee = makePayrollTestEmployee($salary);
+        $unpaidEmployee = makePayrollTestEmployee($salary);
+
+        addLeaveTestLogs($noLeaveEmployee, Carbon::parse('2025-02-03'), 20, AttendanceLog::STATUS_PRESENT);
+
+        $next = addLeaveTestLogs($annualEmployee, Carbon::parse('2025-02-03'), 19, AttendanceLog::STATUS_PRESENT);
+        addLeaveLogsWithRequest($annualEmployee, $next, 1, paidAnnualLeaveType());
+
+        $next = addLeaveTestLogs($sickEmployee, Carbon::parse('2025-02-03'), 19, AttendanceLog::STATUS_PRESENT);
+        addLeaveLogsWithRequest($sickEmployee, $next, 1, sickLeaveType());
+
+        $next = addLeaveTestLogs($unpaidEmployee, Carbon::parse('2025-02-03'), 19, AttendanceLog::STATUS_PRESENT);
+        addLeaveLogsWithRequest($unpaidEmployee, $next, 1, unpaidLeaveType());
+
+        $noLeave = $this->payrollService->calculateEmployee($noLeaveEmployee, $batch);
+        $annual = $this->payrollService->calculateEmployee($annualEmployee, $batch);
+        $sick = $this->payrollService->calculateEmployee($sickEmployee, $batch);
+        $unpaid = $this->payrollService->calculateEmployee($unpaidEmployee, $batch);
+
+        expect($noLeave->total_working_days)->toBe(20)
+            ->and((float) $noLeave->basic_salary)->toBe(10_000_000.0)
+            ->and((float) $noLeave->daily_allowance_total)->toBe(1_000_000.0);
+
+        expect($annual->total_working_days)->toBe(20)
+            ->and($annual->actual_days_worked)->toBe(20)
+            ->and((float) $annual->basic_salary)->toBe(10_000_000.0)
+            ->and((float) $annual->daily_allowance_total)->toBe(950_000.0)
+            ->and($annual->details['attendance_summary']['paid_leave_days'])->toBe(1);
+
+        expect($sick->total_working_days)->toBe(20)
+            ->and($sick->actual_days_worked)->toBe(20)
+            ->and((float) $sick->basic_salary)->toBe(10_000_000.0)
+            ->and((float) $sick->daily_allowance_total)->toBe(950_000.0)
+            ->and($sick->details['attendance_summary']['paid_leave_days'])->toBe(1);
+
+        expect($unpaid->total_working_days)->toBe(20)
+            ->and($unpaid->actual_days_worked)->toBe(19)
+            ->and((float) $unpaid->prorate_ratio)->toBe(0.95)
+            ->and((float) $unpaid->basic_salary)->toBe(9_500_000.0)
+            ->and((float) $unpaid->daily_allowance_total)->toBe(950_000.0)
+            ->and($unpaid->details['attendance_summary']['unpaid_leave_days'])->toBe(1);
     });
 });
 

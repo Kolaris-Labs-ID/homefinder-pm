@@ -223,6 +223,49 @@
         </x-filament::section>
     </div>
 
+    {{-- Unpaid Leave Stat Card --}}
+    @php $unpaidStats = $this->getUnpaidLeaveStats(); @endphp
+    <div class="mb-6">
+        <x-filament::section>
+            <x-slot name="heading">
+                <div class="flex items-center gap-2">
+                    <x-heroicon-o-banknotes class="w-5 h-5" />
+                    Unpaid Leave ({{ $this->leaveYear }})
+                </div>
+            </x-slot>
+            @if($unpaidStats['employee_count'] > 0)
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                        <div class="text-3xl font-bold text-gray-900 dark:text-white">
+                            {{ $unpaidStats['employee_count'] }}
+                        </div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            {{ $unpaidStats['employee_count'] === 1 ? 'employee' : 'employees' }} took unpaid leave
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                        <div class="text-3xl font-bold text-gray-900 dark:text-white">
+                            {{ $unpaidStats['total_days'] }}
+                        </div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            total unpaid days
+                        </div>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                        <div class="text-3xl font-bold text-gray-900 dark:text-white">
+                            {{ $unpaidStats['request_count'] }}
+                        </div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            approved {{ $unpaidStats['request_count'] === 1 ? 'request' : 'requests' }}
+                        </div>
+                    </div>
+                </div>
+            @else
+                <p class="text-gray-500 dark:text-gray-400 text-center py-4">No unpaid leave taken this year.</p>
+            @endif
+        </x-filament::section>
+    </div>
+
     {{-- Leave Usage and Attendance KPIs --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {{-- Leave Usage Summary --}}

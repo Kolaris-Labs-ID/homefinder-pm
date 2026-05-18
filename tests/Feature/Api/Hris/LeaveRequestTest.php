@@ -10,6 +10,8 @@ use App\Models\Hris\Position;
 use App\Models\User;
 use App\Services\Hris\LeaveBalanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
@@ -96,6 +98,31 @@ it('validates end date is after start date', function () {
 
     $response->assertUnprocessable()
         ->assertJsonValidationErrors(['end_date']);
+});
+
+it('rejects annual leave request that exceeds available quota', function () {
+    Sanctum::actingAs($this->employee->user);
+
+    LeaveBalance::query()
+        ->where('employee_id', $this->employee->id)
+        ->where('leave_type_id', $this->leaveType->id)
+        ->where('year', now()->year)
+        ->update([
+            'used_days' => 11,
+            'remaining_days' => 1,
+        ]);
+
+    $response = postJson('/api/hris/leave-requests', [
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => now()->addDays(2)->toDateString(),
+        'end_date' => now()->addDays(3)->toDateString(),
+        'reason' => 'Too many days',
+    ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors(['leave_type_id']);
+
+    expect(LeaveRequest::count())->toBe(0);
 });
 
 it('lists leave requests for authenticated employee', function () {
@@ -244,6 +271,107 @@ it('returns active leave types', function () {
     expect($activeTypes->every(fn ($type) => $type['is_active'] ?? true))->toBeTrue();
 });
 
+it('allows sick leave request without a quota cap or annual balance when a doctors letter is attached', function () {
+    Storage::fake('private');
+    Sanctum::actingAs($this->employee->user);
+
+    $sickLeaveType = LeaveType::factory()->create([
+        'code' => 'SICK',
+        'requires_attachment' => true,
+        'default_annual_quota' => null,
+    ]);
+
+    LeaveBalance::query()
+        ->where('employee_id', $this->employee->id)
+        ->where('leave_type_id', $this->leaveType->id)
+        ->where('year', now()->year)
+        ->update([
+            'used_days' => 12,
+            'remaining_days' => 0,
+        ]);
+
+    // Pre-seed a balance row that already exceeds any historical cap to prove
+    // the cap is not enforced anymore.
+    LeaveBalance::query()->create([
+        'employee_id' => $this->employee->id,
+        'leave_type_id' => $sickLeaveType->id,
+        'year' => now()->year,
+        'starting_balance' => 0,
+        'used_days' => 30,
+        'remaining_days' => -30,
+    ]);
+
+    $file = UploadedFile::fake()->image('doctor_letter.jpg');
+
+    $response = $this->post('/api/hris/leave-requests', [
+        'leave_type_id' => $sickLeaveType->id,
+        'start_date' => now()->addDay()->toDateString(),
+        'end_date' => now()->addDays(3)->toDateString(),
+        'reason' => 'Flu',
+        'attachment' => $file,
+    ]);
+
+    $response->assertCreated();
+
+    $leaveRequest = LeaveRequest::where('leave_type_id', $sickLeaveType->id)->first();
+    expect($leaveRequest)->not->toBeNull();
+    expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_PENDING);
+    expect($leaveRequest->attachment_path)->not->toBeNull();
+});
+
+it('tracks sick leave used days after approval without quota validation', function () {
+    $sickLeaveType = LeaveType::factory()->create([
+        'code' => 'SICK',
+        'requires_attachment' => true,
+        'default_annual_quota' => null,
+    ]);
+
+    $leaveRequest = LeaveRequest::factory()->create([
+        'employee_id' => $this->employee->id,
+        'leave_type_id' => $sickLeaveType->id,
+        'status' => LeaveRequest::STATUS_PENDING,
+        'start_date' => now()->addDays(2),
+        'end_date' => now()->addDays(3),
+        'total_days' => 2,
+    ]);
+
+    $leaveRequest->markAsApproved();
+
+    $balance = LeaveBalance::query()
+        ->where('employee_id', $this->employee->id)
+        ->where('leave_type_id', $sickLeaveType->id)
+        ->where('year', $leaveRequest->start_date->year)
+        ->first();
+
+    expect($leaveRequest->fresh()->status)->toBe(LeaveRequest::STATUS_APPROVED);
+    expect($balance)->not->toBeNull();
+    expect((int) $balance->starting_balance)->toBe(0);
+    expect((int) $balance->used_days)->toBe(2);
+    expect((int) $balance->remaining_days)->toBe(-2);
+});
+
+it('rejects sick leave request when doctors letter is missing', function () {
+    Sanctum::actingAs($this->employee->user);
+
+    $sickLeaveType = LeaveType::factory()->create([
+        'code' => 'SICK',
+        'requires_attachment' => true,
+        'default_annual_quota' => null,
+    ]);
+
+    $response = postJson('/api/hris/leave-requests', [
+        'leave_type_id' => $sickLeaveType->id,
+        'start_date' => now()->addDay()->toDateString(),
+        'end_date' => now()->addDays(2)->toDateString(),
+        'reason' => 'Flu',
+    ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors(['attachment']);
+
+    expect(LeaveRequest::where('leave_type_id', $sickLeaveType->id)->count())->toBe(0);
+});
+
 it('allows newly hired employee to request annual leave', function () {
     // Create a recently hired employee (1 month ago)
     $newEmployee = Employee::factory()->create([
@@ -273,4 +401,3 @@ it('allows newly hired employee to request annual leave', function () {
     $balance = $newEmployee->leaveBalances()->where('leave_type_id', $this->leaveType->id)->first();
     expect($balance->starting_balance)->toBe(12);
 });
-

@@ -123,7 +123,7 @@ it('allows unpaid leave when employee has no annual balance yet', function () {
     expect($annualBalanceExists)->toBeFalse();
 });
 
-it('does not create a balance row when approving unpaid leave', function () {
+it('creates a balance row with used_days when approving unpaid leave', function () {
     // Drain annual balance.
     $annualBalance = $this->employee->leaveBalances()
         ->where('leave_type_id', $this->annualType->id)
@@ -144,16 +144,54 @@ it('does not create a balance row when approving unpaid leave', function () {
 
     app(LeaveBalanceService::class)->consume($leaveRequest);
 
-    // No LeaveBalance row should exist for UNPAID.
-    $exists = LeaveBalance::query()
+    $balance = LeaveBalance::query()
         ->where('employee_id', $this->employee->id)
         ->where('leave_type_id', $this->unpaidType->id)
-        ->exists();
+        ->where('year', $leaveRequest->start_date->year)
+        ->first();
 
-    expect($exists)->toBeFalse();
+    expect($balance)->not->toBeNull();
+    expect((int) $balance->starting_balance)->toBe(0);
+    expect((int) $balance->used_days)->toBe(2);
+    // Unpaid leave has no quota so remaining_days mirrors sick leave and may go negative.
+    expect((int) $balance->remaining_days)->toBe(-2);
 });
 
-it('release is a no-op for unpaid leave', function () {
+it('tracks unpaid leave used days after approval', function () {
+    // Drain annual balance.
+    $annualBalance = $this->employee->leaveBalances()
+        ->where('leave_type_id', $this->annualType->id)
+        ->first();
+    $annualBalance->update([
+        'used_days' => $annualBalance->starting_balance,
+        'remaining_days' => 0,
+    ]);
+
+    $leaveRequest = LeaveRequest::factory()->create([
+        'employee_id' => $this->employee->id,
+        'leave_type_id' => $this->unpaidType->id,
+        'status' => LeaveRequest::STATUS_PENDING,
+        'start_date' => now()->addDays(2),
+        'end_date' => now()->addDays(2),
+        'total_days' => 1,
+    ]);
+
+    $leaveRequest->markAsApproved();
+
+    $balance = LeaveBalance::query()
+        ->where('employee_id', $this->employee->id)
+        ->where('leave_type_id', $this->unpaidType->id)
+        ->where('year', $leaveRequest->start_date->year)
+        ->first();
+
+    expect($leaveRequest->fresh()->status)->toBe(LeaveRequest::STATUS_APPROVED);
+    expect($balance)->not->toBeNull();
+    expect((int) $balance->starting_balance)->toBe(0);
+    expect((int) $balance->used_days)->toBe(1);
+    expect((int) $balance->remaining_days)->toBe(-1);
+});
+
+it('release decrements used_days for unpaid leave', function () {
     $leaveRequest = LeaveRequest::factory()->create([
         'employee_id' => $this->employee->id,
         'leave_type_id' => $this->unpaidType->id,
@@ -163,12 +201,17 @@ it('release is a no-op for unpaid leave', function () {
         'total_days' => 2,
     ]);
 
+    // Simulate a prior consume() so we have something to release.
+    app(LeaveBalanceService::class)->consume($leaveRequest);
+
     app(LeaveBalanceService::class)->release($leaveRequest);
 
-    $exists = LeaveBalance::query()
+    $balance = LeaveBalance::query()
         ->where('employee_id', $this->employee->id)
         ->where('leave_type_id', $this->unpaidType->id)
-        ->exists();
+        ->where('year', $leaveRequest->start_date->year)
+        ->first();
 
-    expect($exists)->toBeFalse();
+    expect($balance)->not->toBeNull();
+    expect((int) $balance->used_days)->toBe(0);
 });

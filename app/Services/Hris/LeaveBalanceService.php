@@ -13,23 +13,11 @@ class LeaveBalanceService
 {
     public const CODE_UNPAID = 'UNPAID';
     public const CODE_ANNUAL = 'ANNUAL';
+    public const CODE_SICK = 'SICK';
 
     public function ensureBalance(Employee $employee, LeaveType $leaveType, ?int $year = null): LeaveBalance
     {
         $year ??= Carbon::now()->year;
-
-        // Unpaid leave has no tracked balance; return a transient zero balance
-        // so callers can read remaining_days without persisting a row.
-        if ($leaveType->code === self::CODE_UNPAID) {
-            return new LeaveBalance([
-                'employee_id' => $employee->id,
-                'leave_type_id' => $leaveType->id,
-                'year' => $year,
-                'starting_balance' => 0,
-                'used_days' => 0,
-                'remaining_days' => 0,
-            ]);
-        }
 
         $startingBalance = $this->determineStartingBalance($employee, $leaveType, $year);
 
@@ -53,6 +41,12 @@ class LeaveBalanceService
             return $this->annualLeaveExhausted($employee, $startDate->year);
         }
 
+        // Sick leave has no quota: eligibility is gated solely on the doctor's letter
+        // attachment requirement, which is enforced at the controller level.
+        if ($leaveType->code === self::CODE_SICK) {
+            return true;
+        }
+
         $balance = $this->ensureBalance($employee, $leaveType, $startDate->year);
 
         return $balance->remaining_days >= $days;
@@ -71,6 +65,11 @@ class LeaveBalanceService
             $annualRemaining = $this->annualLeaveRemaining($employee, $startDate->year);
 
             return "Unpaid Leave is only available after your annual leave quota is exhausted. You still have {$annualRemaining} day(s) of annual leave remaining.";
+        }
+
+        // Sick leave has no quota check.
+        if ($leaveType->code === self::CODE_SICK) {
+            return null;
         }
 
         $balance = $this->ensureBalance($employee, $leaveType, $startDate->year);
@@ -109,11 +108,6 @@ class LeaveBalanceService
         // Ensure we have the relationships loaded
         $leaveRequest->loadMissing(['employee', 'leaveType']);
 
-        // Unpaid leave does not consume any tracked balance.
-        if ($leaveRequest->leaveType && $leaveRequest->leaveType->code === self::CODE_UNPAID) {
-            return;
-        }
-
         $year = $leaveRequest->start_date->year;
 
         // Get or create the balance
@@ -148,11 +142,6 @@ class LeaveBalanceService
     {
         $leaveRequest->loadMissing(['employee', 'leaveType']);
 
-        // Unpaid leave does not track balance; nothing to release.
-        if ($leaveRequest->leaveType && $leaveRequest->leaveType->code === self::CODE_UNPAID) {
-            return;
-        }
-
         DB::transaction(function () use ($leaveRequest) {
             $balance = $this->ensureBalance(
                 $leaveRequest->employee,
@@ -177,8 +166,9 @@ class LeaveBalanceService
             return 12;
         }
 
-        if ($leaveType->code === 'SICK') {
-            return 14; // 14 days sick leave per year
+        if ($leaveType->code === self::CODE_SICK) {
+            // Sick leave has no quota; balance row only tracks total used days per year.
+            return 0;
         }
 
         if ($leaveType->code === 'PATERNITY') {

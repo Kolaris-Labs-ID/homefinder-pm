@@ -68,8 +68,8 @@ class AttendancePayrollService
         $eligiblePaidHolidayDays = $this->getPaidHolidaysForEmployeeInPeriod($employee, $periodStart, $periodEnd);
         $effectiveWorkingDays = $this->calculateEffectiveWorkingDays($periodStart, $periodEnd);
 
-        // Classify leave days as paid (quota-consuming) vs unpaid so that
-        // paid leave can protect the employee's basic salary from prorate.
+        // Classify leave days that protect basic salary vs unpaid leave days
+        // that still reduce prorated salary.
         [$paidLeaveDays, $unpaidLeaveDays] = $this->classifyLeaveDays(
             $employee,
             $logs->where('status', AttendanceLog::STATUS_LEAVE),
@@ -104,14 +104,10 @@ class AttendancePayrollService
     }
 
     /**
-     * Split leave-status attendance logs into paid vs unpaid leave days.
+     * Split leave-status attendance logs into salary-protecting vs unpaid leave days.
      *
-     * A leave day is considered paid when it is covered by an approved
-     * LeaveRequest whose LeaveType has a positive default_annual_quota
-     * (i.e., the leave consumed quota). Any leave day that cannot be
-     * matched to such a request (including unpaid leave types with
-     * default_annual_quota = 0) is treated as unpaid and will still
-     * prorate the basic salary.
+     * Annual and sick leave protect the employee's basic salary from prorate.
+     * Unpaid leave and unmatched leave attendance still prorate the basic salary.
      *
      * @param Employee $employee
      * @param \Illuminate\Support\Collection $leaveLogs AttendanceLog entries with status=leave
@@ -148,11 +144,9 @@ class AttendancePayrollService
                 return $lr->start_date->lte($logDate) && $lr->end_date->gte($logDate);
             });
 
-            $quota = $matching && $matching->leaveType
-                ? (int) ($matching->leaveType->default_annual_quota ?? 0)
-                : 0;
+            $leaveCode = $matching?->leaveType?->code;
 
-            if ($quota > 0) {
+            if (in_array($leaveCode, [LeaveBalanceService::CODE_ANNUAL, LeaveBalanceService::CODE_SICK], true)) {
                 $paid++;
             } else {
                 $unpaid++;
