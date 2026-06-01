@@ -114,8 +114,7 @@ class Project extends Model
 
         $incompleteTickets = $this->tickets()
             ->whereHas('status', function ($query) {
-                $query->where('is_completed', false)
-                    ->whereNotIn(\Illuminate\Support\Facades\DB::raw('LOWER(name)'), ['done', 'completed', 'closed']);
+                $query->where('is_completed', false);
             })
             ->count();
 

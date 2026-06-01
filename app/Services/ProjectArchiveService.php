@@ -100,8 +100,9 @@ class ProjectArchiveService
 
         $allCompleted = $project->allTicketsCompleted();
 
-        // Revert done status if there are incomplete tickets
-        if (!$allCompleted && $project->is_done) {
+        if ($allCompleted && !$project->is_done) {
+            $this->markAsDone($project, true);
+        } elseif (!$allCompleted && $project->is_done && $project->is_auto_done) {
             $this->unmarkDone($project);
         }
     }
