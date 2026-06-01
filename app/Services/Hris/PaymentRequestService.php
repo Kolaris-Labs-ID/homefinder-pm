@@ -2,6 +2,7 @@
 
 namespace App\Services\Hris;
 
+use App\Models\Hris\ExpenseRequest;
 use App\Models\Hris\PaymentRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,111 @@ class PaymentRequestService
     private const SENSITIVE = [
         'amount', 'currency', 'payee_name', 'bank_name', 'bank_account_number', 'source_type', 'source_id',
     ];
+
+    /** PR statuses that no longer hold the source ER (it may be re-converted). */
+    private const INACTIVE_STATUSES = [
+        PaymentRequest::STATUS_REJECTED_BY_COO,
+        PaymentRequest::STATUS_VOIDED,
+        PaymentRequest::STATUS_CANCELLED,
+        PaymentRequest::STATUS_REVERSED,
+    ];
+
+    private const VARIANCE_RISK_RATIO = 0.10;
+
+    /**
+     * Convert a finance-verified ExpenseRequest into a draft PaymentRequest (Phase 7).
+     * Transactional + row-locked: exactly one active PR per ER, even under concurrent/double submits.
+     */
+    public function createFromExpenseRequest(ExpenseRequest $expenseRequest, User $creator, array $overrides = []): PaymentRequest
+    {
+        return DB::transaction(function () use ($expenseRequest, $creator, $overrides) {
+            $er = ExpenseRequest::whereKey($expenseRequest->id)->lockForUpdate()->firstOrFail();
+
+            if ($er->status !== ExpenseRequest::STATUS_FINANCE_VERIFIED) {
+                throw new \RuntimeException('Only a finance-verified expense request can become a payment request.');
+            }
+
+            if ($er->isRecordOnly()) {
+                throw new \RuntimeException('A company_paid_record_only expense request cannot create a payment request.');
+            }
+
+            $alreadyActive = PaymentRequest::where('source_type', PaymentRequest::SOURCE_EXPENSE_REQUEST)
+                ->where('source_id', $er->id)
+                ->whereNotIn('status', self::INACTIVE_STATUSES)
+                ->lockForUpdate()
+                ->exists();
+
+            if ($alreadyActive) {
+                throw new \RuntimeException('This expense request already has an active payment request.');
+            }
+
+            $amount = (string) ($overrides['amount'] ?? $er->amount);
+            $metadata = $this->varianceMetadata($amount, $er, $overrides);
+            if ($er->finance_notes) {
+                $metadata['finance_notes'] = $er->finance_notes;
+            }
+
+            $pr = PaymentRequest::create([
+                'payment_request_number' => $this->generateNumber(),
+                'source_type' => PaymentRequest::SOURCE_EXPENSE_REQUEST,
+                'source_id' => $er->id,
+                'created_by' => $creator->id,
+                'payee_type' => $er->payment_mode,
+                'payee_name' => $overrides['payee_name'] ?? $er->payee_name,
+                'bank_name' => $overrides['bank_name'] ?? $er->payee_bank_name,
+                'bank_account_number_encrypted' => $overrides['bank_account_number'] ?? $er->payee_bank_account_number,
+                'bank_account_last4' => isset($overrides['bank_account_number'])
+                    ? substr(preg_replace('/\D/', '', $overrides['bank_account_number']), -4)
+                    : $er->payee_bank_account_last4,
+                'amount' => $amount,
+                'currency' => $er->currency,
+                'description' => $er->title,
+                'status' => PaymentRequest::STATUS_DRAFT,
+                'metadata' => $metadata ?: null,
+            ]);
+
+            $er->update(['status' => ExpenseRequest::STATUS_PR_CREATED]);
+
+            return $pr;
+        });
+    }
+
+    private function varianceMetadata(string $amount, ExpenseRequest $er, array $overrides): array
+    {
+        if (bccomp($amount, (string) $er->amount, 2) === 0) {
+            return [];
+        }
+
+        if (empty($overrides['variance_reason'])) {
+            throw new \RuntimeException('A payment amount that differs from the expense request requires a justification.');
+        }
+
+        $metadata = [
+            'variance_reason' => $overrides['variance_reason'],
+            'er_amount' => (string) $er->amount,
+        ];
+
+        $absDiff = ltrim(bcsub($amount, (string) $er->amount, 2), '-');
+        $ratio = bccomp((string) $er->amount, '0', 2) > 0
+            ? (float) bcdiv($absDiff, (string) $er->amount, 6)
+            : 1.0;
+
+        if ($ratio > self::VARIANCE_RISK_RATIO) {
+            $metadata['variance_risk_flag'] = true;
+        }
+
+        return $metadata;
+    }
+
+    /** When a PR no longer holds its source ER, return that ER to finance_verified (no stranding). */
+    private function returnSourceExpenseRequest(PaymentRequest $pr): void
+    {
+        if ($pr->source_type === PaymentRequest::SOURCE_EXPENSE_REQUEST && $pr->source_id) {
+            ExpenseRequest::where('id', $pr->source_id)
+                ->where('status', ExpenseRequest::STATUS_PR_CREATED)
+                ->update(['status' => ExpenseRequest::STATUS_FINANCE_VERIFIED]);
+        }
+    }
 
     public function createManual(User $creator, array $data): PaymentRequest
     {
@@ -83,6 +189,8 @@ class PaymentRequestService
             'coo_approved_by' => $coo->id,
             'coo_rejection_reason' => $reason,
         ]);
+
+        $this->returnSourceExpenseRequest($pr);
     }
 
     public function requestClarification(PaymentRequest $pr, User $coo, string $note): void
