@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Hris\AnnouncementController;
 use App\Http\Controllers\Api\Hris\AttendanceController;
 use App\Http\Controllers\Api\Hris\ClientVisitController;
+use App\Http\Controllers\Api\Hris\FinanceAttachmentController;
 use App\Http\Controllers\Api\Hris\LeaderboardController;
 use App\Http\Controllers\Api\Hris\LeaveBalanceController;
 use App\Http\Controllers\Api\Hris\LeaveRequestController;
@@ -83,6 +84,10 @@ Route::middleware(['auth:sanctum'])
         Route::get('/reimbursements', [ReimbursementController::class, 'index']);
         Route::post('/reimbursements', [ReimbursementController::class, 'store']);
         Route::put('/reimbursements/{reimbursement}/cancel', [ReimbursementController::class, 'cancel']);
+
+        // Finance Center — protected attachments (ER evidence, PR proof, bank statements)
+        Route::get('/finance/attachments/{financeAttachment}/download', [FinanceAttachmentController::class, 'download']);
+        Route::delete('/finance/attachments/{financeAttachment}', [FinanceAttachmentController::class, 'destroy']);
 
         // PGP / training records (mobile)
         Route::get('/pgp/summary', [PgpSummaryController::class, 'show']);

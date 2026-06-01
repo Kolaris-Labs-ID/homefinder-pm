@@ -7,6 +7,7 @@ use App\Models\Hris\Applicant;
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Department;
 use App\Models\Hris\Employee;
+use App\Models\Hris\FinanceAttachment;
 use App\Models\Hris\JobPosting;
 use App\Models\Hris\LeaveRequest;
 use App\Models\Hris\LeaveType;
@@ -24,6 +25,7 @@ use App\Policies\Hris\ApplicantPolicy;
 use App\Policies\Hris\AttendanceLogPolicy;
 use App\Policies\Hris\DepartmentPolicy;
 use App\Policies\Hris\EmployeePolicy;
+use App\Policies\Hris\FinanceAttachmentPolicy;
 use App\Policies\Hris\JobPostingPolicy;
 use App\Policies\Hris\LeaveRequestPolicy;
 use App\Policies\Hris\LeaveTypePolicy;
@@ -52,6 +54,7 @@ class AuthServiceProvider extends ServiceProvider
         AttendanceLog::class => AttendanceLogPolicy::class,
         Department::class => DepartmentPolicy::class,
         Employee::class => EmployeePolicy::class,
+        FinanceAttachment::class => FinanceAttachmentPolicy::class,
         JobPosting::class => JobPostingPolicy::class,
         LeaveRequest::class => LeaveRequestPolicy::class,
         LeaveType::class => LeaveTypePolicy::class,
