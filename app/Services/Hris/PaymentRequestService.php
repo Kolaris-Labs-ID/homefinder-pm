@@ -3,6 +3,7 @@
 namespace App\Services\Hris;
 
 use App\Models\Hris\ExpenseRequest;
+use App\Models\Hris\FinanceAttachment;
 use App\Models\Hris\PaymentRequest;
 use App\Models\Hris\PaymentRequestLine;
 use App\Models\User;
@@ -27,6 +28,9 @@ class PaymentRequestService
     ];
 
     private const VARIANCE_RISK_RATIO = 0.10;
+
+    /** Payments at/above this require a reconciler distinct from the payer (configurable default). */
+    private const HIGH_VALUE_THRESHOLD = '10000000';
 
     /**
      * Convert a finance-verified ExpenseRequest into a draft PaymentRequest (Phase 7).
@@ -263,6 +267,105 @@ class PaymentRequestService
             'status' => PaymentRequestLine::STATUS_FAILED,
             'failure_reason' => $reason,
         ]);
+    }
+
+    /**
+     * Record a self-attested payment with proof → paid_pending_reconciliation (not reconciled).
+     */
+    public function markPaid(PaymentRequest $pr, User $executor, string $reference, FinanceAttachment $proof): void
+    {
+        if (! in_array($pr->status, [PaymentRequest::STATUS_APPROVED_BY_COO, PaymentRequest::STATUS_SCHEDULED_FOR_PAYMENT], true)) {
+            throw new \RuntimeException('Only a COO-approved PR can be marked paid.');
+        }
+
+        DB::transaction(function () use ($pr, $executor, $reference, $proof) {
+            $pr->update([
+                'status' => PaymentRequest::STATUS_PAID_PENDING_RECONCILIATION,
+                'paid_by' => $executor->id,
+                'payment_executor_id' => $executor->id,
+                'paid_at' => now(),
+                'payment_reference' => $reference,
+                'payment_proof_attachment_id' => $proof->id,
+            ]);
+
+            $proof->update(['locked_at' => now(), 'locked_reason' => 'Payment proof']);
+        });
+    }
+
+    /**
+     * Confirm a payment against the bank statement. Payer cannot reconcile their own
+     * high-value payment; any field mismatch fails reconciliation rather than closing it.
+     */
+    public function reconcile(PaymentRequest $pr, User $reconciler, array $observed): void
+    {
+        if ($pr->status !== PaymentRequest::STATUS_PAID_PENDING_RECONCILIATION) {
+            throw new \RuntimeException('Only a paid-pending-reconciliation PR can be reconciled.');
+        }
+
+        if ($this->isHighValue($pr) && (int) $pr->paid_by === (int) $reconciler->id) {
+            throw new \RuntimeException('The payment executor cannot reconcile their own high-value payment.');
+        }
+
+        $matches = bccomp((string) ($observed['amount'] ?? '0'), (string) $pr->amount, 2) === 0
+            && ($observed['payee_name'] ?? null) === $pr->payee_name
+            && (string) ($observed['bank_account_last4'] ?? '') === (string) $pr->bank_account_last4;
+
+        $pr->update([
+            'status' => $matches ? PaymentRequest::STATUS_RECONCILED : PaymentRequest::STATUS_RECONCILIATION_FAILED,
+            'reconciled_by' => $reconciler->id,
+            'reconciled_at' => now(),
+            'reconciliation_reference' => $observed['reference'] ?? null,
+            'metadata' => $matches
+                ? $pr->metadata
+                : array_merge($pr->metadata ?? [], ['reconciliation_mismatch' => $observed]),
+        ]);
+    }
+
+    public function void(PaymentRequest $pr, User $actor, string $reason): void
+    {
+        $voidable = [
+            PaymentRequest::STATUS_DRAFT, PaymentRequest::STATUS_SUBMITTED_TO_COO,
+            PaymentRequest::STATUS_APPROVED_BY_COO, PaymentRequest::STATUS_NEEDS_CLARIFICATION,
+            PaymentRequest::STATUS_REJECTED_BY_COO,
+        ];
+
+        if (! in_array($pr->status, $voidable, true)) {
+            throw new \RuntimeException('This PR can no longer be voided (it is already in a payment or terminal state).');
+        }
+
+        $pr->update([
+            'status' => PaymentRequest::STATUS_VOIDED,
+            'voided_by' => $actor->id,
+            'voided_at' => now(),
+            'metadata' => array_merge($pr->metadata ?? [], ['void_reason' => $reason]),
+        ]);
+
+        $this->returnSourceExpenseRequest($pr);
+    }
+
+    public function reverse(PaymentRequest $pr, User $actor, string $reason): void
+    {
+        $reversible = [
+            PaymentRequest::STATUS_PAID_PENDING_RECONCILIATION,
+            PaymentRequest::STATUS_RECONCILED,
+            PaymentRequest::STATUS_RECONCILIATION_FAILED,
+        ];
+
+        if (! in_array($pr->status, $reversible, true)) {
+            throw new \RuntimeException('Only a paid PR can be reversed.');
+        }
+
+        $pr->update([
+            'status' => PaymentRequest::STATUS_REVERSED,
+            'reversed_by' => $actor->id,
+            'reversed_at' => now(),
+            'metadata' => array_merge($pr->metadata ?? [], ['reverse_reason' => $reason]),
+        ]);
+    }
+
+    private function isHighValue(PaymentRequest $pr): bool
+    {
+        return bccomp((string) $pr->amount, self::HIGH_VALUE_THRESHOLD, 2) >= 0;
     }
 
     public function buildSnapshot(PaymentRequest $pr): array
