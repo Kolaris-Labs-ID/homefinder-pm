@@ -32,6 +32,10 @@ class PaymentRequestService
     /** Payments at/above this require a reconciler distinct from the payer (configurable default). */
     private const HIGH_VALUE_THRESHOLD = '10000000';
 
+    public function __construct(
+        protected FinanceAuditLogger $audit,
+    ) {}
+
     /**
      * Convert a finance-verified ExpenseRequest into a draft PaymentRequest (Phase 7).
      * Transactional + row-locked: exactly one active PR per ER, even under concurrent/double submits.
@@ -85,6 +89,8 @@ class PaymentRequestService
             ]);
 
             $er->update(['status' => ExpenseRequest::STATUS_PR_CREATED]);
+
+            $this->audit->log($pr, 'payment_request.created_from_expense_request', $creator);
 
             return $pr;
         });
@@ -180,6 +186,10 @@ class PaymentRequestService
                 'locked_at' => now(),
                 'locked_reason' => 'Included in COO approval snapshot',
             ]);
+
+            $this->audit->log($pr, 'payment_request.approved_by_coo', $coo, [
+                'after' => ['approval_snapshot_hash' => $snapshot ? $this->hashSnapshot($snapshot) : null],
+            ]);
         });
     }
 
@@ -195,6 +205,7 @@ class PaymentRequestService
             'coo_rejection_reason' => $reason,
         ]);
 
+        $this->audit->log($pr, 'payment_request.rejected_by_coo', $coo, ['reason' => $reason]);
         $this->returnSourceExpenseRequest($pr);
     }
 
@@ -290,6 +301,8 @@ class PaymentRequestService
 
             $proof->update(['locked_at' => now(), 'locked_reason' => 'Payment proof']);
         });
+
+        $this->audit->log($pr, 'payment_request.marked_paid', $executor, ['after' => ['payment_reference' => $reference]]);
     }
 
     /**
@@ -319,6 +332,12 @@ class PaymentRequestService
                 ? $pr->metadata
                 : array_merge($pr->metadata ?? [], ['reconciliation_mismatch' => $observed]),
         ]);
+
+        $this->audit->log(
+            $pr,
+            $matches ? 'payment_request.reconciled' : 'payment_request.reconciliation_failed',
+            $reconciler,
+        );
     }
 
     public function void(PaymentRequest $pr, User $actor, string $reason): void
@@ -340,6 +359,7 @@ class PaymentRequestService
             'metadata' => array_merge($pr->metadata ?? [], ['void_reason' => $reason]),
         ]);
 
+        $this->audit->log($pr, 'payment_request.voided', $actor, ['reason' => $reason]);
         $this->returnSourceExpenseRequest($pr);
     }
 
@@ -361,6 +381,8 @@ class PaymentRequestService
             'reversed_at' => now(),
             'metadata' => array_merge($pr->metadata ?? [], ['reverse_reason' => $reason]),
         ]);
+
+        $this->audit->log($pr, 'payment_request.reversed', $actor, ['reason' => $reason]);
     }
 
     private function isHighValue(PaymentRequest $pr): bool
