@@ -15,8 +15,7 @@ class ApprovalWorkflowService
      * Get the active workflow for a specific module.
      * Only returns workflows where is_active = true.
      *
-     * @param string $module The module type (leave, reimbursement, payroll_adjustment)
-     * @return ApprovalWorkflow|null
+     * @param  string  $module  The module type (leave, reimbursement, payroll_adjustment)
      */
     public function getActiveWorkflowForModule(string $module): ?ApprovalWorkflow
     {
@@ -29,9 +28,8 @@ class ApprovalWorkflowService
      * Initialize a workflow for an approvable item.
      * Only uses active workflows - inactive workflows are ignored.
      *
-     * @param Model $approvable The model that needs approval (LeaveRequest, etc.)
-     * @param string $module The module type (leave, reimbursement, etc.)
-     * @return void
+     * @param  Model  $approvable  The model that needs approval (LeaveRequest, etc.)
+     * @param  string  $module  The module type (leave, reimbursement, etc.)
      */
     public function initializeWorkflow(Model $approvable, string $module): void
     {
@@ -39,7 +37,7 @@ class ApprovalWorkflowService
         // IMPORTANT: Only active workflows are used for new requests (Requirements 6.4)
         $workflow = $this->getActiveWorkflowForModule($module);
 
-        if (!$workflow || empty($workflow->steps)) {
+        if (! $workflow || empty($workflow->steps)) {
             // No active workflow found, use default behavior
             return;
         }
@@ -84,12 +82,11 @@ class ApprovalWorkflowService
         }
     }
 
-
     /**
      * Resolve the approver user ID from a step definition.
      *
-     * @param array $stepDefinition The step definition with type and value
-     * @param Model $approvable The approvable model for context
+     * @param  array  $stepDefinition  The step definition with type and value
+     * @param  Model  $approvable  The approvable model for context
      * @return int|null The resolved user ID or null
      */
     protected function resolveApprover(array $stepDefinition, Model $approvable): ?int
@@ -116,9 +113,6 @@ class ApprovalWorkflowService
 
     /**
      * Get the current pending step for an approvable item.
-     *
-     * @param Model $approvable
-     * @return ApprovalStep|null
      */
     public function getCurrentStep(Model $approvable): ?ApprovalStep
     {
@@ -132,7 +126,6 @@ class ApprovalWorkflowService
     /**
      * Get all approval steps for an approvable item.
      *
-     * @param Model $approvable
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getSteps(Model $approvable)
@@ -146,10 +139,6 @@ class ApprovalWorkflowService
     /**
      * Approve the current step.
      *
-     * @param ApprovalStep $step
-     * @param User $approver
-     * @param string|null $notes
-     * @return void
      * @throws \Exception
      */
     public function approve(ApprovalStep $step, User $approver, ?string $notes = null): void
@@ -160,7 +149,7 @@ class ApprovalWorkflowService
         }
 
         // Validate the approver is authorized
-        if (!$this->isUserAuthorizedForStep($step, $approver)) {
+        if (! $this->isUserAuthorizedForStep($step, $approver)) {
             throw new \Exception('You are not authorized to approve this step.');
         }
 
@@ -201,10 +190,6 @@ class ApprovalWorkflowService
      *
      * Used for modules like Leave where any single approval is sufficient.
      *
-     * @param ApprovalStep $step
-     * @param User $approver
-     * @param string|null $notes
-     * @return void
      * @throws \Exception
      */
     public function approveParallel(ApprovalStep $step, User $approver, ?string $notes = null): void
@@ -215,7 +200,7 @@ class ApprovalWorkflowService
         }
 
         // Validate the approver is authorized
-        if (!$this->isUserAuthorizedForStep($step, $approver)) {
+        if (! $this->isUserAuthorizedForStep($step, $approver)) {
             throw new \Exception('You are not authorized to approve this step.');
         }
 
@@ -244,16 +229,12 @@ class ApprovalWorkflowService
      * and all approvers are notified simultaneously.
      *
      * Used for modules like Leave where any single approval is sufficient.
-     *
-     * @param Model $approvable
-     * @param string $module
-     * @return void
      */
     public function initializeParallelWorkflow(Model $approvable, string $module): void
     {
         $workflow = $this->getActiveWorkflowForModule($module);
 
-        if (!$workflow || empty($workflow->steps)) {
+        if (! $workflow || empty($workflow->steps)) {
             return;
         }
 
@@ -299,14 +280,9 @@ class ApprovalWorkflowService
         }
     }
 
-
     /**
      * Reject the current step.
      *
-     * @param ApprovalStep $step
-     * @param User $approver
-     * @param string $reason
-     * @return void
      * @throws \Exception
      */
     public function reject(ApprovalStep $step, User $approver, string $reason): void
@@ -317,7 +293,7 @@ class ApprovalWorkflowService
         }
 
         // Validate the approver is authorized
-        if (!$this->isUserAuthorizedForStep($step, $approver)) {
+        if (! $this->isUserAuthorizedForStep($step, $approver)) {
             throw new \Exception('You are not authorized to reject this step.');
         }
 
@@ -336,9 +312,6 @@ class ApprovalWorkflowService
 
     /**
      * Get the next step after the given step.
-     *
-     * @param ApprovalStep $currentStep
-     * @return ApprovalStep|null
      */
     protected function getNextStep(ApprovalStep $currentStep): ?ApprovalStep
     {
@@ -351,9 +324,6 @@ class ApprovalWorkflowService
 
     /**
      * Mark the approvable model as approved.
-     *
-     * @param Model $approvable
-     * @return void
      */
     protected function markApprovableAsApproved(Model $approvable): void
     {
@@ -372,10 +342,6 @@ class ApprovalWorkflowService
 
     /**
      * Mark the approvable model as rejected.
-     *
-     * @param Model $approvable
-     * @param string $reason
-     * @return void
      */
     protected function markApprovableAsRejected(Model $approvable, string $reason): void
     {
@@ -396,21 +362,20 @@ class ApprovalWorkflowService
     /**
      * Notify the requestor about a status change (approved or rejected).
      *
-     * @param Model $approvable
-     * @param string $status 'approved' or 'rejected'
-     * @param string|null $reason Rejection reason (only for rejected status)
-     * @return void
+     * @param  string  $status  'approved' or 'rejected'
+     * @param  string|null  $reason  Rejection reason (only for rejected status)
      */
     protected function notifyRequestorStatusChange(Model $approvable, string $status, ?string $reason = null): void
     {
         try {
             $requestorUserId = $this->getRequestorUserId($approvable);
 
-            if (!$requestorUserId) {
+            if (! $requestorUserId) {
                 Log::warning('Could not find requestor user ID for notification', [
                     'approvable_type' => get_class($approvable),
                     'approvable_id' => $approvable->id,
                 ]);
+
                 return;
             }
 
@@ -421,7 +386,7 @@ class ApprovalWorkflowService
             $title = $status === 'approved' ? 'Request Approved' : 'Request Rejected';
             $message = $status === 'approved'
                 ? "Your {$approvableType} has been approved"
-                : "Your {$approvableType} has been rejected" . ($reason ? ": {$reason}" : '');
+                : "Your {$approvableType} has been rejected".($reason ? ": {$reason}" : '');
 
             Notification::create([
                 'user_id' => $requestorUserId,
@@ -437,7 +402,7 @@ class ApprovalWorkflowService
                 ],
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to send requestor status notification: ' . $e->getMessage(), [
+            Log::error('Failed to send requestor status notification: '.$e->getMessage(), [
                 'approvable_type' => get_class($approvable),
                 'approvable_id' => $approvable->id,
                 'status' => $status,
@@ -447,9 +412,6 @@ class ApprovalWorkflowService
 
     /**
      * Get the user ID of the requestor from an approvable model.
-     *
-     * @param Model $approvable
-     * @return int|null
      */
     protected function getRequestorUserId(Model $approvable): ?int
     {
@@ -472,13 +434,10 @@ class ApprovalWorkflowService
     /**
      * Notify the approver about a pending approval.
      * This method creates a notification with a link to the approvable item.
-     *
-     * @param ApprovalStep $step
-     * @return void
      */
     protected function notifyApprover(ApprovalStep $step): void
     {
-        if (!$step->approver_id) {
+        if (! $step->approver_id) {
             // Try to resolve approver from role if no direct assignment
             if ($step->approver_role) {
                 $user = User::whereHas('roles', function ($query) use ($step) {
@@ -489,6 +448,7 @@ class ApprovalWorkflowService
                     $this->createApproverNotification($step, $user->id);
                 }
             }
+
             return;
         }
 
@@ -497,10 +457,6 @@ class ApprovalWorkflowService
 
     /**
      * Create the actual notification for an approver.
-     *
-     * @param ApprovalStep $step
-     * @param int $approverId
-     * @return void
      */
     protected function createApproverNotification(ApprovalStep $step, int $approverId): void
     {
@@ -528,7 +484,7 @@ class ApprovalWorkflowService
                 ],
             ]);
         } catch (\Exception $e) {
-            Log::error('Failed to send approval notification: ' . $e->getMessage(), [
+            Log::error('Failed to send approval notification: '.$e->getMessage(), [
                 'step_id' => $step->id,
                 'approver_id' => $approverId,
             ]);
@@ -537,9 +493,6 @@ class ApprovalWorkflowService
 
     /**
      * Get the URL to view/edit the approvable item.
-     *
-     * @param Model $approvable
-     * @return string|null
      */
     protected function getApprovableUrl(Model $approvable): ?string
     {
@@ -551,19 +504,19 @@ class ApprovalWorkflowService
                 \App\Models\Hris\Reimbursement::class => route('filament.admin.resources.reimbursements.edit', ['record' => $approvable->id]),
                 \App\Models\Hris\PayrollRecord::class => route('filament.admin.resources.payrun-batches.index'),
                 \App\Models\Hris\TrainingRecord::class => route('filament.admin.resources.training-records.edit', ['record' => $approvable->id]),
+                \App\Models\Hris\ExpenseRequest::class => route('filament.admin.resources.expense-requests.view', ['record' => $approvable->id]),
+                \App\Models\Hris\PaymentRequest::class => route('filament.admin.resources.payment-requests.view', ['record' => $approvable->id]),
                 default => null,
             };
         } catch (\Exception $e) {
-            Log::warning('Failed to generate approvable URL: ' . $e->getMessage());
+            Log::warning('Failed to generate approvable URL: '.$e->getMessage());
+
             return null;
         }
     }
 
     /**
      * Get the requestor name from an approvable model.
-     *
-     * @param Model $approvable
-     * @return string|null
      */
     protected function getRequestorName(Model $approvable): ?string
     {
@@ -585,9 +538,6 @@ class ApprovalWorkflowService
     /**
      * Get all pending approval steps for a given user.
      * Supports both direct user assignment and role-based assignment.
-     *
-     * @param User $user
-     * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getPendingApprovalsForUser(User $user): \Illuminate\Database\Eloquent\Collection
     {
@@ -600,7 +550,7 @@ class ApprovalWorkflowService
                 $query->where('approver_id', $user->id);
 
                 // Role-based assignment
-                if (!empty($userRoles)) {
+                if (! empty($userRoles)) {
                     $query->orWhereIn('approver_role', $userRoles);
                 }
             })
@@ -628,16 +578,14 @@ class ApprovalWorkflowService
     /**
      * Get pending approval steps for a user filtered by module type.
      *
-     * @param User $user
-     * @param string $module The module type (leave, reimbursement, payroll_adjustment, training)
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @param  string  $module  The module type (leave, reimbursement, payroll_adjustment, training)
      */
     public function getPendingApprovalsByModule(User $user, string $module): \Illuminate\Database\Eloquent\Collection
     {
         $approvableClass = $this->moduleToClass($module);
 
-        if (!$approvableClass) {
-            return new \Illuminate\Database\Eloquent\Collection();
+        if (! $approvableClass) {
+            return new \Illuminate\Database\Eloquent\Collection;
         }
 
         // Get user's role names
@@ -650,7 +598,7 @@ class ApprovalWorkflowService
                 $query->where('approver_id', $user->id);
 
                 // Role-based assignment
-                if (!empty($userRoles)) {
+                if (! empty($userRoles)) {
                     $query->orWhereIn('approver_role', $userRoles);
                 }
             })
@@ -663,9 +611,9 @@ class ApprovalWorkflowService
      * Bulk approve multiple approval steps in a single transaction.
      * Either all items are approved successfully, or none are modified (atomic).
      *
-     * @param array $stepIds Array of ApprovalStep IDs to approve
-     * @param User $approver The user performing the approval
-     * @param string|null $notes Optional notes for all approvals
+     * @param  array  $stepIds  Array of ApprovalStep IDs to approve
+     * @param  User  $approver  The user performing the approval
+     * @param  string|null  $notes  Optional notes for all approvals
      * @return array Array with 'success' boolean and 'results' array with status for each item
      */
     public function bulkApprove(array $stepIds, User $approver, ?string $notes = null): array
@@ -677,7 +625,7 @@ class ApprovalWorkflowService
                 foreach ($stepIds as $stepId) {
                     $step = ApprovalStep::find($stepId);
 
-                    if (!$step) {
+                    if (! $step) {
                         throw new \Exception("Approval step {$stepId} not found.");
                     }
 
@@ -688,7 +636,7 @@ class ApprovalWorkflowService
 
                     // Validate the approver is authorized
                     $isAuthorized = $this->isUserAuthorizedForStep($step, $approver);
-                    if (!$isAuthorized) {
+                    if (! $isAuthorized) {
                         throw new \Exception("User is not authorized to approve step {$stepId}.");
                     }
 
@@ -707,7 +655,7 @@ class ApprovalWorkflowService
                 'results' => $results,
             ];
         } catch (\Exception $e) {
-            Log::error('Bulk approval failed: ' . $e->getMessage(), [
+            Log::error('Bulk approval failed: '.$e->getMessage(), [
                 'step_ids' => $stepIds,
                 'approver_id' => $approver->id,
             ]);
@@ -722,10 +670,6 @@ class ApprovalWorkflowService
 
     /**
      * Check if a user is authorized to approve a specific step.
-     *
-     * @param ApprovalStep $step
-     * @param User $user
-     * @return bool
      */
     protected function isUserAuthorizedForStep(ApprovalStep $step, User $user): bool
     {
@@ -745,9 +689,6 @@ class ApprovalWorkflowService
     /**
      * Get approval statistics for a user.
      * Returns counts of pending, approved, and rejected items.
-     *
-     * @param User $user
-     * @return array
      */
     public function getApprovalStatistics(User $user): array
     {
@@ -762,7 +703,7 @@ class ApprovalWorkflowService
                     $query->where('approver_id', $user->id);
 
                     // Role-based assignment
-                    if (!empty($userRoles)) {
+                    if (! empty($userRoles)) {
                         $query->orWhereIn('approver_role', $userRoles);
                     }
                 })

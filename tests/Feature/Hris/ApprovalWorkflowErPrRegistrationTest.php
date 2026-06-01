@@ -35,3 +35,24 @@ it('still maps the legacy modules (regression guard for the extraction)', functi
 it('returns null for an unknown module', function () {
     expect(app(ApprovalWorkflowService::class)->moduleToClass('not_a_module'))->toBeNull();
 });
+
+it('resolves Filament approvable URLs for ER and PR (Phase 2 deferral)', function () {
+    $employee = \App\Models\Hris\Employee::factory()->create();
+    $er = \App\Models\Hris\ExpenseRequest::create([
+        'request_number' => 'ER-URL-1', 'employee_id' => $employee->id, 'category' => 'x', 'title' => 't',
+        'amount' => 100, 'currency' => 'IDR', 'expense_date' => '2026-05-30',
+        'payment_mode' => 'employee_reimbursement', 'status' => 'submitted',
+    ]);
+    $pr = \App\Models\Hris\PaymentRequest::create([
+        'payment_request_number' => 'PR-URL-1', 'source_type' => 'manual',
+        'created_by' => \App\Models\User::factory()->create()->id,
+        'payee_name' => 'V', 'amount' => 100, 'currency' => 'IDR', 'status' => 'draft',
+    ]);
+
+    $svc = app(ApprovalWorkflowService::class);
+    $method = new ReflectionMethod($svc, 'getApprovableUrl');
+    $method->setAccessible(true);
+
+    expect($method->invoke($svc, $er))->toContain("expense-requests/{$er->id}");
+    expect($method->invoke($svc, $pr))->toContain("payment-requests/{$pr->id}");
+});
