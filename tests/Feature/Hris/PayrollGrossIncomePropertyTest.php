@@ -71,6 +71,7 @@ test('Property 8: Gross income calculation accuracy', function () {
                 'allowances_fixed' => $fixedAllowances,
                 'allowances_variable' => $variableAllowances,
                 'effective_date' => Carbon::now()->subDays(10),
+                'pph21_method' => SalaryStructure::PPH21_METHOD_GROSS,
             ])
             ->create();
 
@@ -143,6 +144,10 @@ test('Property 8 Edge Cases: Gross income boundary conditions', function () {
             'allowances_fixed' => [],
             'allowances_variable' => [],
             'effective_date' => Carbon::now()->subDays(10),
+            // Pinned to gross: this property covers salary-component summation.
+            // gross_up adds a taxable tunjangan pajak to gross (covered by
+            // Pph21BearerNetPayTest); the random factory default made this flaky.
+            'pph21_method' => SalaryStructure::PPH21_METHOD_GROSS,
         ])
         ->create();
 
@@ -180,6 +185,10 @@ test('Property 8 Edge Cases: Gross income boundary conditions', function () {
             'allowances_fixed' => $fixedAllowances,
             'allowances_variable' => [],
             'effective_date' => Carbon::now()->subDays(10),
+            // Pinned to gross: this property covers salary-component summation.
+            // gross_up adds a taxable tunjangan pajak to gross (covered by
+            // Pph21BearerNetPayTest); the random factory default made this flaky.
+            'pph21_method' => SalaryStructure::PPH21_METHOD_GROSS,
         ])
         ->create();
 
@@ -217,6 +226,10 @@ test('Property 8 Edge Cases: Gross income boundary conditions', function () {
             'allowances_fixed' => [],
             'allowances_variable' => $variableAllowances,
             'effective_date' => Carbon::now()->subDays(10),
+            // Pinned to gross: this property covers salary-component summation.
+            // gross_up adds a taxable tunjangan pajak to gross (covered by
+            // Pph21BearerNetPayTest); the random factory default made this flaky.
+            'pph21_method' => SalaryStructure::PPH21_METHOD_GROSS,
         ])
         ->create();
 
@@ -262,6 +275,10 @@ test('Property 8 Edge Cases: Gross income boundary conditions', function () {
             'allowances_fixed' => $fixedAllowances,
             'allowances_variable' => $variableAllowances,
             'effective_date' => Carbon::now()->subDays(10),
+            // Pinned to gross: this property covers salary-component summation.
+            // gross_up adds a taxable tunjangan pajak to gross (covered by
+            // Pph21BearerNetPayTest); the random factory default made this flaky.
+            'pph21_method' => SalaryStructure::PPH21_METHOD_GROSS,
         ])
         ->create();
 
@@ -304,6 +321,10 @@ test('Property 8 Edge Cases: Gross income boundary conditions', function () {
             'allowances_fixed' => $fixedAllowances,
             'allowances_variable' => $variableAllowances,
             'effective_date' => Carbon::now()->subDays(10),
+            // Pinned to gross: this property covers salary-component summation.
+            // gross_up adds a taxable tunjangan pajak to gross (covered by
+            // Pph21BearerNetPayTest); the random factory default made this flaky.
+            'pph21_method' => SalaryStructure::PPH21_METHOD_GROSS,
         ])
         ->create();
 
@@ -344,6 +365,10 @@ test('Property 8 Edge Cases: Gross income boundary conditions', function () {
             'allowances_fixed' => $fixedAllowances,
             'allowances_variable' => $variableAllowances,
             'effective_date' => Carbon::now()->subDays(10),
+            // Pinned to gross: this property covers salary-component summation.
+            // gross_up adds a taxable tunjangan pajak to gross (covered by
+            // Pph21BearerNetPayTest); the random factory default made this flaky.
+            'pph21_method' => SalaryStructure::PPH21_METHOD_GROSS,
         ])
         ->create();
 

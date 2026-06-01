@@ -169,11 +169,18 @@ class PayrollCalculationService
         // Calculate taxable income (gross - employee BPJS contributions)
         $taxableIncome = $grossIncome - $bpjs['total_employee'];
 
-        // Calculate PPh 21
-        $pph21Amount = $this->pph21Service->calculateMonthlyTax(
-            $taxableIncome,
-            $salaryStructure->pph21_method ?? 'gross'
-        );
+        // Resolve PPh 21 per the structure's method (who bears the tax).
+        $pph21Method = $salaryStructure->pph21_method ?? 'gross';
+        $taxComponents = $this->pph21Service->taxComponents($taxableIncome, $pph21Method);
+
+        // Gross-up adds a taxable tax allowance (tunjangan pajak) to the employee's
+        // gross; withholding the equal tax then leaves take-home unchanged.
+        $tunjanganPajak = $taxComponents['tunjangan_pajak'];
+        $grossIncome += $tunjanganPajak;
+
+        // PPh 21 actually withheld from the employee (0 when the company bears it).
+        $pph21Amount = $taxComponents['employee_withheld'];
+        $pph21CompanyBorne = $taxComponents['company_borne'];
 
         // Calculate other deductions from salary structure (prorated if enabled)
         $otherDeductions = $salaryStructure->total_deductions;
@@ -181,7 +188,7 @@ class PayrollCalculationService
             $otherDeductions = round($otherDeductions * $prorateRatio, 2);
         }
 
-        // Calculate total deductions (employee BPJS + PPh 21 + other)
+        // Calculate total deductions (employee BPJS + PPh 21 withheld + other)
         $totalDeductions = $bpjs['total_employee'] + $pph21Amount + $otherDeductions;
 
         // Calculate net income
@@ -216,6 +223,8 @@ class PayrollCalculationService
             'bpjs_breakdown' => $bpjs,
             'bpjs_paid_by' => $salaryStructure->bpjs_paid_by,
             'pph21_rate' => $this->pph21Service->getTerRate($taxableIncome),
+            'pph21_company_borne' => $pph21CompanyBorne,
+            'tunjangan_pajak' => $tunjanganPajak,
             // Attendance details
             'attendance_summary' => $attendanceSummary,
             'weekend_holiday_work_days' => ($attendanceSummary['weekend_work_days'] ?? 0) + ($attendanceSummary['holiday_work_days'] ?? 0),

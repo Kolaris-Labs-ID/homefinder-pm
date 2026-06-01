@@ -54,11 +54,12 @@ class Pph21CalculationService
 
         switch ($method) {
             case self::METHOD_NETTO:
-                // Netto: Tax is borne by employee, calculated on gross
+                // Netto: same monthly figure as gross; the COMPANY bears it
+                // (bearer/withholding is resolved in taxComponents()).
                 return round($monthlyGrossIncome * $rate, 2);
 
             case self::METHOD_GROSS:
-                // Gross: Tax is borne by employee, calculated on gross
+                // Gross: tax figure withheld from the employee.
                 return round($monthlyGrossIncome * $rate, 2);
 
             case self::METHOD_GROSS_UP:
@@ -73,6 +74,35 @@ class Pph21CalculationService
             default:
                 return round($monthlyGrossIncome * $rate, 2);
         }
+    }
+
+    /**
+     * Break a month's PPh 21 into who-bears-what, per calculation method.
+     *
+     * - gross:    employee bears the tax (withheld from take-home).
+     * - netto:    company bears the flat tax; nothing withheld from the employee.
+     * - gross_up: company funds a taxable tax allowance (tunjangan pajak) added to
+     *             gross income; withholding the equal tax leaves take-home unchanged.
+     *
+     * @param float $taxableBase Monthly taxable income (gross - employee BPJS)
+     * @param string $method netto | gross | gross_up
+     * @return array{tunjangan_pajak: float, employee_withheld: float, company_borne: float}
+     */
+    public function taxComponents(float $taxableBase, string $method): array
+    {
+        $baseTax = $this->calculateMonthlyTax($taxableBase, self::METHOD_GROSS);
+
+        if ($method === self::METHOD_NETTO) {
+            return ['tunjangan_pajak' => 0.0, 'employee_withheld' => 0.0, 'company_borne' => $baseTax];
+        }
+
+        if ($method === self::METHOD_GROSS_UP) {
+            $tunjangan = $this->calculateMonthlyTax($taxableBase, self::METHOD_GROSS_UP);
+
+            return ['tunjangan_pajak' => $tunjangan, 'employee_withheld' => $tunjangan, 'company_borne' => $tunjangan];
+        }
+
+        return ['tunjangan_pajak' => 0.0, 'employee_withheld' => $baseTax, 'company_borne' => 0.0];
     }
 
     /**
@@ -145,9 +175,9 @@ class Pph21CalculationService
     public static function getMethodLabels(): array
     {
         return [
-            self::METHOD_NETTO => 'Netto (Pajak ditanggung karyawan)',
+            self::METHOD_NETTO => 'Netto (Pajak ditanggung perusahaan)',
             self::METHOD_GROSS => 'Gross (Pajak ditanggung karyawan)',
-            self::METHOD_GROSS_UP => 'Gross Up (Pajak ditanggung perusahaan)',
+            self::METHOD_GROSS_UP => 'Gross Up (Pajak ditanggung perusahaan, tunjangan pajak)',
         ];
     }
 

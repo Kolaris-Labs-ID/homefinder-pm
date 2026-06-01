@@ -189,3 +189,30 @@ describe('Pph21CalculationService edge cases', function () {
         expect($tax)->toBeGreaterThan(0);
     });
 });
+
+describe('Pph21CalculationService taxComponents (tax bearer per method)', function () {
+    // base 10M, TER rate 2% => base tax 200,000; grossed-up = 200000 / 0.98 = 204,081.63
+    it('gross: employee bears the tax, no allowance', function () {
+        $c = $this->service->taxComponents(10000000, 'gross');
+
+        expect($c['tunjangan_pajak'])->toBe(0.0)
+            ->and($c['employee_withheld'])->toBe(200000.00)
+            ->and($c['company_borne'])->toBe(0.0);
+    });
+
+    it('netto: company bears the flat tax, nothing withheld from the employee', function () {
+        $c = $this->service->taxComponents(10000000, 'netto');
+
+        expect($c['tunjangan_pajak'])->toBe(0.0)
+            ->and($c['employee_withheld'])->toBe(0.0)
+            ->and($c['company_borne'])->toBe(200000.00);
+    });
+
+    it('gross_up: a taxable tunjangan is added and withheld (take-home neutral)', function () {
+        $c = $this->service->taxComponents(10000000, 'gross_up');
+
+        expect($c['tunjangan_pajak'])->toEqualWithDelta(204081.63, 0.01)
+            ->and($c['employee_withheld'])->toEqualWithDelta(204081.63, 0.01)
+            ->and($c['company_borne'])->toEqualWithDelta(204081.63, 0.01);
+    });
+});
