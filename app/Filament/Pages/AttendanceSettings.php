@@ -37,6 +37,7 @@ class AttendanceSettings extends Page implements HasForms
             'wfh_quota_per_week' => $settings->wfh_quota_per_week,
             'full_day_hours' => $settings->full_day_hours,
             'half_day_hours' => $settings->half_day_hours,
+            'late_penalty_tiers' => $settings->late_penalty_tiers ?? [],
         ]);
     }
 
