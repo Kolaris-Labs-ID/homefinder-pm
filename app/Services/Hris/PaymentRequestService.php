@@ -4,6 +4,7 @@ namespace App\Services\Hris;
 
 use App\Models\Hris\ExpenseRequest;
 use App\Models\Hris\PaymentRequest;
+use App\Models\Hris\PaymentRequestLine;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -226,6 +227,42 @@ class PaymentRequestService
         }
 
         $pr->update($attrs);
+    }
+
+    public function addLine(PaymentRequest $pr, array $data): PaymentRequestLine
+    {
+        $attrs = array_intersect_key($data, array_flip([
+            'source_line_type', 'source_line_id', 'employee_id', 'payee_name', 'bank_name', 'amount',
+        ])) + [
+            'payment_request_id' => $pr->id,
+            'currency' => $data['currency'] ?? $pr->currency,
+            'status' => PaymentRequestLine::STATUS_PENDING,
+        ];
+
+        if (array_key_exists('bank_account_number', $data)) {
+            $number = $data['bank_account_number'];
+            $attrs['bank_account_number_encrypted'] = $number;
+            $attrs['bank_account_last4'] = $number ? substr(preg_replace('/\D/', '', $number), -4) : null;
+        }
+
+        return PaymentRequestLine::create($attrs);
+    }
+
+    public function markLinePaid(PaymentRequestLine $line, string $reference): void
+    {
+        $line->update([
+            'status' => PaymentRequestLine::STATUS_PAID,
+            'payment_reference' => $reference,
+            'paid_at' => now(),
+        ]);
+    }
+
+    public function markLineFailed(PaymentRequestLine $line, string $reason): void
+    {
+        $line->update([
+            'status' => PaymentRequestLine::STATUS_FAILED,
+            'failure_reason' => $reason,
+        ]);
     }
 
     public function buildSnapshot(PaymentRequest $pr): array
