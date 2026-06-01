@@ -61,6 +61,11 @@ class SalaryStructureResource extends Resource
                             ->default(true)
                             ->reactive()
                             ->columnSpanFull(),
+                        Forms\Components\Select::make('bpjs_paid_by')
+                            ->label('BPJS Paid By (Legacy Global)')
+                            ->options(SalaryStructure::getBpjsPaidByLabels())
+                            ->default(SalaryStructure::BPJS_PAID_BY_EMPLOYEE)
+                            ->visible(fn ($get) => $get('bpjs_enabled')),
 
                         // Per-component BPJS config
                         Forms\Components\Grid::make(2)

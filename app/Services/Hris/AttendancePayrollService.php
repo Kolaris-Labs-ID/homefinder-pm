@@ -409,7 +409,7 @@ class AttendancePayrollService
     {
         // If not attendance-based, return fixed amount
         $type = $allowanceConfig['type'] ?? 'fixed';
-        if ($type === 'fixed') {
+        if ($type !== 'attendance_based') {
             return (float) ($allowanceConfig['amount'] ?? 0);
         }
 
