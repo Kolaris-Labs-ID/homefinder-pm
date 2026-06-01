@@ -213,9 +213,7 @@ class Ticket extends Model
      */
     public function isCompleted(): bool
     {
-        $statusName = strtolower($this->status?->name ?? '');
-        return ($this->status && $this->status->is_completed) || 
-               in_array($statusName, ['done', 'completed', 'closed']);
+        return (bool) ($this->status && $this->status->is_completed);
     }
 
     /**

@@ -14,6 +14,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->user = User::factory()->create();
+    $this->otherUser = User::factory()->create();
     $this->project = Project::factory()->create([
         'start_date' => Carbon::now()->subDays(10),
         'end_date' => Carbon::now()->addDays(20),
@@ -179,10 +180,19 @@ test('calendar widget colors tickets correctly - completed tickets are green', f
         'due_date' => Carbon::now()->addDays(7),
     ]);
     $completedTicket->assignees()->attach($this->user->id);
-    
+
+    // Keep the project active: a project whose tickets are ALL completed is
+    // auto-marked done and excluded from the calendar. An incomplete ticket
+    // keeps it active so the completed ticket still renders (green).
+    Ticket::factory()->create([
+        'project_id' => $this->project->id,
+        'ticket_status_id' => $this->status->id,
+        'due_date' => Carbon::now()->addDays(3),
+    ]);
+
     $widget = new CalendarWidget();
     $events = $widget->getCalendarEvents();
-    
+
     $ticketEvents = array_filter($events, fn($e) => str_starts_with($e['id'], 'ticket_'));
     $completedEvent = collect($ticketEvents)->first(fn($e) => $e['extendedProps']['uuid'] === $completedTicket->uuid);
     
