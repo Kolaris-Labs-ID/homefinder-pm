@@ -139,6 +139,16 @@ class PaymentRequest extends Model
         return $this->status === self::STATUS_APPROVED_BY_COO;
     }
 
+    /**
+     * Business payment date in Asia/Jakarta — EXPENSE_MODULE.MD Phase 13.
+     * Note: this app runs APP_TIMEZONE=Asia/Jakarta, so paid_at is already Jakarta business
+     * time; the setTimezone is a defensive normalisation (correct even if paid_at were UTC).
+     */
+    public function businessPaidDate(): ?string
+    {
+        return $this->paid_at?->copy()->setTimezone('Asia/Jakarta')->toDateString();
+    }
+
     public function getApprovalModule(): string
     {
         return ApprovalWorkflow::MODULE_PAYMENT_REQUEST;

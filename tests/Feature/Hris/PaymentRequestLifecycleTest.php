@@ -90,3 +90,12 @@ it('cannot approve a PR that was not submitted', function () {
     $pr = makePr(); // still draft
     expect(fn () => $this->service->approveAsCoo($pr, $this->coo))->toThrow(RuntimeException::class);
 });
+
+it('exposes business_paid_date as the Asia/Jakarta date of paid_at (Phase 13)', function () {
+    // App runs APP_TIMEZONE=Asia/Jakarta, so paid_at is already Jakarta business time;
+    // businessPaidDate() normalises it to the Jakarta calendar date.
+    $pr = makePr();
+    $pr->update(['paid_at' => '2026-06-03 01:00:00']);
+
+    expect($pr->fresh()->businessPaidDate())->toBe('2026-06-03');
+});

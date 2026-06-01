@@ -32,18 +32,18 @@ it('denies Finance Center access to a user without finance permission', function
 });
 
 it('scopes the expense-review queue to ERs awaiting finance action', function () {
-    makeEr(ExpenseRequest::STATUS_SUBMITTED);
-    makeEr(ExpenseRequest::STATUS_UNDER_FINANCE_REVIEW);
-    makeEr(ExpenseRequest::STATUS_DRAFT);       // not in queue
-    makeEr(ExpenseRequest::STATUS_FINANCE_VERIFIED); // not in queue
+    financeCenterEr(ExpenseRequest::STATUS_SUBMITTED);
+    financeCenterEr(ExpenseRequest::STATUS_UNDER_FINANCE_REVIEW);
+    financeCenterEr(ExpenseRequest::STATUS_DRAFT);       // not in queue
+    financeCenterEr(ExpenseRequest::STATUS_FINANCE_VERIFIED); // not in queue
 
     expect((new FinanceCenter)->expenseReviewQueue()->count())->toBe(2);
 });
 
 it('scopes the paid-pending-reconciliation queue', function () {
-    makePr(PaymentRequest::STATUS_PAID_PENDING_RECONCILIATION);
-    makePr(PaymentRequest::STATUS_PAID_PENDING_RECONCILIATION);
-    makePr(PaymentRequest::STATUS_APPROVED_BY_COO); // not in queue
+    financeCenterPr(PaymentRequest::STATUS_PAID_PENDING_RECONCILIATION);
+    financeCenterPr(PaymentRequest::STATUS_PAID_PENDING_RECONCILIATION);
+    financeCenterPr(PaymentRequest::STATUS_APPROVED_BY_COO); // not in queue
 
     expect((new FinanceCenter)->paidPendingReconciliationQueue()->count())->toBe(2);
 });
@@ -55,7 +55,7 @@ it('lists the gated placeholder modules with honest disabled reasons', function 
     expect($gated['weekly_allowance'])->toBeString()->not->toBeEmpty();
 });
 
-function makeEr(string $status): ExpenseRequest
+function financeCenterEr(string $status): ExpenseRequest
 {
     $employee = \App\Models\Hris\Employee::factory()->create();
 
@@ -68,7 +68,7 @@ function makeEr(string $status): ExpenseRequest
     ]);
 }
 
-function makePr(string $status): PaymentRequest
+function financeCenterPr(string $status): PaymentRequest
 {
     return PaymentRequest::create([
         'payment_request_number' => 'PR-TEST-'.uniqid(),
