@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\Hris\AnnouncementController;
 use App\Http\Controllers\Api\Hris\AttendanceController;
 use App\Http\Controllers\Api\Hris\ClientVisitController;
+use App\Http\Controllers\Api\Hris\ExpenseRequestController;
 use App\Http\Controllers\Api\Hris\FinanceAttachmentController;
 use App\Http\Controllers\Api\Hris\LeaderboardController;
 use App\Http\Controllers\Api\Hris\LeaveBalanceController;
@@ -84,6 +85,15 @@ Route::middleware(['auth:sanctum'])
         Route::get('/reimbursements', [ReimbursementController::class, 'index']);
         Route::post('/reimbursements', [ReimbursementController::class, 'store']);
         Route::put('/reimbursements/{reimbursement}/cancel', [ReimbursementController::class, 'cancel']);
+
+        // Expense Requests (employee ESS)
+        Route::get('/expense-requests', [ExpenseRequestController::class, 'index']);
+        Route::post('/expense-requests', [ExpenseRequestController::class, 'store']);
+        Route::get('/expense-requests/{expenseRequest}', [ExpenseRequestController::class, 'show']);
+        Route::post('/expense-requests/{expenseRequest}/evidence', [ExpenseRequestController::class, 'uploadEvidence']);
+        Route::post('/expense-requests/{expenseRequest}/submit', [ExpenseRequestController::class, 'submit']);
+        Route::put('/expense-requests/{expenseRequest}/revise', [ExpenseRequestController::class, 'revise']);
+        Route::put('/expense-requests/{expenseRequest}/cancel', [ExpenseRequestController::class, 'cancel']);
 
         // Finance Center — protected attachments (ER evidence, PR proof, bank statements)
         Route::get('/finance/attachments/{financeAttachment}/download', [FinanceAttachmentController::class, 'download']);
