@@ -199,14 +199,16 @@ class PaymentRequestService
             throw new \RuntimeException('Only a submitted PR can be rejected.');
         }
 
-        $pr->update([
-            'status' => PaymentRequest::STATUS_REJECTED_BY_COO,
-            'coo_approved_by' => $coo->id,
-            'coo_rejection_reason' => $reason,
-        ]);
+        DB::transaction(function () use ($pr, $coo, $reason) {
+            $pr->update([
+                'status' => PaymentRequest::STATUS_REJECTED_BY_COO,
+                'coo_approved_by' => $coo->id,
+                'coo_rejection_reason' => $reason,
+            ]);
 
-        $this->audit->log($pr, 'payment_request.rejected_by_coo', $coo, ['reason' => $reason]);
-        $this->returnSourceExpenseRequest($pr);
+            $this->audit->log($pr, 'payment_request.rejected_by_coo', $coo, ['reason' => $reason]);
+            $this->returnSourceExpenseRequest($pr);
+        });
     }
 
     public function requestClarification(PaymentRequest $pr, User $coo, string $note): void
@@ -300,9 +302,9 @@ class PaymentRequestService
             ]);
 
             $proof->update(['locked_at' => now(), 'locked_reason' => 'Payment proof']);
-        });
 
-        $this->audit->log($pr, 'payment_request.marked_paid', $executor, ['after' => ['payment_reference' => $reference]]);
+            $this->audit->log($pr, 'payment_request.marked_paid', $executor, ['after' => ['payment_reference' => $reference]]);
+        });
     }
 
     /**
@@ -323,21 +325,23 @@ class PaymentRequestService
             && ($observed['payee_name'] ?? null) === $pr->payee_name
             && (string) ($observed['bank_account_last4'] ?? '') === (string) $pr->bank_account_last4;
 
-        $pr->update([
-            'status' => $matches ? PaymentRequest::STATUS_RECONCILED : PaymentRequest::STATUS_RECONCILIATION_FAILED,
-            'reconciled_by' => $reconciler->id,
-            'reconciled_at' => now(),
-            'reconciliation_reference' => $observed['reference'] ?? null,
-            'metadata' => $matches
-                ? $pr->metadata
-                : array_merge($pr->metadata ?? [], ['reconciliation_mismatch' => $observed]),
-        ]);
+        DB::transaction(function () use ($pr, $reconciler, $observed, $matches) {
+            $pr->update([
+                'status' => $matches ? PaymentRequest::STATUS_RECONCILED : PaymentRequest::STATUS_RECONCILIATION_FAILED,
+                'reconciled_by' => $reconciler->id,
+                'reconciled_at' => now(),
+                'reconciliation_reference' => $observed['reference'] ?? null,
+                'metadata' => $matches
+                    ? $pr->metadata
+                    : array_merge($pr->metadata ?? [], ['reconciliation_mismatch' => $observed]),
+            ]);
 
-        $this->audit->log(
-            $pr,
-            $matches ? 'payment_request.reconciled' : 'payment_request.reconciliation_failed',
-            $reconciler,
-        );
+            $this->audit->log(
+                $pr,
+                $matches ? 'payment_request.reconciled' : 'payment_request.reconciliation_failed',
+                $reconciler,
+            );
+        });
     }
 
     public function void(PaymentRequest $pr, User $actor, string $reason): void
@@ -352,15 +356,17 @@ class PaymentRequestService
             throw new \RuntimeException('This PR can no longer be voided (it is already in a payment or terminal state).');
         }
 
-        $pr->update([
-            'status' => PaymentRequest::STATUS_VOIDED,
-            'voided_by' => $actor->id,
-            'voided_at' => now(),
-            'metadata' => array_merge($pr->metadata ?? [], ['void_reason' => $reason]),
-        ]);
+        DB::transaction(function () use ($pr, $actor, $reason) {
+            $pr->update([
+                'status' => PaymentRequest::STATUS_VOIDED,
+                'voided_by' => $actor->id,
+                'voided_at' => now(),
+                'metadata' => array_merge($pr->metadata ?? [], ['void_reason' => $reason]),
+            ]);
 
-        $this->audit->log($pr, 'payment_request.voided', $actor, ['reason' => $reason]);
-        $this->returnSourceExpenseRequest($pr);
+            $this->audit->log($pr, 'payment_request.voided', $actor, ['reason' => $reason]);
+            $this->returnSourceExpenseRequest($pr);
+        });
     }
 
     public function reverse(PaymentRequest $pr, User $actor, string $reason): void
@@ -375,14 +381,16 @@ class PaymentRequestService
             throw new \RuntimeException('Only a paid PR can be reversed.');
         }
 
-        $pr->update([
-            'status' => PaymentRequest::STATUS_REVERSED,
-            'reversed_by' => $actor->id,
-            'reversed_at' => now(),
-            'metadata' => array_merge($pr->metadata ?? [], ['reverse_reason' => $reason]),
-        ]);
+        DB::transaction(function () use ($pr, $actor, $reason) {
+            $pr->update([
+                'status' => PaymentRequest::STATUS_REVERSED,
+                'reversed_by' => $actor->id,
+                'reversed_at' => now(),
+                'metadata' => array_merge($pr->metadata ?? [], ['reverse_reason' => $reason]),
+            ]);
 
-        $this->audit->log($pr, 'payment_request.reversed', $actor, ['reason' => $reason]);
+            $this->audit->log($pr, 'payment_request.reversed', $actor, ['reason' => $reason]);
+        });
     }
 
     private function isHighValue(PaymentRequest $pr): bool

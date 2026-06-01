@@ -26,6 +26,13 @@ it('writes an append-only entry and chains the hash to the previous one', functi
     expect($second->current_hash)->not->toBe($first->current_hash);
 });
 
+it('hash covers all persisted fields and is reproducible from the stored row', function () {
+    $pr = $this->service->createManual($this->actor, ['payee_name' => 'V', 'amount' => 100, 'currency' => 'IDR']);
+    $log = $this->logger->log($pr, 'test.one', $this->actor, ['reason' => 'because']);
+
+    expect($this->logger->recompute($log->fresh()))->toBe($log->current_hash);
+});
+
 it('forbids updating an audit entry', function () {
     $pr = $this->service->createManual($this->actor, ['payee_name' => 'V', 'amount' => 100, 'currency' => 'IDR']);
     $log = $this->logger->log($pr, 'test.one', $this->actor);
