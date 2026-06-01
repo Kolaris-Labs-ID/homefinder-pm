@@ -16,6 +16,8 @@ class FinanceAttachmentService
 {
     private const DISK = 'private';
 
+    public function __construct(private FinanceAuditLogger $audit) {}
+
     public function store(Model $attachable, UploadedFile $file, string $role, User $uploader): FinanceAttachment
     {
         $hash = hash_file('sha256', $file->getRealPath());
@@ -33,7 +35,7 @@ class FinanceAttachmentService
             $metadata['duplicate_of'] = array_values($duplicateIds);
         }
 
-        return FinanceAttachment::create([
+        $attachment = FinanceAttachment::create([
             'attachable_type' => get_class($attachable),
             'attachable_id' => $attachable->id,
             'attachment_role' => $role,
@@ -46,18 +48,31 @@ class FinanceAttachmentService
             'uploaded_at' => now(),
             'metadata' => $metadata ?: null,
         ]);
+
+        $this->audit->log($attachment, 'finance_attachment.uploaded', $uploader, [
+            'after' => [
+                'attachment_role' => $attachment->attachment_role,
+                'file_hash' => $attachment->file_hash,
+                'attachable_type' => $attachment->attachable_type,
+                'attachable_id' => $attachment->attachable_id,
+            ],
+        ]);
+
+        return $attachment;
     }
 
     /**
      * Lock an attachment (it has become part of a finance verification or COO approval snapshot).
      * Locked files are immutable — replacing one requires re-review/re-approval.
      */
-    public function lock(FinanceAttachment $attachment, string $reason): void
+    public function lock(FinanceAttachment $attachment, string $reason, ?User $actor = null): void
     {
         $attachment->update([
             'locked_at' => now(),
             'locked_reason' => $reason,
         ]);
+
+        $this->audit->log($attachment, 'finance_attachment.locked', $actor, ['reason' => $reason]);
     }
 
     /**
@@ -65,13 +80,23 @@ class FinanceAttachmentService
      *
      * @throws \RuntimeException when the attachment is locked.
      */
-    public function delete(FinanceAttachment $attachment): void
+    public function delete(FinanceAttachment $attachment, ?User $actor = null): void
     {
         if ($attachment->isLocked()) {
             throw new \RuntimeException('Locked finance attachment cannot be deleted or replaced.');
         }
 
+        $id = $attachment->id;
+        $role = $attachment->attachment_role;
+
         Storage::disk(self::DISK)->delete($attachment->file_path);
         $attachment->delete();
+
+        $this->audit->log($attachment, 'finance_attachment.deleted', $actor, [
+            'before' => [
+                'attachment_id' => $id,
+                'attachment_role' => $role,
+            ],
+        ]);
     }
 }

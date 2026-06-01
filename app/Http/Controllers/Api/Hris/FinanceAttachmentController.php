@@ -32,7 +32,7 @@ class FinanceAttachmentController extends Controller
         $this->authorize('delete', $financeAttachment);
 
         try {
-            $this->service->delete($financeAttachment);
+            $this->service->delete($financeAttachment, $request->user());
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

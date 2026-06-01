@@ -34,6 +34,7 @@ class PaymentRequestService
 
     public function __construct(
         protected FinanceAuditLogger $audit,
+        protected FinanceAttachmentService $attachments,
     ) {}
 
     /**
@@ -182,11 +183,10 @@ class PaymentRequestService
                 'approval_snapshot_hash' => $this->hashSnapshot($snapshot),
             ]);
 
-            // Lock every attachment that formed the approval basis.
-            $pr->financeAttachments()->whereNull('locked_at')->update([
-                'locked_at' => now(),
-                'locked_reason' => 'Included in COO approval snapshot',
-            ]);
+            // Lock every attachment that formed the approval basis (audited individually).
+            foreach ($pr->financeAttachments()->whereNull('locked_at')->get() as $attachment) {
+                $this->attachments->lock($attachment, 'Included in COO approval snapshot', $coo);
+            }
 
             $this->audit->log($pr, 'payment_request.approved_by_coo', $coo, [
                 'after' => ['approval_snapshot_hash' => $snapshot ? $this->hashSnapshot($snapshot) : null],
@@ -302,7 +302,7 @@ class PaymentRequestService
                 'payment_proof_attachment_id' => $proof->id,
             ]);
 
-            $proof->update(['locked_at' => now(), 'locked_reason' => 'Payment proof']);
+            $this->attachments->lock($proof, 'Payment proof', $executor);
 
             $this->audit->log($pr, 'payment_request.marked_paid', $executor, ['after' => ['payment_reference' => $reference]]);
         });
