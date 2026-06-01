@@ -91,7 +91,7 @@
     <div class="two-column">
         <div class="column left">
             <div class="section">
-                <div class="section-title">PENGHASILAN / EARNINGS</div>
+                <div class="section-title">PENDAPATAN / PENGHASILAN / EARNINGS</div>
                 <table class="detail-table">
                     @if($record->isProrated())
                     <tr>
@@ -116,12 +116,10 @@
                     </tr>
                     @endif
                     
-                    @if($record->total_fixed_allowances > 0)
                     <tr>
-                        <td class="label">Tunjangan Tetap</td>
-                        <td class="amount">Rp {{ number_format($record->total_fixed_allowances, 0, ',', '.') }}</td>
+                        <td class="label">Tunjangan Tetap / Fixed Allowances</td>
+                        <td class="amount">Rp {{ number_format($record->total_fixed_allowances ?? 0, 0, ',', '.') }}</td>
                     </tr>
-                    @endif
                     
                     @if(!empty($record->details['allowances_fixed']))
                         @foreach($record->details['allowances_fixed'] as $allowance)
@@ -132,12 +130,10 @@
                         @endforeach
                     @endif
                     
-                    @if($record->total_variable_allowances > 0)
                     <tr>
-                        <td class="label">Tunjangan Tidak Tetap</td>
-                        <td class="amount">Rp {{ number_format($record->total_variable_allowances, 0, ',', '.') }}</td>
+                        <td class="label">Tunjangan Tidak Tetap / Variable Allowances</td>
+                        <td class="amount">Rp {{ number_format($record->total_variable_allowances ?? 0, 0, ',', '.') }}</td>
                     </tr>
-                    @endif
                     
                     @if(!empty($record->details['allowances_variable']))
                         @foreach($record->details['allowances_variable'] as $allowance)
@@ -164,7 +160,7 @@
                     @endif
 
                     <tr class="total-row">
-                        <td class="label">Total Penghasilan Kotor</td>
+                        <td class="label">Total Pendapatan Kotor / Gross Income</td>
                         <td class="amount">Rp {{ number_format($record->gross_income, 0, ',', '.') }}</td>
                     </tr>
                 </table>
@@ -217,14 +213,14 @@
                     @endif
                     
                     <tr class="total-row">
-                        <td class="label">Total Potongan</td>
+                        <td class="label">Total Potongan / Total Deductions</td>
                         <td class="amount">Rp {{ number_format($record->total_deductions, 0, ',', '.') }}</td>
                     </tr>
                 </table>
             </div>
             
             <div class="section">
-                <div class="section-title company">KONTRIBUSI PERUSAHAAN</div>
+                <div class="section-title company">KONTRIBUSI PERUSAHAAN / COMPANY CONTRIBUTIONS</div>
                 <table class="detail-table">
                     <tr>
                         <td class="label">BPJS Kesehatan</td>

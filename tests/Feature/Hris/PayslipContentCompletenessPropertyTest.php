@@ -285,8 +285,8 @@ test('Property 18 Edge Cases: Payslip content with edge case values', function (
         'employee_id' => $employee2->id,
         'effective_date' => $batch2->period_start_date,
         'basic_salary' => 50000000,
-        'allowances_fixed' => ['position' => 5000000],
-        'allowances_variable' => ['transport' => 2000000],
+        'allowances_fixed' => [['type' => 'position', 'name' => 'Tunjangan Jabatan', 'amount' => 5000000]],
+        'allowances_variable' => [['type' => 'transport', 'name' => 'Tunjangan Transport', 'amount' => 2000000]],
     ]);
 
     $payrollService->calculatePayrun($batch2);
