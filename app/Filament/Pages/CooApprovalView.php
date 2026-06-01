@@ -65,7 +65,7 @@ class CooApprovalView extends Page implements HasTable
                 Tables\Columns\TextColumn::make('payment_request_number')->label('PR')->searchable(),
                 Tables\Columns\TextColumn::make('source_type')->badge(),
                 Tables\Columns\TextColumn::make('payee_name')->searchable(),
-                Tables\Columns\TextColumn::make('bank_account_last4')->label('Acct')->formatStateUsing(fn ($s) => $s ? '•••• '.$s : '—'),
+                Tables\Columns\TextColumn::make('bank_account_last4')->label('Acct')->formatStateUsing(fn ($state) => $state ? '•••• '.$state : '—'),
                 Tables\Columns\TextColumn::make('amount')->money('IDR')->sortable(),
                 Tables\Columns\IconColumn::make('withholding_required')->label('WHT')->boolean(),
                 Tables\Columns\TextColumn::make('er_variance')->label('ER variance')->state(fn (PaymentRequest $r) => static::variance($r)),
