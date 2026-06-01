@@ -16,9 +16,11 @@ class ExpenseRequestService
     /** Fields whose change after finance review invalidates that review. */
     private const SENSITIVE = ['amount', 'payee_name', 'payee_bank_name', 'payee_bank_account_number'];
 
-    public function create(Employee $employee, array $data): ExpenseRequest
+    public function __construct(private FinanceAuditLogger $audit) {}
+
+    public function create(Employee $employee, array $data, ?User $actor = null): ExpenseRequest
     {
-        return DB::transaction(function () use ($employee, $data) {
+        return DB::transaction(function () use ($employee, $data, $actor) {
             $attrs = $this->details($data) + [
                 'request_number' => $this->generateRequestNumber(),
                 'employee_id' => $employee->id,
@@ -28,67 +30,85 @@ class ExpenseRequestService
             ];
             $this->applyBankAccount($attrs, $data);
 
-            return ExpenseRequest::create($attrs);
+            $er = ExpenseRequest::create($attrs);
+            $this->audit->log($er, 'expense_request.draft_created', $actor ?? $employee->user);
+
+            return $er;
         });
     }
 
-    public function submit(ExpenseRequest $er): void
+    public function submit(ExpenseRequest $er, ?User $actor = null): void
     {
         if (! $er->hasEvidence()) {
             throw new \RuntimeException('An expense request requires evidence before it can be submitted.');
         }
 
-        $er->update([
-            'status' => ExpenseRequest::STATUS_SUBMITTED,
-            'submitted_at' => now(),
-        ]);
+        DB::transaction(function () use ($er, $actor) {
+            $er->update([
+                'status' => ExpenseRequest::STATUS_SUBMITTED,
+                'submitted_at' => now(),
+            ]);
+            $this->audit->log($er, 'expense_request.submitted', $actor ?? $er->employee?->user);
+        });
     }
 
     public function verify(ExpenseRequest $er, User $financeUser, ?string $notes = null): void
     {
-        $er->update([
-            'status' => ExpenseRequest::STATUS_FINANCE_VERIFIED,
-            'finance_reviewed_by' => $financeUser->id,
-            'finance_reviewed_at' => now(),
-            'finance_notes' => $notes,
-        ]);
+        DB::transaction(function () use ($er, $financeUser, $notes) {
+            $er->update([
+                'status' => ExpenseRequest::STATUS_FINANCE_VERIFIED,
+                'finance_reviewed_by' => $financeUser->id,
+                'finance_reviewed_at' => now(),
+                'finance_notes' => $notes,
+            ]);
+            $this->audit->log($er, 'expense_request.finance_verified', $financeUser);
+        });
     }
 
     public function reject(ExpenseRequest $er, User $financeUser, string $reason): void
     {
-        $er->update([
-            'status' => ExpenseRequest::STATUS_REJECTED,
-            'finance_reviewed_by' => $financeUser->id,
-            'finance_reviewed_at' => now(),
-            'rejection_reason' => $reason,
-        ]);
+        DB::transaction(function () use ($er, $financeUser, $reason) {
+            $er->update([
+                'status' => ExpenseRequest::STATUS_REJECTED,
+                'finance_reviewed_by' => $financeUser->id,
+                'finance_reviewed_at' => now(),
+                'rejection_reason' => $reason,
+            ]);
+            $this->audit->log($er, 'expense_request.rejected', $financeUser, ['reason' => $reason]);
+        });
     }
 
     public function requestRevision(ExpenseRequest $er, User $financeUser, string $note): void
     {
-        $er->update([
-            'status' => ExpenseRequest::STATUS_NEEDS_REVISION,
-            'finance_reviewed_by' => $financeUser->id,
-            'revision_requested_at' => now(),
-            'finance_notes' => $note,
-        ]);
+        DB::transaction(function () use ($er, $financeUser, $note) {
+            $er->update([
+                'status' => ExpenseRequest::STATUS_NEEDS_REVISION,
+                'finance_reviewed_by' => $financeUser->id,
+                'revision_requested_at' => now(),
+                'finance_notes' => $note,
+            ]);
+            $this->audit->log($er, 'expense_request.revision_requested', $financeUser, ['reason' => $note]);
+        });
     }
 
-    public function revise(ExpenseRequest $er, array $data): void
+    public function revise(ExpenseRequest $er, array $data, ?User $actor = null): void
     {
         if ($er->status !== ExpenseRequest::STATUS_NEEDS_REVISION) {
             throw new \RuntimeException('An expense request can only be revised after a revision is requested.');
         }
 
-        $attrs = $this->details($data) + [
-            'status' => ExpenseRequest::STATUS_SUBMITTED,
-            'finance_reviewed_by' => null,
-            'finance_reviewed_at' => null,
-            'revision_requested_at' => null,
-        ];
-        $this->applyBankAccount($attrs, $data);
+        DB::transaction(function () use ($er, $data, $actor) {
+            $attrs = $this->details($data) + [
+                'status' => ExpenseRequest::STATUS_SUBMITTED,
+                'finance_reviewed_by' => null,
+                'finance_reviewed_at' => null,
+                'revision_requested_at' => null,
+            ];
+            $this->applyBankAccount($attrs, $data);
 
-        $er->update($attrs);
+            $er->update($attrs);
+            $this->audit->log($er, 'expense_request.revised', $actor ?? $er->employee?->user);
+        });
     }
 
     /**
@@ -115,21 +135,27 @@ class ExpenseRequestService
         $er->update($attrs);
     }
 
-    public function closeAsRecordOnly(ExpenseRequest $er): void
+    public function closeAsRecordOnly(ExpenseRequest $er, ?User $actor = null): void
     {
         if (! $er->isRecordOnly()) {
             throw new \RuntimeException('Only company_paid_record_only expense requests can be closed as record-only.');
         }
 
-        $er->update([
-            'status' => ExpenseRequest::STATUS_RECORD_ONLY_CLOSED,
-            'closed_at' => now(),
-        ]);
+        DB::transaction(function () use ($er, $actor) {
+            $er->update([
+                'status' => ExpenseRequest::STATUS_RECORD_ONLY_CLOSED,
+                'closed_at' => now(),
+            ]);
+            $this->audit->log($er, 'expense_request.record_only_closed', $actor ?? $er->employee?->user);
+        });
     }
 
-    public function cancel(ExpenseRequest $er): void
+    public function cancel(ExpenseRequest $er, ?User $actor = null): void
     {
-        $er->update(['status' => ExpenseRequest::STATUS_CANCELLED]);
+        DB::transaction(function () use ($er, $actor) {
+            $er->update(['status' => ExpenseRequest::STATUS_CANCELLED]);
+            $this->audit->log($er, 'expense_request.cancelled', $actor ?? $er->employee?->user);
+        });
     }
 
     private function details(array $data): array

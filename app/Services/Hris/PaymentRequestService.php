@@ -91,6 +91,7 @@ class PaymentRequestService
             $er->update(['status' => ExpenseRequest::STATUS_PR_CREATED]);
 
             $this->audit->log($pr, 'payment_request.created_from_expense_request', $creator);
+            $this->audit->log($er, 'expense_request.converted_to_pr', $creator, ['after' => ['payment_request_id' => $pr->id]]);
 
             return $pr;
         });
