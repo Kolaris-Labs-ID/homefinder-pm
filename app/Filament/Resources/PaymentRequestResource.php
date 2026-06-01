@@ -9,6 +9,11 @@ use App\Services\Hris\FinanceAttachmentService;
 use App\Services\Hris\PaymentRequestService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists\Components\IconEntry;
+use Filament\Infolists\Components\KeyValueEntry;
+use Filament\Infolists\Components\Section;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -39,6 +44,65 @@ class PaymentRequestResource extends Resource
     public static function canCreate(): bool
     {
         return false;
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            Section::make('Payment')->schema([
+                TextEntry::make('payment_request_number'),
+                TextEntry::make('source_type')->badge(),
+                TextEntry::make('payee_name'),
+                TextEntry::make('bank_name')->label('Bank')->placeholder('—'),
+                TextEntry::make('bank_account_last4')
+                    ->label('Account')
+                    ->formatStateUsing(fn ($state) => $state ? '•••• '.$state : '—'),
+                TextEntry::make('amount')->money('IDR'),
+                TextEntry::make('currency'),
+                TextEntry::make('status')->badge(),
+                TextEntry::make('description')->placeholder('—')->columnSpanFull(),
+            ])->columns(2),
+
+            Section::make('Withholding')->schema([
+                IconEntry::make('withholding_required')->boolean(),
+                TextEntry::make('withholding_type')->placeholder('—'),
+            ])->columns(2),
+
+            Section::make('Variance vs ER')->schema([
+                TextEntry::make('metadata.er_amount')
+                    ->label('ER amount')
+                    ->state(fn ($record) => $record->metadata['er_amount'] ?? null)
+                    ->placeholder('—'),
+                TextEntry::make('metadata.variance_reason')
+                    ->label('Variance reason')
+                    ->state(fn ($record) => $record->metadata['variance_reason'] ?? '—'),
+                TextEntry::make('metadata.variance_risk_flag')
+                    ->label('Risk flag')
+                    ->state(fn ($record) => $record->metadata['variance_risk_flag'] ?? '—')
+                    ->badge(),
+                TextEntry::make('metadata.finance_notes')
+                    ->label('Finance notes')
+                    ->state(fn ($record) => $record->metadata['finance_notes'] ?? '—')
+                    ->columnSpanFull(),
+            ])->columns(2)->visible(fn ($record) => filled($record?->metadata)),
+
+            Section::make('Payment / reconciliation')->schema([
+                TextEntry::make('paid_at')->dateTime()->placeholder('—'),
+                TextEntry::make('payment_reference')->placeholder('—'),
+                TextEntry::make('reconciled_at')->dateTime()->placeholder('—'),
+                TextEntry::make('reconciliation_reference')->placeholder('—'),
+            ])->columns(2),
+
+            Section::make('COO Approval Snapshot')
+                ->visible(fn ($record) => filled($record?->approval_snapshot_json))
+                ->schema([
+                    TextEntry::make('approval_snapshot_hash')
+                        ->label('Snapshot hash (sealed)')
+                        ->limit(20),
+                    KeyValueEntry::make('approval_snapshot_json')
+                        ->label('Approved business data'),
+                ])->columns(1),
+        ]);
     }
 
     public static function form(Form $form): Form

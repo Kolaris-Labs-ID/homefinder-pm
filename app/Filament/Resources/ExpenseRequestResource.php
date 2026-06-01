@@ -8,6 +8,10 @@ use App\Services\Hris\ExpenseRequestService;
 use App\Services\Hris\PaymentRequestService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\Section;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -38,6 +42,49 @@ class ExpenseRequestResource extends Resource
     public static function canCreate(): bool
     {
         return false;
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            Section::make('Request')->schema([
+                TextEntry::make('request_number'),
+                TextEntry::make('employee.user.name')->label('Employee'),
+                TextEntry::make('title'),
+                TextEntry::make('description')->placeholder('—'),
+                TextEntry::make('category'),
+                TextEntry::make('amount')->money('IDR'),
+                TextEntry::make('currency'),
+                TextEntry::make('payment_mode')->badge(),
+                TextEntry::make('status')->badge(),
+                TextEntry::make('expense_date')->date(),
+            ])->columns(2),
+
+            Section::make('Payee')->schema([
+                TextEntry::make('payee_name')->placeholder('—'),
+                TextEntry::make('payee_bank_name')->label('Bank')->placeholder('—'),
+                TextEntry::make('payee_bank_account_last4')
+                    ->label('Account')
+                    ->formatStateUsing(fn ($state) => $state ? '•••• '.$state : '—'),
+            ])->columns(2),
+
+            Section::make('Finance review')->schema([
+                TextEntry::make('status')->badge(),
+                TextEntry::make('finance_notes')->placeholder('—')->columnSpanFull(),
+                TextEntry::make('rejection_reason')->placeholder('—')->columnSpanFull()
+                    ->visible(fn ($record) => filled($record?->rejection_reason)),
+                TextEntry::make('submitted_at')->dateTime()->placeholder('—'),
+                TextEntry::make('finance_reviewed_at')->dateTime()->placeholder('—'),
+            ])->columns(2),
+
+            Section::make('Evidence')->schema([
+                RepeatableEntry::make('financeAttachments')->schema([
+                    TextEntry::make('original_filename'),
+                    TextEntry::make('attachment_role')->badge(),
+                    TextEntry::make('file_hash')->label('SHA-256')->limit(16),
+                ])->columns(3),
+            ])->visible(fn ($record) => $record?->financeAttachments()->exists()),
+        ]);
     }
 
     public static function form(Form $form): Form
