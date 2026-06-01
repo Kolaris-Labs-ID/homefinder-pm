@@ -17,8 +17,6 @@ class LateNoticePenaltyTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected Employee $employee;
-
     protected function setUp(): void
     {
         parent::setUp();

@@ -14,7 +14,6 @@ class ReimbursementApiTest extends TestCase
     use RefreshDatabase;
 
     public $user;
-    public Employee $employee;
 
     protected function setUp(): void
     {

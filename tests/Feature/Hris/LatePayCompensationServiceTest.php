@@ -22,8 +22,6 @@ class LatePayCompensationServiceTest extends TestCase
 
     protected LatePayCompensationService $latePayCompensationService;
 
-    protected Employee $employee;
-
     protected function setUp(): void
     {
         parent::setUp();

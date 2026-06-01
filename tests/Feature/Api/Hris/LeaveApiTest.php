@@ -16,7 +16,6 @@ class LeaveApiTest extends TestCase
     use RefreshDatabase;
 
     public $user;
-    public Employee $employee;
     public LeaveType $leaveType;
 
     protected function setUp(): void

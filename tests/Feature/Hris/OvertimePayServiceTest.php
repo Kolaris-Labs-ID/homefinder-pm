@@ -19,7 +19,6 @@ class OvertimePayServiceTest extends TestCase
 
     public $service;
     public $user;
-    public Employee $employee;
 
     protected function setUp(): void
     {
