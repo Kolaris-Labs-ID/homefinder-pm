@@ -1,19 +1,14 @@
 <?php
 
 use App\Models\Hris\WeeklyAllowanceBatch;
-use App\Models\Hris\WeeklyAllowancePayment;
-use App\Models\Hris\Employee;
-use App\Models\User;
 
 describe('WeeklyAllowanceBatch Model Status', function () {
-    it('has correct status constants', function () {
+    it('has the unified status constants', function () {
         expect(WeeklyAllowanceBatch::STATUS_DRAFT)->toBe('draft')
-            ->and(WeeklyAllowanceBatch::STATUS_PENDING_HR)->toBe('pending_hr')
+            ->and(WeeklyAllowanceBatch::STATUS_CALCULATED)->toBe('calculated')
             ->and(WeeklyAllowanceBatch::STATUS_PENDING_FINANCE)->toBe('pending_finance')
-            ->and(WeeklyAllowanceBatch::STATUS_PENDING_FINAL)->toBe('pending_final')
-            ->and(WeeklyAllowanceBatch::STATUS_APPROVED)->toBe('approved')
-            ->and(WeeklyAllowanceBatch::STATUS_PAID)->toBe('paid')
-            ->and(WeeklyAllowanceBatch::STATUS_CANCELLED)->toBe('cancelled');
+            ->and(WeeklyAllowanceBatch::STATUS_REJECTED)->toBe('rejected')
+            ->and(WeeklyAllowanceBatch::STATUS_PAID)->toBe('paid');
     });
 
     it('returns all statuses', function () {
@@ -21,9 +16,9 @@ describe('WeeklyAllowanceBatch Model Status', function () {
 
         expect($statuses)->toBeArray()
             ->and($statuses)->toContain('draft')
-            ->and($statuses)->toContain('pending_hr')
+            ->and($statuses)->toContain('calculated')
             ->and($statuses)->toContain('pending_finance')
-            ->and($statuses)->toContain('approved')
+            ->and($statuses)->toContain('rejected')
             ->and($statuses)->toContain('paid');
     });
 
@@ -32,7 +27,7 @@ describe('WeeklyAllowanceBatch Model Status', function () {
 
         expect($labels)->toBeArray()
             ->and($labels['draft'])->toBe('Draft')
-            ->and($labels['approved'])->toBe('Approved')
+            ->and($labels['pending_finance'])->toBe('Pending Finance')
             ->and($labels['paid'])->toBe('Paid');
     });
 
@@ -41,61 +36,40 @@ describe('WeeklyAllowanceBatch Model Status', function () {
 
         expect($colors)->toBeArray()
             ->and($colors['draft'])->toBe('gray')
-            ->and($colors['approved'])->toBe('success')
+            ->and($colors['pending_finance'])->toBe('warning')
             ->and($colors['paid'])->toBe('success');
     });
 });
 
-describe('WeeklyAllowanceBatch Workflow Helpers', function () {
-    it('can submit to HR from draft', function () {
-        $batch = new WeeklyAllowanceBatch(['status' => 'draft']);
+describe('WeeklyAllowanceBatch Workflow Helpers (unified finance approval)', function () {
+    it('can submit for approval from calculated', function () {
+        $batch = new WeeklyAllowanceBatch(['status' => 'calculated']);
 
-        expect($batch->canSubmitToHr())->toBeTrue()
-            ->and($batch->isEditable())->toBeTrue();
+        expect($batch->canSubmitForApproval())->toBeTrue();
     });
 
-    it('can submit to finance from pending_hr', function () {
-        $batch = new WeeklyAllowanceBatch(['status' => 'pending_hr']);
-
-        expect($batch->canSubmitToFinance())->toBeTrue()
-            ->and($batch->canSubmitToHr())->toBeFalse();
-    });
-
-    it('can approve by finance from pending_finance', function () {
+    it('can be approved by finance from pending_finance', function () {
         $batch = new WeeklyAllowanceBatch(['status' => 'pending_finance']);
 
-        expect($batch->canApproveByFinance())->toBeTrue();
+        expect($batch->canBeApprovedByFinance())->toBeTrue()
+            ->and($batch->canSubmitForApproval())->toBeFalse();
     });
 
-    it('can approve final from pending_final', function () {
-        $batch = new WeeklyAllowanceBatch(['status' => 'pending_final']);
-
-        expect($batch->canApproveFinal())->toBeTrue();
+    it('reports paid only in paid status', function () {
+        expect((new WeeklyAllowanceBatch(['status' => 'paid']))->isPaid())->toBeTrue()
+            ->and((new WeeklyAllowanceBatch(['status' => 'pending_finance']))->isPaid())->toBeFalse();
     });
 
-    it('can mark as paid from approved', function () {
-        $batch = new WeeklyAllowanceBatch(['status' => 'approved']);
-
-        expect($batch->canMarkAsPaid())->toBeTrue()
-            ->and($batch->isLocked())->toBeTrue();
+    it('is editable in draft or rejected', function () {
+        expect((new WeeklyAllowanceBatch(['status' => 'draft']))->isEditable())->toBeTrue()
+            ->and((new WeeklyAllowanceBatch(['status' => 'rejected']))->isEditable())->toBeTrue()
+            ->and((new WeeklyAllowanceBatch(['status' => 'pending_finance']))->isEditable())->toBeFalse();
     });
 
-    it('is locked when approved or paid', function () {
-        $approved = new WeeklyAllowanceBatch(['status' => 'approved']);
-        $paid = new WeeklyAllowanceBatch(['status' => 'paid']);
-        $draft = new WeeklyAllowanceBatch(['status' => 'draft']);
-
-        expect($approved->isLocked())->toBeTrue()
-            ->and($paid->isLocked())->toBeTrue()
-            ->and($draft->isLocked())->toBeFalse();
-    });
-
-    it('cannot cancel when paid', function () {
-        $paid = new WeeklyAllowanceBatch(['status' => 'paid']);
-        $draft = new WeeklyAllowanceBatch(['status' => 'draft']);
-
-        expect($paid->canCancel())->toBeFalse()
-            ->and($draft->canCancel())->toBeTrue();
+    it('is locked when pending_finance or paid', function () {
+        expect((new WeeklyAllowanceBatch(['status' => 'pending_finance']))->isLocked())->toBeTrue()
+            ->and((new WeeklyAllowanceBatch(['status' => 'paid']))->isLocked())->toBeTrue()
+            ->and((new WeeklyAllowanceBatch(['status' => 'draft']))->isLocked())->toBeFalse();
     });
 });
 
@@ -116,7 +90,7 @@ describe('WeeklyAllowanceBatch Accessors', function () {
     });
 
     it('returns status color', function () {
-        $batch = new WeeklyAllowanceBatch(['status' => 'approved']);
+        $batch = new WeeklyAllowanceBatch(['status' => 'paid']);
 
         expect($batch->status_color)->toBe('success');
     });

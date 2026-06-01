@@ -8,9 +8,12 @@ use App\Filament\Resources\WeeklyAllowanceBatchResource\Pages\ViewWeeklyAllowanc
 use App\Models\Hris\WeeklyAllowanceBatch;
 use App\Models\User;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
+    Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
     $this->admin = User::factory()->create();
+    $this->admin->assignRole('super_admin');
     $this->actingAs($this->admin);
 });
 
@@ -51,7 +54,7 @@ describe('WeeklyAllowanceBatchResource Table', function () {
             'week_start_date' => '2026-01-13',
             'week_end_date' => '2026-01-17',
             'payment_date' => '2026-01-21',
-            'status' => 'approved',
+            'status' => 'paid',
         ]);
 
         Livewire::test(ListWeeklyAllowanceBatches::class)
