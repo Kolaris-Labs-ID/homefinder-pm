@@ -610,6 +610,22 @@ class ApprovalWorkflowService
     }
 
     /**
+     * Resolve a workflow module to its approvable model class (FQCN), or null if unknown.
+     * Single registry for ER/PR + legacy modules; used by pending-approval queries.
+     */
+    public function moduleToClass(string $module): ?string
+    {
+        return [
+            ApprovalWorkflow::MODULE_LEAVE => \App\Models\Hris\LeaveRequest::class,
+            ApprovalWorkflow::MODULE_REIMBURSEMENT => \App\Models\Hris\Reimbursement::class,
+            ApprovalWorkflow::MODULE_PAYROLL_ADJUSTMENT => \App\Models\Hris\PayrollRecord::class,
+            ApprovalWorkflow::MODULE_TRAINING => \App\Models\Hris\TrainingRecord::class,
+            ApprovalWorkflow::MODULE_EXPENSE_REQUEST => \App\Models\Hris\ExpenseRequest::class,
+            ApprovalWorkflow::MODULE_PAYMENT_REQUEST => \App\Models\Hris\PaymentRequest::class,
+        ][$module] ?? null;
+    }
+
+    /**
      * Get pending approval steps for a user filtered by module type.
      *
      * @param User $user
@@ -618,15 +634,7 @@ class ApprovalWorkflowService
      */
     public function getPendingApprovalsByModule(User $user, string $module): \Illuminate\Database\Eloquent\Collection
     {
-        // Map module to approvable class
-        $moduleToClass = [
-            ApprovalWorkflow::MODULE_LEAVE => \App\Models\Hris\LeaveRequest::class,
-            ApprovalWorkflow::MODULE_REIMBURSEMENT => \App\Models\Hris\Reimbursement::class,
-            ApprovalWorkflow::MODULE_PAYROLL_ADJUSTMENT => \App\Models\Hris\PayrollRecord::class,
-            ApprovalWorkflow::MODULE_TRAINING => \App\Models\Hris\TrainingRecord::class,
-        ];
-
-        $approvableClass = $moduleToClass[$module] ?? null;
+        $approvableClass = $this->moduleToClass($module);
 
         if (!$approvableClass) {
             return new \Illuminate\Database\Eloquent\Collection();
