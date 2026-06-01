@@ -269,7 +269,7 @@ test('Property 6 Additional: Batch-level immutability', function () {
 
         // Property 4: Batch status remains approved
         $batch->refresh();
-        expect($batch->status)->toBe(PayrunBatch::STATUS_APPROVED);
+        expect($batch->status)->toBe(PayrunBatch::STATUS_PENDING_FINANCE);
 
         // Property 5: Cannot modify batch notes once approved
         expect(fn () => $batch->update(['notes' => 'Modified notes']))

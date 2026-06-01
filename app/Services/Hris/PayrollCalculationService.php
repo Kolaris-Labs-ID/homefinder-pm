@@ -321,7 +321,11 @@ class PayrollCalculationService
     }
 
     /**
-     * Approve a payrun batch.
+     * Submit a calculated payrun batch into the finance approval queue.
+     *
+     * @deprecated Legacy entry point kept for back-compat/tests; production
+     * approvals run through PayrollApprovalService. Canonical post-submit
+     * status is `pending_finance` — there is no standalone "approved" state.
      */
     public function approve(PayrunBatch $batch, User $approver): void
     {
@@ -330,7 +334,9 @@ class PayrollCalculationService
         }
 
         $batch->update([
-            'status' => PayrunBatch::STATUS_APPROVED,
+            'status' => PayrunBatch::STATUS_PENDING_FINANCE,
+            'submitted_at' => now(),
+            'submitted_by' => $approver->id,
             'approved_at' => now(),
             'approved_by' => $approver->id,
         ]);

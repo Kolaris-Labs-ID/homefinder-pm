@@ -75,7 +75,7 @@ test('Property 5: Payrun batch status workflow', function () {
         $payrollService->approve($batch, $approver);
         $batch->refresh();
 
-        expect($batch->status)->toBe(PayrunBatch::STATUS_APPROVED);
+        expect($batch->status)->toBe(PayrunBatch::STATUS_PENDING_FINANCE);
         expect($batch->approved_at)->not->toBeNull();
         expect($batch->approved_by)->toBe($approver->id);
         expect($batch->paid_at)->toBeNull();
@@ -184,13 +184,13 @@ test('Property 5 Edge Cases: Status workflow boundary conditions', function () {
     $payrollService->approve($batch, $approver);
     $batch->refresh();
 
-    expect($batch->status)->toBe(PayrunBatch::STATUS_APPROVED);
+    expect($batch->status)->toBe(PayrunBatch::STATUS_PENDING_FINANCE);
 
     // Trying to calculate again should fail
     expect(fn () => $payrollService->calculatePayrun($batch))
         ->toThrow(Exception::class);
 
-    expect($batch->status)->toBe(PayrunBatch::STATUS_APPROVED);
+    expect($batch->status)->toBe(PayrunBatch::STATUS_PENDING_FINANCE);
 
     // Edge case 5: Cannot transition backwards (paid → approved)
     $payrollService->markAsPaid($batch, $paidBy);
