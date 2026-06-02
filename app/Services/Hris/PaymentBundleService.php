@@ -393,6 +393,66 @@ class PaymentBundleService
     }
 
     /**
+     * Override the assigned signers BEFORE the first signature is captured. Locks the bundle,
+     * validates the new map against the same SoD + per-slot-permission rules as submit, then
+     * rewrites each PENDING signature row's assignment and reissues its signing link (fresh token).
+     * Refused once any slot is SIGNED or the bundle has left a signature-pending state.
+     *
+     * @param  array{finance_signer_1:int,finance_signer_2:int,executive_signer:int}  $assignments
+     */
+    public function reassignSigners(PaymentBundle $bundle, array $assignments, User $actor): PaymentBundle
+    {
+        return DB::transaction(function () use ($bundle, $assignments, $actor) {
+            $bundle = PaymentBundle::query()->lockForUpdate()->findOrFail($bundle->id);
+
+            if (! $actor->can('payment_bundles.manage_signers')) {
+                throw new RuntimeException('You are not allowed to reassign signers.');
+            }
+
+            $signingStatuses = [
+                PaymentBundle::STATUS_SUBMITTED_FOR_SIGNATURE,
+                PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_1,
+                PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_2,
+                PaymentBundle::STATUS_PENDING_EXECUTIVE_SIGNATURE,
+            ];
+
+            if (! in_array($bundle->status, $signingStatuses, true)) {
+                throw new RuntimeException('Signers can only be reassigned while the bundle is awaiting signatures.');
+            }
+
+            if ($bundle->signatures()->where('status', PaymentBundleSignature::STATUS_SIGNED)->exists()) {
+                throw new RuntimeException('Signers cannot be changed after the first signature has been captured.');
+            }
+
+            $users = $this->resolveAndValidateAssignment($bundle, $assignments);
+
+            $before = [];
+            $after = [];
+            $signingLinks = $bundle->metadata['signing_links'] ?? [];
+
+            foreach (PaymentBundleSignatureSlot::ordered() as $slot) {
+                $sig = $bundle->signatures()->where('signature_slot', $slot->value)->firstOrFail();
+                $before[$slot->value] = $sig->assigned_user_id;
+
+                $signingLinks[$slot->value] = $this->signatures->createSigningLink($sig, $users[$slot->value]);
+
+                $after[$slot->value] = $sig->fresh()->assigned_user_id;
+            }
+
+            $bundle->update([
+                'metadata' => array_merge($bundle->metadata ?? [], ['signing_links' => $signingLinks]),
+            ]);
+
+            $this->audit->log($bundle, 'payment_bundle_signers_changed', $actor, [
+                'before' => $before,
+                'after' => $after,
+            ]);
+
+            return $bundle->fresh();
+        });
+    }
+
+    /**
      * @param  array{finance_signer_1:int,finance_signer_2:int,executive_signer:int}  $assignments
      * @return array<string, User> slot value => user
      */
