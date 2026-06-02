@@ -2,7 +2,9 @@
 
 namespace App\Services\Hris;
 
+use App\Enums\PaymentBundleSignatureSlot;
 use App\Models\Hris\FinanceAttachment;
+use App\Models\Hris\PaymentBundle;
 use App\Models\Hris\PaymentBundleSignature;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -105,17 +107,25 @@ class PaymentBundleSignatureService
     }
 
     /**
-     * Phase 7: capture and persist a drawn signature for one slot.
-     * Does NOT enforce sequential ordering, SoD, or advance bundle status (Phase 8 wraps this).
+     * Capture and persist a drawn signature for one slot, workflow-aware (Phase 7 capture + Phase 8
+     * orchestration). Locks BOTH the bundle and signature rows, enforces sequential ordering +
+     * segregation-of-duties via assertSignableNow() BEFORE capture, captures via the Phase 7
+     * primitive, then recomputes the bundle status via advanceAfterSignature() — all in one
+     * transaction. The bundle-row lock + status gating make the final authorization fire exactly
+     * once and make a double-click safe (the second attempt sees an advanced status / used token).
      */
     public function submitSignature(PaymentBundleSignature $sig, User $signer, string $imageDataUri, array $context = []): PaymentBundleSignature
     {
         return DB::transaction(function () use ($sig, $signer, $imageDataUri, $context) {
+            // Lock the bundle first (parent before child) so the whole turn is serialized.
+            $bundle = PaymentBundle::query()->lockForUpdate()->findOrFail($sig->payment_bundle_id);
             $sig = PaymentBundleSignature::lockForUpdate()->findOrFail($sig->id);
 
             if ($sig->status !== PaymentBundleSignature::STATUS_PENDING) {
                 throw new RuntimeException('This signature slot is not awaiting a signature.');
             }
+
+            $this->assertSignableNow($bundle, $sig, $signer);
 
             $pngBytes = $this->decodePngDataUri($imageDataUri);
 
@@ -123,7 +133,6 @@ class PaymentBundleSignatureService
                 throw new RuntimeException('The signature cannot be empty.');
             }
 
-            $bundle = $sig->bundle;
             $signedAt = now();
 
             $attachment = $this->attachments->storeGeneratedFile(
@@ -166,8 +175,95 @@ class PaymentBundleSignatureService
                 ],
             ]);
 
+            $this->advanceAfterSignature($bundle);
+
             return $sig->fresh();
         });
+    }
+
+    /**
+     * Sequential + segregation-of-duties gate for a single signing attempt. Throws unless:
+     *   - the bundle status is exactly the one mapped to this slot's turn (status-driven ordering),
+     *   - the slot being signed is pending,
+     *   - the signer is not already the signed_by of another SIGNED signature on this bundle
+     *     (sign-time SoD / defense in depth against tampered assignments).
+     */
+    public function assertSignableNow(PaymentBundle $bundle, PaymentBundleSignature $sig, User $signer): void
+    {
+        if ($sig->status !== PaymentBundleSignature::STATUS_PENDING) {
+            throw new RuntimeException('This signature slot is not awaiting a signature.');
+        }
+
+        if ($bundle->status !== $this->expectedBundleStatusFor($sig->signature_slot)) {
+            throw new RuntimeException("It is not this slot's turn to sign.");
+        }
+
+        $alreadySigned = $bundle->signatures()
+            ->where('status', PaymentBundleSignature::STATUS_SIGNED)
+            ->where('signed_by', $signer->id)
+            ->where('id', '!=', $sig->id)
+            ->exists();
+
+        if ($alreadySigned) {
+            throw new RuntimeException('This user has already signed another slot on this bundle.');
+        }
+    }
+
+    /**
+     * Recompute the bundle status from its signatures after a successful capture. Must run inside
+     * the locked transaction. Advances finance_1 → finance_2 → executive, and on the executive
+     * signature transitions to authorized_for_payment EXACTLY once (idempotent: a no-op once already
+     * authorized). Phase 9 will hook signed-PDF generation onto this authorization.
+     */
+    public function advanceAfterSignature(PaymentBundle $bundle): void
+    {
+        if ($bundle->status === PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT) {
+            return;
+        }
+
+        $signed = fn (PaymentBundleSignatureSlot $slot): bool => $bundle->signatures()
+            ->where('signature_slot', $slot->value)
+            ->where('status', PaymentBundleSignature::STATUS_SIGNED)
+            ->exists();
+
+        if ($bundle->status === PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_1
+            && $signed(PaymentBundleSignatureSlot::FINANCE_SIGNER_1)) {
+            $bundle->update(['status' => PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_2]);
+
+            return;
+        }
+
+        if ($bundle->status === PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_2
+            && $signed(PaymentBundleSignatureSlot::FINANCE_SIGNER_2)) {
+            $bundle->update(['status' => PaymentBundle::STATUS_PENDING_EXECUTIVE_SIGNATURE]);
+
+            return;
+        }
+
+        if ($bundle->status === PaymentBundle::STATUS_PENDING_EXECUTIVE_SIGNATURE
+            && $signed(PaymentBundleSignatureSlot::EXECUTIVE_SIGNER)) {
+            $bundle->update([
+                'status' => PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT,
+                'authorized_at' => now(),
+            ]);
+
+            $this->audit->log($bundle, 'payment_bundle.authorized', null, [
+                'after' => [
+                    'status' => PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT,
+                    'authorized_at' => $bundle->authorized_at?->toIso8601String(),
+                    'canonical_payload_hash' => $bundle->canonical_payload_hash,
+                ],
+            ]);
+        }
+    }
+
+    private function expectedBundleStatusFor(PaymentBundleSignatureSlot $slot): string
+    {
+        return match ($slot) {
+            PaymentBundleSignatureSlot::FINANCE_SIGNER_1 => PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_1,
+            PaymentBundleSignatureSlot::FINANCE_SIGNER_2 => PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_2,
+            PaymentBundleSignatureSlot::EXECUTIVE_SIGNER => PaymentBundle::STATUS_PENDING_EXECUTIVE_SIGNATURE,
+        };
     }
 
     /** Decode a PNG data URI; throws RuntimeException on invalid input. */

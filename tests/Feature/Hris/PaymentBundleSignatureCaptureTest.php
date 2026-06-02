@@ -19,7 +19,9 @@ beforeEach(function () {
     $this->seed(PaymentBundleRolePermissionSeeder::class);
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 
+    // submitSignature is now workflow-aware: finance_signer_1 ⇔ bundle status pending_finance_signature_1.
     $this->bundle = PaymentBundle::factory()->create([
+        'status' => PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_1,
         'canonical_payload_hash' => str_repeat('a', 64),
     ]);
     $this->sig = PaymentBundleSignature::factory()->create([
