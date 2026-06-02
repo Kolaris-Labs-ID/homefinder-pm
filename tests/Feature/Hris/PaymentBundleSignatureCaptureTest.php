@@ -77,7 +77,7 @@ it('accepts a valid ink signature and marks the slot signed', function () {
             'signature_image' => inkPng(),
             'confirmed' => '1',
         ])
-        ->assertRedirect();
+        ->assertRedirect(route('sign.payment-bundle.thanks'));
 
     $this->sig->refresh();
     expect($this->sig->status)->toBe(PaymentBundleSignature::STATUS_SIGNED);
@@ -86,6 +86,21 @@ it('accepts a valid ink signature and marks the slot signed', function () {
     expect($this->sig->signature_image_attachment_id)->not->toBeNull();
     expect(strlen($this->sig->signature_hash))->toBe(64);
     expect($this->sig->token_used_at)->not->toBeNull();
+
+    // Audit/identity metadata captured on the row.
+    expect($this->sig->signature_name)->toBe($this->signer->name);
+    expect($this->sig->signature_role)->toBe(PaymentBundleSignatureSlot::FINANCE_SIGNER_1->label());
+    expect($this->sig->signature_ip)->not->toBeNull();
+});
+
+it('lands the signer on the token-free thank-you page after signing', function () {
+    $this->actingAs($this->signer)->post($this->signedUrl, [
+        'signature_image' => inkPng(),
+        'confirmed' => '1',
+    ]);
+
+    // The signing URL is now dead (token consumed); the thanks page is reachable token-free.
+    $this->actingAs($this->signer)->get(route('sign.payment-bundle.thanks'))->assertOk();
 });
 
 it('stores the signature image on the private disk with the correct role', function () {

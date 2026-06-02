@@ -44,7 +44,8 @@ class SignPaymentBundleController extends Controller
         $this->assertGates($request, $bundle, $paymentSignature, $signatures);
 
         $request->validate([
-            'signature_image' => ['required', 'string'],
+            // max length caps the base64 payload (~375KB decoded) so a giant string can't drive expensive GD work.
+            'signature_image' => ['required', 'string', 'max:500000'],
             'confirmed' => ['accepted'],
         ]);
 
@@ -59,7 +60,14 @@ class SignPaymentBundleController extends Controller
             return back()->withErrors(['signature_image' => $e->getMessage()]);
         }
 
-        return back()->with('success', 'Your signature has been recorded successfully.');
+        // A successful submit consumes the one-time token, so the signed signing URL is now dead —
+        // redirect to the token-free landing instead of back() (which would 403 on the spent token).
+        return redirect()->route('sign.payment-bundle.thanks');
+    }
+
+    public function thanks()
+    {
+        return view('finance.payment-bundles.signed-thanks');
     }
 
     /** Shared gate checks: bundle-owns-signature, token validity, user identity, permission. */

@@ -94,6 +94,13 @@ Route::middleware(['web', 'signed', 'auth'])->post(
     [\App\Http\Controllers\SignPaymentBundleController::class, 'store']
 )->name('sign.payment-bundle.submit');
 
+// Post-signature landing. NOT signed/token-gated: the one-time token is consumed by a successful
+// submit, so the signer is redirected here (auth-only) rather than back to the now-dead signing URL.
+Route::middleware(['web', 'auth'])->get(
+    '/sign/payment-bundles/recorded',
+    [\App\Http\Controllers\SignPaymentBundleController::class, 'thanks']
+)->name('sign.payment-bundle.thanks');
+
 Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
