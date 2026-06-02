@@ -1,6 +1,6 @@
 <?php
 
-use App\Filament\Pages\CooApprovalView;
+use App\Filament\Pages\PaymentApprovalView;
 use App\Filament\Resources\ExpenseRequestResource;
 use App\Filament\Resources\PaymentRequestResource;
 use App\Models\User;
@@ -10,27 +10,27 @@ use Spatie\Permission\PermissionRegistrar;
 use function Pest\Laravel\actingAs;
 
 /**
- * Phase 12 — Filament access gating for the COO view + ER/PR resources.
+ * Phase 12 — Filament access gating for the payment approval view + ER/PR resources.
  */
 beforeEach(function () {
     $this->seed(FinanceRolePermissionSeeder::class);
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 });
 
-it('grants the COO approval view to a COO (permission + C-level)', function () {
+it('grants the payment approval view to a COO (has payment_requests.approve)', function () {
     $coo = User::factory()->create();
     $coo->assignRole('COO');
     actingAs($coo);
 
-    expect(CooApprovalView::canAccess())->toBeTrue();
+    expect(PaymentApprovalView::canAccess())->toBeTrue();
 });
 
-it('denies the COO approval view to a finance creator (no approve_as_coo, not C-level)', function () {
+it('denies the payment approval view to a finance creator (no payment_requests.approve)', function () {
     $user = User::factory()->create();
     $user->assignRole('finance_creator');
     actingAs($user);
 
-    expect(CooApprovalView::canAccess())->toBeFalse();
+    expect(PaymentApprovalView::canAccess())->toBeFalse();
 });
 
 it('gates ER and PR resources on the right finance permission', function () {

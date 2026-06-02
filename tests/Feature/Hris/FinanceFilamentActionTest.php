@@ -1,6 +1,6 @@
 <?php
 
-use App\Filament\Pages\CooApprovalView;
+use App\Filament\Pages\PaymentApprovalView;
 use App\Filament\Resources\ExpenseRequestResource\Pages\ListExpenseRequests;
 use App\Filament\Resources\PaymentRequestResource\Pages\ListPaymentRequests;
 use App\Models\Hris\Employee;
@@ -19,7 +19,7 @@ use Livewire\Livewire;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * Task 5 — Filament finance action coverage (mark_paid upload, ER verify, COO approve, void).
+ * Task 5 — Filament finance action coverage (mark_paid upload, ER verify, payment approve, void).
  * Exercises the actual Livewire action + form path, not services directly.
  */
 beforeEach(function () {
@@ -141,9 +141,9 @@ it('verify action: transitions submitted ER to finance_verified', function () {
     expect($fresh->finance_notes)->toBe('All receipts checked');
 });
 
-// ─── Test 3: COO approve action ──────────────────────────────────────────────
+// ─── Test 3: Payment approval action ─────────────────────────────────────────
 
-it('approve action on CooApprovalView: transitions PR to approved_by_coo with snapshot', function () {
+it('approve action on PaymentApprovalView: transitions PR to approved_by_coo with snapshot', function () {
     $creator = User::factory()->create();
     $coo = User::factory()->create();
     $coo->assignRole('COO');
@@ -153,7 +153,7 @@ it('approve action on CooApprovalView: transitions PR to approved_by_coo with sn
     $pr = $pr->fresh();
 
     Livewire::actingAs($coo)
-        ->test(CooApprovalView::class)
+        ->test(PaymentApprovalView::class)
         ->callTableAction('approve', $pr)
         ->assertHasNoTableActionErrors();
 

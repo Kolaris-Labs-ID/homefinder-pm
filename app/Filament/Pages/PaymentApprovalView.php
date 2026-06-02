@@ -14,27 +14,27 @@ use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * COO payment-approval queue (EXPENSE_MODULE.MD Phase 12).
- * Read-only business view of PRs submitted to the COO: approve / reject / request clarification.
- * COO never edits money/payee/bank, marks paid, or reconciles. Approval mints the immutable snapshot.
+ * Payment approval queue (EXPENSE_MODULE.MD Phase 12).
+ * Read-only business view of PRs awaiting approval: approve / reject / request clarification.
+ * Approver never edits money/payee/bank, marks paid, or reconciles. Approval mints the immutable snapshot.
  */
-class CooApprovalView extends Page implements HasTable
+class PaymentApprovalView extends Page implements HasTable
 {
     use InteractsWithTable;
 
     protected static ?string $navigationIcon = 'heroicon-o-check-badge';
 
-    protected static ?string $navigationLabel = 'COO Approvals';
+    protected static ?string $navigationLabel = 'Payment Approvals';
 
-    protected static ?string $title = 'COO — Payment Approvals';
+    protected static ?string $title = 'Payment Approvals';
 
     protected static ?string $navigationGroup = 'Finance Center';
 
     protected static ?int $navigationSort = 4;
 
-    protected static ?string $slug = 'coo-approvals';
+    protected static ?string $slug = 'payment-approvals';
 
-    protected static string $view = 'filament.pages.coo-approval-view';
+    protected static string $view = 'filament.pages.payment-approval-view';
 
     public static function canAccess(): bool
     {
@@ -46,7 +46,7 @@ class CooApprovalView extends Page implements HasTable
             return true;
         }
         try {
-            return $user->hasPermissionTo('payment_requests.approve_as_coo', 'web') && $user->isCLevel();
+            return $user->hasPermissionTo('payment_requests.approve', 'web');
         } catch (\Throwable $e) {
             return false;
         }

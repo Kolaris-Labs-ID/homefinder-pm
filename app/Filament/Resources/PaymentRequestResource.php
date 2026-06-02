@@ -21,7 +21,7 @@ use Filament\Tables\Table;
 
 /**
  * Finance workbench for Payment Requests (EXPENSE_MODULE.MD Phase 11/12).
- * Lifecycle actions (submit to COO, mark paid w/ proof, reconcile, void, reverse) all run
+ * Lifecycle actions (submit for approval, mark paid w/ proof, reconcile, void, reverse) all run
  * through PaymentRequestService — bank account is shown masked (last4) only.
  */
 class PaymentRequestResource extends Resource
@@ -93,7 +93,7 @@ class PaymentRequestResource extends Resource
                 TextEntry::make('reconciliation_reference')->placeholder('—'),
             ])->columns(2),
 
-            Section::make('COO Approval Snapshot')
+            Section::make('Payment Approval Snapshot')
                 ->visible(fn ($record) => filled($record?->approval_snapshot_json))
                 ->schema([
                     TextEntry::make('approval_snapshot_hash')
@@ -135,11 +135,11 @@ class PaymentRequestResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
 
-                Tables\Actions\Action::make('submit_to_coo')
+                Tables\Actions\Action::make('submit_for_approval')
                     ->icon('heroicon-o-paper-airplane')
-                    ->visible(fn (PaymentRequest $r) => in_array($r->status, [PaymentRequest::STATUS_DRAFT, PaymentRequest::STATUS_NEEDS_CLARIFICATION], true) && static::financeCan('payment_requests.submit_to_coo'))
+                    ->visible(fn (PaymentRequest $r) => in_array($r->status, [PaymentRequest::STATUS_DRAFT, PaymentRequest::STATUS_NEEDS_CLARIFICATION], true) && static::financeCan('payment_requests.submit_for_approval'))
                     ->requiresConfirmation()
-                    ->action(fn (PaymentRequest $r) => static::run(fn () => app(PaymentRequestService::class)->submitToCoo($r), 'Submitted to COO')),
+                    ->action(fn (PaymentRequest $r) => static::run(fn () => app(PaymentRequestService::class)->submitToCoo($r), 'Submitted for approval')),
 
                 Tables\Actions\Action::make('mark_paid')
                     ->icon('heroicon-o-check-circle')->color('success')
