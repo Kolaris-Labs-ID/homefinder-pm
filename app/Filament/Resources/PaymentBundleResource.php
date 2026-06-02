@@ -249,12 +249,7 @@ class PaymentBundleResource extends Resource
                     ->icon('heroicon-o-users')
                     ->label('Reassign Signers')
                     ->color('warning')
-                    ->visible(fn (PaymentBundle $r) => in_array($r->status, [
-                        PaymentBundle::STATUS_SUBMITTED_FOR_SIGNATURE,
-                        PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_1,
-                        PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_2,
-                        PaymentBundle::STATUS_PENDING_EXECUTIVE_SIGNATURE,
-                    ], true)
+                    ->visible(fn (PaymentBundle $r) => in_array($r->status, PaymentBundle::signaturePendingStatuses(), true)
                         && ! $r->signatures()->where('status', \App\Models\Hris\PaymentBundleSignature::STATUS_SIGNED)->exists()
                         && static::financeCan('payment_bundles.manage_signers'))
                     ->form([

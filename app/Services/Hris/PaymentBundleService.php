@@ -417,14 +417,7 @@ class PaymentBundleService
                 throw new RuntimeException('You are not allowed to reassign signers.');
             }
 
-            $signingStatuses = [
-                PaymentBundle::STATUS_SUBMITTED_FOR_SIGNATURE,
-                PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_1,
-                PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_2,
-                PaymentBundle::STATUS_PENDING_EXECUTIVE_SIGNATURE,
-            ];
-
-            if (! in_array($bundle->status, $signingStatuses, true)) {
+            if (! in_array($bundle->status, PaymentBundle::signaturePendingStatuses(), true)) {
                 throw new RuntimeException('Signers can only be reassigned while the bundle is awaiting signatures.');
             }
 
