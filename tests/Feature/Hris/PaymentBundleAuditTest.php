@@ -268,17 +268,20 @@ it('authorized has before=pending_executive_signature and after=authorized_for_p
 
 it('marked_paid has before status and after.status=paid, and existing after keys intact', function () {
     $bundle = auditFullLifecycleBundle14();
+    $before = $bundle->fresh()->status;
 
-    $this->payments->markPaid($bundle, $this->payer, auditFakePdf14('proof-status.pdf'));
+    $this->payments->markPaid($bundle->fresh(), $this->payer, auditFakePdf14('proof-status.pdf'));
 
     $row = FinanceAuditLog::where('event_type', 'payment_bundle.marked_paid')
         ->where('auditable_id', $bundle->id)
         ->firstOrFail();
 
-    expect($row->before_snapshot['status'])->not->toBeNull();
+    expect($row->before_snapshot['status'])->toBe($before);
     expect($row->after_snapshot['status'])->toBe(PaymentBundle::STATUS_PAID);
     // existing after keys preserved
     expect($row->after_snapshot)->toHaveKey('paid_at');
+    expect($row->after_snapshot)->toHaveKey('paid_by');
+    expect($row->after_snapshot)->toHaveKey('payment_reference');
     expect($row->after_snapshot)->toHaveKey('total_amount');
 });
 
@@ -362,7 +365,7 @@ it('rejected has before status and after.status=rejected', function () {
         ->where('auditable_id', $bundle->id)
         ->firstOrFail();
 
-    expect($row->before_snapshot['status'])->not->toBeNull();
+    expect($row->before_snapshot['status'])->toBe(PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_1);
     expect($row->after_snapshot['status'])->toBe(PaymentBundle::STATUS_REJECTED);
 });
 
