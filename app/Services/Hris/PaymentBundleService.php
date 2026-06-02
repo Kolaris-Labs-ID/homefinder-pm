@@ -27,6 +27,7 @@ class PaymentBundleService
         protected PaymentBundleDocumentService $documents,
         protected PaymentBundleSignatureService $signatures,
         protected BatchPaymentBundleService $batchSources,
+        protected PaymentAuthorizationSettingsService $authSettings,
     ) {}
 
     public function create(User $creator, array $attrs = []): PaymentBundle
@@ -335,6 +336,16 @@ class PaymentBundleService
 
             $this->batchSources->assertNoSourceDrift($bundle, $actor);
 
+            // Caller passed no signer assignments → fall back to the configured defaults.
+            if (collect($assignments)->filter()->isEmpty()) {
+                $assignments = $this->authSettings->assignments();
+                foreach (PaymentBundleSignatureSlot::ordered() as $slot) {
+                    if (empty($assignments[$slot->value])) {
+                        throw new RuntimeException('Payment Authorization Settings are incomplete. Please assign Finance Signer 1, Finance Signer 2, and Executive Signer before submitting this bundle.');
+                    }
+                }
+            }
+
             $users = $this->resolveAndValidateAssignment($bundle, $assignments);
 
             $signingLinks = [];
@@ -348,6 +359,13 @@ class PaymentBundleService
 
                 $signingLinks[$slot->value] = $this->signatures->createSigningLink($sig, $users[$slot->value]);
             }
+
+            $this->audit->log($bundle, 'payment_bundle_signers_assigned', $actor, ['after' => [
+                'bundle_number' => $bundle->bundle_number,
+                'finance_signer_1' => $users[PaymentBundleSignatureSlot::FINANCE_SIGNER_1->value]->id,
+                'finance_signer_2' => $users[PaymentBundleSignatureSlot::FINANCE_SIGNER_2->value]->id,
+                'executive_signer' => $users[PaymentBundleSignatureSlot::EXECUTIVE_SIGNER->value]->id,
+            ]]);
 
             $this->documents->generateUnsignedPdf($bundle, $actor);
             $bundle->refresh();

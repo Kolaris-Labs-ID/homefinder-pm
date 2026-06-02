@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\PaymentBundleResource\Pages;
 use App\Models\Hris\LatePayCompensationBatch;
 use App\Models\Hris\OvertimePayBatch;
+use App\Models\Hris\PaymentAuthorizationSetting;
 use App\Models\Hris\PaymentBundle;
 use App\Models\Hris\PaymentBundleItem;
 use App\Models\Hris\PaymentRequest;
@@ -207,29 +208,37 @@ class PaymentBundleResource extends Resource
                     ->color('primary')
                     ->visible(fn (PaymentBundle $r) => $r->status === PaymentBundle::STATUS_DRAFT && static::financeCan('payment_bundles.submit_for_signature'))
                     ->form([
+                        Forms\Components\Placeholder::make('signers_hint')
+                            ->label('Signers')
+                            ->content(fn () => static::financeCan('payment_bundles.manage_signers')
+                                ? 'Defaults are pre-filled from Payment Authorization Settings. Adjust if needed.'
+                                : 'Signers are taken from Payment Authorization Settings.'),
                         Forms\Components\Select::make('finance_signer_1')
                             ->label('Finance Signer 1')
                             ->options(fn () => User::permission('payment_bundles.sign.finance')->pluck('name', 'id'))
-                            ->required()
+                            ->default(fn () => PaymentAuthorizationSetting::current()->finance_signer_1_user_id)
+                            ->disabled(fn () => ! static::financeCan('payment_bundles.manage_signers'))
                             ->searchable(),
                         Forms\Components\Select::make('finance_signer_2')
                             ->label('Finance Signer 2')
                             ->options(fn () => User::permission('payment_bundles.sign.finance')->pluck('name', 'id'))
-                            ->required()
+                            ->default(fn () => PaymentAuthorizationSetting::current()->finance_signer_2_user_id)
+                            ->disabled(fn () => ! static::financeCan('payment_bundles.manage_signers'))
                             ->searchable(),
                         Forms\Components\Select::make('executive_signer')
                             ->label('Executive Signer')
                             ->options(fn () => User::permission('payment_bundles.sign.executive')->pluck('name', 'id'))
-                            ->required()
+                            ->default(fn () => PaymentAuthorizationSetting::current()->executive_signer_user_id)
+                            ->disabled(fn () => ! static::financeCan('payment_bundles.manage_signers'))
                             ->searchable(),
                     ])
                     ->action(fn (PaymentBundle $r, array $data) => static::run(
                         fn () => app(PaymentBundleService::class)->submitForSignature(
                             $r,
                             [
-                                'finance_signer_1' => $data['finance_signer_1'],
-                                'finance_signer_2' => $data['finance_signer_2'],
-                                'executive_signer' => $data['executive_signer'],
+                                'finance_signer_1' => $data['finance_signer_1'] ?? null,
+                                'finance_signer_2' => $data['finance_signer_2'] ?? null,
+                                'executive_signer' => $data['executive_signer'] ?? null,
                             ],
                             auth()->user()
                         ),
