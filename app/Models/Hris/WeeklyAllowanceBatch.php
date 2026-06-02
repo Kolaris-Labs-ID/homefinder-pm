@@ -17,10 +17,19 @@ class WeeklyAllowanceBatch extends Model
 
     // Status constants — 5-status set (COO removed, multi-finance approver)
     const STATUS_DRAFT = 'draft';
+
     const STATUS_CALCULATED = 'calculated';
+
     const STATUS_PENDING_FINANCE = 'pending_finance';
+
     const STATUS_REJECTED = 'rejected';
+
     const STATUS_PAID = 'paid';
+
+    // Payment-bundle lifecycle (Phase 3)
+    const STATUS_ELIGIBLE_FOR_BUNDLE = 'eligible_for_bundle';
+
+    const STATUS_IN_PAYMENT_BUNDLE = 'in_payment_bundle';
 
     protected $fillable = [
         'week_start_date',
@@ -72,6 +81,8 @@ class WeeklyAllowanceBatch extends Model
             self::STATUS_PENDING_FINANCE,
             self::STATUS_REJECTED,
             self::STATUS_PAID,
+            self::STATUS_ELIGIBLE_FOR_BUNDLE,
+            self::STATUS_IN_PAYMENT_BUNDLE,
         ];
     }
 
@@ -86,6 +97,8 @@ class WeeklyAllowanceBatch extends Model
             self::STATUS_PENDING_FINANCE => 'Pending Finance',
             self::STATUS_REJECTED => 'Rejected',
             self::STATUS_PAID => 'Paid',
+            self::STATUS_ELIGIBLE_FOR_BUNDLE => 'Eligible for Bundle',
+            self::STATUS_IN_PAYMENT_BUNDLE => 'In Payment Bundle',
         ];
     }
 
@@ -100,6 +113,8 @@ class WeeklyAllowanceBatch extends Model
             self::STATUS_PENDING_FINANCE => 'warning',
             self::STATUS_REJECTED => 'danger',
             self::STATUS_PAID => 'success',
+            self::STATUS_ELIGIBLE_FOR_BUNDLE => 'info',
+            self::STATUS_IN_PAYMENT_BUNDLE => 'warning',
         ];
     }
 
@@ -240,7 +255,7 @@ class WeeklyAllowanceBatch extends Model
      */
     public function getWeekLabelAttribute(): string
     {
-        return $this->week_start_date->format('d M') . ' - ' . $this->week_end_date->format('d M Y');
+        return $this->week_start_date->format('d M').' - '.$this->week_end_date->format('d M Y');
     }
 
     /**

@@ -26,6 +26,11 @@ class PaymentRequest extends Model
 
     const STATUS_APPROVED_BY_COO = 'approved_by_coo';
 
+    // Payment-bundle lifecycle (Phase 3) — set by PaymentBundleService, not by approveAsCoo.
+    const STATUS_APPROVED_FOR_BUNDLE = 'approved_for_bundle';
+
+    const STATUS_IN_PAYMENT_BUNDLE = 'in_payment_bundle';
+
     const STATUS_REJECTED_BY_COO = 'rejected_by_coo';
 
     const STATUS_NEEDS_CLARIFICATION = 'needs_clarification';
