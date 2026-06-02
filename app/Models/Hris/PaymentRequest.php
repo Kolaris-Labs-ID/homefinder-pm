@@ -31,6 +31,9 @@ class PaymentRequest extends Model
 
     const STATUS_IN_PAYMENT_BUNDLE = 'in_payment_bundle';
 
+    // Bundle payment completion (Phase 11) — set when the bundle is marked paid.
+    const STATUS_PAID = 'paid';
+
     const STATUS_REJECTED_BY_COO = 'rejected_by_coo';
 
     const STATUS_NEEDS_CLARIFICATION = 'needs_clarification';
