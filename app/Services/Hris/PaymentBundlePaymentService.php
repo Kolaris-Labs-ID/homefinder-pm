@@ -2,7 +2,6 @@
 
 namespace App\Services\Hris;
 
-use App\Enums\PaymentBundleSignatureSlot;
 use App\Models\Hris\FinanceAttachment;
 use App\Models\Hris\PaymentBundle;
 use App\Models\Hris\PaymentBundleItem;
@@ -157,10 +156,7 @@ class PaymentBundlePaymentService
                 $financeSignerIds = $bundle->signatures()
                     ->where('status', \App\Models\Hris\PaymentBundleSignature::STATUS_SIGNED)
                     ->get()
-                    ->filter(fn ($sig) => $sig->signature_slot instanceof PaymentBundleSignatureSlot
-                        ? $sig->signature_slot->isFinance()
-                        : PaymentBundleSignatureSlot::from($sig->signature_slot)->isFinance()
-                    )
+                    ->filter(fn ($sig) => $sig->signature_slot->isFinance()) // signature_slot is cast to the enum
                     ->pluck('signed_by')
                     ->filter()
                     ->all();
@@ -179,10 +175,11 @@ class PaymentBundlePaymentService
                 ],
             ]);
 
+            $paidAt = now();
             $bundle->update([
                 'status' => PaymentBundle::STATUS_PAID,
                 'paid_by' => $actor->id,
-                'paid_at' => now(),
+                'paid_at' => $paidAt,
                 'payment_reference' => $reference,
                 'payment_notes' => $notes,
                 'payment_proof_attachment_id' => $attachment->id,
@@ -200,7 +197,7 @@ class PaymentBundlePaymentService
             $this->audit->log($bundle, 'payment_bundle.marked_paid', $actor, [
                 'after' => [
                     'paid_by' => $actor->id,
-                    'paid_at' => now()->toIso8601String(),
+                    'paid_at' => $paidAt->toIso8601String(),
                     'payment_reference' => $reference,
                     'total_amount' => (string) $bundle->total_amount,
                 ],

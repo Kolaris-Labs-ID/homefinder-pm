@@ -264,11 +264,20 @@ it('accepts a new proof after rejection and returns to paid', function () {
     expect($rePaid->status)->toBe(PaymentBundle::STATUS_PAID);
     expect($rePaid->payment_reference)->toBe('REF-CORRECTED');
 
-    // New proof stored.
+    // A genuinely NEW proof replaced the rejected one.
     expect($rePaid->payment_proof_attachment_id)->not->toBeNull();
+    expect($rePaid->payment_proof_attachment_id)->not->toBe($firstProofId);
     $newAttachment = FinanceAttachment::find($rePaid->payment_proof_attachment_id);
     expect($newAttachment)->not->toBeNull();
     Storage::disk('private')->assertExists($newAttachment->file_path);
+});
+
+it('throws when marking an already-paid bundle paid again', function () {
+    $bundle = proofAuthorizedBundle(proofApprovedPr(5000000));
+    $this->payments->markPaid($bundle, $this->payer, fakePdf());
+
+    expect(fn () => $this->payments->markPaid($bundle->fresh(), $this->payer, fakePdf()))
+        ->toThrow(RuntimeException::class);
 });
 
 // ─── 7. High-value SoD ──────────────────────────────────────────────────────────
