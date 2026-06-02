@@ -7,6 +7,7 @@
     "license": "GPL-3.0-or-later",
     "require": {
         "php": "^8.2",
+        "barryvdh/laravel-dompdf": "^3.1",
         "bezhansalleh/filament-shield": "^3.3",
         "craft-forge/filament-language-switcher": "^1.0",
         "ffhs/filament-package_ffhs_approvals": "^1.0",
