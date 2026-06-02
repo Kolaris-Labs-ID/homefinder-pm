@@ -116,7 +116,7 @@ function payExecAuthorizedBundle(PaymentRequest $pr): PaymentBundle
 /** Mutate a live PR's frozen-relevant fields (incl. its encrypted bank account) directly. */
 function payExecMutateLivePr(PaymentRequest $pr): void
 {
-    $pr->update(['payee_name' => 'CHANGED', 'amount' => '1.00']);
+    $pr->update(['payee_name' => 'CHANGED', 'amount' => '1.00', 'bank_name' => 'CHANGED_BANK']);
     $pr->forceFill([
         'bank_account_number_encrypted' => Crypt::encryptString('0000000000'),
         'bank_account_last4' => '0000',
@@ -161,6 +161,7 @@ it('returns the original snapshot values even after the live source is mutated',
     expect($instructions[0]['payee_name'])->toBe('PT Frozen Vendor');
     expect($instructions[0]['amount'])->toBe('5000000.00');
     expect($instructions[0]['bank_account_number'])->toBe('9876543210');
+    expect($instructions[0]['bank_name'])->toBe('BCA'); // frozen, not the mutated live 'CHANGED_BANK'
 
     // And via beginPaymentRecording the paid instructions are still the frozen ones.
     $begun = $this->payments->beginPaymentRecording($bundle->fresh(), $this->creator);
