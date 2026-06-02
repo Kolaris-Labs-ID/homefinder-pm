@@ -73,6 +73,22 @@ Route::middleware(['web', 'auth'])->get(
     [\App\Http\Controllers\PaymentBundlePdfController::class, 'unsigned']
 )->name('finance.payment-bundles.unsigned-pdf');
 
+// Named `login` target so the `auth` middleware can redirect guests (Laravel falls back to route('login')).
+// Plain redirect (NOT ->guest()) so the intended signed URL stored by `auth` survives to /admin/login.
+Route::get('/login', fn () => redirect('/admin/login'))->name('login');
+
+// Signing-link preview. Middleware ORDER: signed (HMAC for everyone, incl. guests) → auth (bounce guests
+// to login, preserving the full signed URL). See SignPaymentBundleController + PaymentBundleSignatureService.
+// NOTE: the route param is `paymentSignature`, not `signature` — `signature` is reserved by
+// Laravel's signed-URL generator (it owns the `signature` query param that carries the HMAC).
+// Middleware: Laravel's priority list runs `auth` before `signed` regardless of array order, so a
+// guest is bounced to login first (intended signed URL preserved) and `signed`+token gates enforce
+// on the authenticated return. No bypass: a tampered/invalid HMAC still 403s once authenticated.
+Route::middleware(['web', 'signed', 'auth'])->get(
+    '/sign/payment-bundles/{bundle}/{paymentSignature}',
+    [\App\Http\Controllers\SignPaymentBundleController::class, 'show']
+)->name('sign.payment-bundle');
+
 Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
