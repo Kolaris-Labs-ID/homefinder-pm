@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Hris\CanonicalPayloadHashService;
 use App\Services\Hris\PaymentBundleService;
 use App\Services\Hris\PaymentRequestService;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Phase 4 — CanonicalPayloadHashService: determinism, sensitivity, money format, PII, store().
@@ -73,20 +74,25 @@ it('produces the same hash for two independent build+hash calls on unchanged bun
 
 // ── 2. Item-order independence ─────────────────────────────────────────────────
 
-it('produces the same hash regardless of DB/query order of items', function () {
+it('orders items canonically by source_id regardless of insertion order', function () {
     $bundle = hashBundleWithSigs(['finance_signer_1' => null]);
     $pr1 = hashApprovedPr(['amount' => 2000000, 'payee_name' => 'Vendor A']);
     $pr2 = hashApprovedPr(['amount' => 3000000, 'payee_name' => 'Vendor B']);
-    test()->bundles->addPaymentRequest($bundle, $pr1, test()->creator);
-    test()->bundles->addPaymentRequest($bundle, $pr2, test()->creator);
-    $bundle->refresh();
+    $item1 = test()->bundles->addPaymentRequest($bundle, $pr1, test()->creator); // inserted first
+    $item2 = test()->bundles->addPaymentRequest($bundle, $pr2, test()->creator); // inserted second
 
-    $hash1 = test()->svc->hash(test()->svc->build($bundle));
+    // Make insertion (row-id) order the OPPOSITE of canonical (source_id) order, so a build()
+    // that leaked DB/insertion order would emit the wrong sequence and produce a different hash.
+    DB::table('payment_bundle_items')->where('id', $item1->id)->update(['source_id' => 2000000000]);
+    DB::table('payment_bundle_items')->where('id', $item2->id)->update(['source_id' => 1]);
 
-    // Service always re-sorts internally; simulate different order by rebuilding
-    $hash2 = test()->svc->hash(test()->svc->build($bundle->fresh()));
+    $payload = test()->svc->build($bundle->fresh());
 
-    expect($hash1)->toBe($hash2);
+    expect($payload['items'][0]['source_id'])->toBe(1);          // smaller source_id first
+    expect($payload['items'][1]['source_id'])->toBe(2000000000); // larger source_id last
+
+    // Hash is stable across rebuilds of the same (now canonically-ordered) data.
+    expect(test()->svc->hash($payload))->toBe(test()->svc->hash(test()->svc->build($bundle->fresh())));
 });
 
 // ── 3. Amount sensitivity ─────────────────────────────────────────────────────
