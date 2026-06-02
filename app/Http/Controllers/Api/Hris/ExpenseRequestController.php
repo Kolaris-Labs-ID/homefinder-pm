@@ -151,6 +151,8 @@ class ExpenseRequestController extends Controller
 
     private function detail(ExpenseRequest $er): array
     {
+        $pr = $er->paymentRequests()->latest('id')->first();
+
         return $this->summary($er) + [
             'description' => $er->description,
             'finance_notes' => $er->finance_notes,
@@ -160,6 +162,12 @@ class ExpenseRequestController extends Controller
             'payee_bank_name' => $er->payee_bank_name,
             'payee_bank_account_last4' => $er->payee_bank_account_last4,
             'submitted_at' => optional($er->submitted_at)->toDateTimeString(),
+            // Non-sensitive payment progress for the employee (no amount/bank details).
+            'payment' => $pr ? [
+                'status' => $pr->status,
+                'status_label' => (string) str($pr->status)->headline(),
+                'payment_request_number' => $pr->payment_request_number,
+            ] : null,
         ];
     }
 }

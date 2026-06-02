@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 /**
@@ -83,6 +84,13 @@ class ExpenseRequest extends Model
     public function financeAttachments(): MorphMany
     {
         return $this->morphMany(FinanceAttachment::class, 'attachable');
+    }
+
+    /** PaymentRequests created from this ER (PR.source_type/source_id back-reference). */
+    public function paymentRequests(): HasMany
+    {
+        return $this->hasMany(PaymentRequest::class, 'source_id')
+            ->where('source_type', PaymentRequest::SOURCE_EXPENSE_REQUEST);
     }
 
     /** Clear-text view of the encrypted bank account (decrypted by the cast). */
