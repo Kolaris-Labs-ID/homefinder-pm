@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Hris\PaymentBundle;
 use App\Models\Hris\PaymentBundleSignature;
 use App\Services\Hris\FinanceAuditLogger;
+use App\Services\Hris\PaymentBundleService;
 use App\Services\Hris\PaymentBundleSignatureService;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -62,6 +63,25 @@ class SignPaymentBundleController extends Controller
 
         // A successful submit consumes the one-time token, so the signed signing URL is now dead —
         // redirect to the token-free landing instead of back() (which would 403 on the spent token).
+        return redirect()->route('sign.payment-bundle.thanks');
+    }
+
+    public function reject(Request $request, PaymentBundle $bundle, PaymentBundleSignature $paymentSignature, PaymentBundleSignatureService $signatures)
+    {
+        $this->assertGates($request, $bundle, $paymentSignature, $signatures);
+
+        $request->validate(['reason' => ['required', 'string', 'max:1000']]);
+
+        try {
+            app(PaymentBundleService::class)->rejectSignature(
+                $paymentSignature,
+                $request->user(),
+                $request->input('reason'),
+            );
+        } catch (RuntimeException $e) {
+            return back()->withErrors(['reason' => $e->getMessage()]);
+        }
+
         return redirect()->route('sign.payment-bundle.thanks');
     }
 

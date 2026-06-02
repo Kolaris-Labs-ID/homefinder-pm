@@ -94,6 +94,11 @@ Route::middleware(['web', 'signed', 'auth'])->post(
     [\App\Http\Controllers\SignPaymentBundleController::class, 'store']
 )->name('sign.payment-bundle.submit');
 
+Route::middleware(['web', 'signed', 'auth'])->post(
+    '/sign/payment-bundles/{bundle}/{paymentSignature}/reject',
+    [\App\Http\Controllers\SignPaymentBundleController::class, 'reject']
+)->name('sign.payment-bundle.reject');
+
 // Post-signature landing. NOT signed/token-gated: the one-time token is consumed by a successful
 // submit, so the signer is redirected here (auth-only) rather than back to the now-dead signing URL.
 Route::middleware(['web', 'auth'])->get(

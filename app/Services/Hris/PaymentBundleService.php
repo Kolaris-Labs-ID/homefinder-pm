@@ -196,6 +196,152 @@ class PaymentBundleService
         });
     }
 
+    public function cancel(PaymentBundle $bundle, User $actor): PaymentBundle
+    {
+        return DB::transaction(function () use ($bundle, $actor) {
+            $bundle = PaymentBundle::query()->lockForUpdate()->findOrFail($bundle->id);
+
+            if ($bundle->status !== PaymentBundle::STATUS_DRAFT) {
+                throw new RuntimeException('Only a draft bundle can be cancelled.');
+            }
+
+            $this->releaseActiveItems($bundle, $actor);
+
+            $bundle->update(['status' => PaymentBundle::STATUS_CANCELLED]);
+
+            $this->audit->log($bundle, 'payment_bundle.cancelled', $actor);
+
+            return $bundle->fresh();
+        });
+    }
+
+    public function void(PaymentBundle $bundle, User $actor, string $reason): PaymentBundle
+    {
+        return DB::transaction(function () use ($bundle, $actor, $reason) {
+            $bundle = PaymentBundle::query()->lockForUpdate()->findOrFail($bundle->id);
+
+            $voidable = [
+                PaymentBundle::STATUS_DRAFT,
+                PaymentBundle::STATUS_SUBMITTED_FOR_SIGNATURE,
+                PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_1,
+                PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_2,
+                PaymentBundle::STATUS_PENDING_EXECUTIVE_SIGNATURE,
+                PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT,
+                PaymentBundle::STATUS_PAYMENT_RECORDING,
+                PaymentBundle::STATUS_PAYMENT_PROOF_REJECTED,
+            ];
+
+            if (! in_array($bundle->status, $voidable, true)) {
+                throw new RuntimeException('This bundle cannot be voided.');
+            }
+
+            $this->releaseActiveItems($bundle, $actor);
+
+            $terminalSignatureStatuses = [
+                PaymentBundleSignature::STATUS_VOIDED,
+                PaymentBundleSignature::STATUS_REJECTED,
+            ];
+
+            foreach ($bundle->signatures()->get() as $sig) {
+                if (in_array($sig->status, $terminalSignatureStatuses, true)) {
+                    continue;
+                }
+                $sig->forceFill(['status' => PaymentBundleSignature::STATUS_VOIDED])->save();
+                $this->audit->log($bundle, 'payment_bundle.signature_voided', $actor, ['after' => [
+                    'signature_id' => $sig->id,
+                    'slot' => $sig->signature_slot->value,
+                ]]);
+            }
+
+            $bundle->update([
+                'status' => PaymentBundle::STATUS_VOIDED,
+                'metadata' => array_merge($bundle->metadata ?? [], [
+                    'void_reason' => $reason,
+                    'voided_by' => $actor->id,
+                    'voided_at' => now()->toIso8601String(),
+                ]),
+            ]);
+
+            $this->audit->log($bundle, 'payment_bundle.voided', $actor, ['after' => ['reason' => $reason]]);
+
+            return $bundle->fresh();
+        });
+    }
+
+    public function rejectSignature(PaymentBundleSignature $signature, User $signer, string $reason): PaymentBundle
+    {
+        return DB::transaction(function () use ($signature, $signer, $reason) {
+            $bundle = PaymentBundle::query()->lockForUpdate()->findOrFail($signature->payment_bundle_id);
+            $signature = PaymentBundleSignature::query()->lockForUpdate()->findOrFail($signature->id);
+
+            $signingStatuses = [
+                PaymentBundle::STATUS_SUBMITTED_FOR_SIGNATURE,
+                PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_1,
+                PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_2,
+                PaymentBundle::STATUS_PENDING_EXECUTIVE_SIGNATURE,
+            ];
+
+            if (! in_array($bundle->status, $signingStatuses, true)) {
+                throw new RuntimeException('This bundle is not in a signing state.');
+            }
+
+            if ($signature->status !== PaymentBundleSignature::STATUS_PENDING) {
+                throw new RuntimeException('This signature slot is not pending.');
+            }
+
+            if ($signature->assigned_user_id !== $signer->id) {
+                throw new RuntimeException('Only the assigned signer can reject this signature slot.');
+            }
+
+            // Set rejected state (AFTER the check — override revokeToken's STATUS_REVOKED).
+            $signature->forceFill([
+                'status' => PaymentBundleSignature::STATUS_REJECTED,
+                'rejection_reason' => $reason,
+                'signed_by' => $signer->id,
+                'token_revoked_at' => now(),
+            ])->save();
+
+            $this->audit->log($bundle, 'payment_bundle.signature_rejected', $signer, ['after' => [
+                'signature_id' => $signature->id,
+                'slot' => $signature->signature_slot->value,
+                'reason' => $reason,
+            ]]);
+
+            // Revoke every other non-terminal signature.
+            $terminalStatuses = [
+                PaymentBundleSignature::STATUS_REJECTED,
+                PaymentBundleSignature::STATUS_REVOKED,
+                PaymentBundleSignature::STATUS_VOIDED,
+            ];
+
+            foreach ($bundle->signatures()->where('id', '!=', $signature->id)->get() as $other) {
+                if (in_array($other->status, $terminalStatuses, true)) {
+                    continue;
+                }
+                $this->signatures->revokeToken($other);
+                $this->audit->log($bundle, 'payment_bundle.signature_revoked', $signer, ['after' => [
+                    'signature_id' => $other->id,
+                    'slot' => $other->signature_slot->value,
+                ]]);
+            }
+
+            $this->releaseActiveItems($bundle, $signer);
+
+            $bundle->update([
+                'status' => PaymentBundle::STATUS_REJECTED,
+                'metadata' => array_merge($bundle->metadata ?? [], [
+                    'rejection_reason' => $reason,
+                    'rejected_by' => $signer->id,
+                    'rejected_at' => now()->toIso8601String(),
+                ]),
+            ]);
+
+            $this->audit->log($bundle, 'payment_bundle.rejected', $signer, ['after' => ['reason' => $reason]]);
+
+            return $bundle->fresh();
+        });
+    }
+
     /**
      * Lock the draft, validate the signer assignment (segregation of duties + per-slot permission),
      * create the three pending signature rows with signing links, freeze the canonical payload +
@@ -290,6 +436,25 @@ class PaymentBundleService
         }
 
         return $users;
+    }
+
+    private function releaseActiveItems(PaymentBundle $bundle, User $actor): void
+    {
+        foreach ($bundle->items()->where('status', PaymentBundleItem::STATUS_ACTIVE)->get() as $item) {
+            if ($item->source_type === PaymentBundleItem::SOURCE_PAYMENT_REQUEST) {
+                PaymentRequest::find($item->source_id)?->update(['status' => PaymentRequest::STATUS_APPROVED_FOR_BUNDLE]);
+            } elseif ($item->source_type === PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH) {
+                WeeklyAllowanceBatch::find($item->source_id)?->update(['status' => WeeklyAllowanceBatch::STATUS_ELIGIBLE_FOR_BUNDLE]);
+            }
+
+            $item->update(['status' => PaymentBundleItem::STATUS_RELEASED]);
+
+            $this->audit->log($bundle, 'payment_bundle.item_released', $actor, ['after' => [
+                'item_id' => $item->id,
+                'source_type' => $item->source_type,
+                'source_id' => $item->source_id,
+            ]]);
+        }
     }
 
     private function recomputeTotal(PaymentBundle $bundle): void
