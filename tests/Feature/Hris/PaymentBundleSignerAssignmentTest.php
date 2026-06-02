@@ -186,3 +186,54 @@ it('uses explicit assignments and does not consult settings when assignments are
 
     expect(PaymentAuthorizationSetting::current()->finance_signer_1_user_id)->toBeNull();
 });
+
+it('overrides a non-manager caller-supplied signers with the configured defaults', function () {
+    setSettingsTo($this->financeA->id, $this->financeB->id, $this->exec->id);
+
+    $otherF1 = User::factory()->create();
+    $otherF1->assignRole('finance_signer');
+    $otherF2 = User::factory()->create();
+    $otherF2->assignRole('finance_signer');
+    $otherExec = User::factory()->create();
+    $otherExec->assignRole('executive_signer');
+
+    $bundle = draftBundleForSignerTest();
+
+    $bundle = $this->bundles->submitForSignature($bundle, [
+        PaymentBundleSignatureSlot::FINANCE_SIGNER_1->value => $otherF1->id,
+        PaymentBundleSignatureSlot::FINANCE_SIGNER_2->value => $otherF2->id,
+        PaymentBundleSignatureSlot::EXECUTIVE_SIGNER->value => $otherExec->id,
+    ], $this->creator);
+
+    $byslot = fn (PaymentBundleSignatureSlot $s) => $bundle->signatures()
+        ->where('signature_slot', $s->value)->first()->assigned_user_id;
+
+    expect($byslot(PaymentBundleSignatureSlot::FINANCE_SIGNER_1))->toBe($this->financeA->id);
+    expect($byslot(PaymentBundleSignatureSlot::EXECUTIVE_SIGNER))->toBe($this->exec->id);
+});
+
+it('honors caller-supplied signers when the actor may manage signers', function () {
+    setSettingsTo($this->financeA->id, $this->financeB->id, $this->exec->id);
+
+    $manager = User::factory()->create();
+    $manager->assignRole('finance_creator');
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+    $otherF1 = User::factory()->create();
+    $otherF1->assignRole('finance_signer');
+    $otherF2 = User::factory()->create();
+    $otherF2->assignRole('finance_signer');
+    $otherExec = User::factory()->create();
+    $otherExec->assignRole('executive_signer');
+
+    $bundle = draftBundleForSignerTest();
+
+    $bundle = $this->bundles->submitForSignature($bundle, [
+        PaymentBundleSignatureSlot::FINANCE_SIGNER_1->value => $otherF1->id,
+        PaymentBundleSignatureSlot::FINANCE_SIGNER_2->value => $otherF2->id,
+        PaymentBundleSignatureSlot::EXECUTIVE_SIGNER->value => $otherExec->id,
+    ], $manager);
+
+    $f1 = $bundle->signatures()->where('signature_slot', PaymentBundleSignatureSlot::FINANCE_SIGNER_1->value)->first();
+    expect($f1->assigned_user_id)->toBe($otherF1->id);
+});

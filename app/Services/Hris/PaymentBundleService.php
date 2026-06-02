@@ -336,13 +336,21 @@ class PaymentBundleService
 
             $this->batchSources->assertNoSourceDrift($bundle, $actor);
 
-            // Caller passed no signer assignments → fall back to the configured defaults.
-            if (collect($assignments)->filter()->isEmpty()) {
-                $assignments = $this->authSettings->assignments();
-                foreach (PaymentBundleSignatureSlot::ordered() as $slot) {
-                    if (empty($assignments[$slot->value])) {
-                        throw new RuntimeException('Payment Authorization Settings are incomplete. Please assign Finance Signer 1, Finance Signer 2, and Executive Signer before submitting this bundle.');
-                    }
+            // Signer assignment defaults to the configured Payment Authorization Settings. Only a
+            // user with manage_signers may override them; for anyone else, caller-supplied signers
+            // are replaced by the configured defaults — server-side authorization, since the
+            // disabled submit form fields are UI-only. When no complete default is configured yet,
+            // explicitly supplied assignments are still honored.
+            $provided = collect($assignments)->filter();
+            if ($provided->isEmpty() || ! $actor->can('payment_bundles.manage_signers')) {
+                $defaults = $this->authSettings->assignments();
+                $defaultsComplete = collect(PaymentBundleSignatureSlot::ordered())
+                    ->every(fn (PaymentBundleSignatureSlot $slot) => ! empty($defaults[$slot->value]));
+
+                if ($defaultsComplete) {
+                    $assignments = $defaults;
+                } elseif ($provided->isEmpty()) {
+                    throw new RuntimeException('Payment Authorization Settings are incomplete. Please assign Finance Signer 1, Finance Signer 2, and Executive Signer before submitting this bundle.');
                 }
             }
 
