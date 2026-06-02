@@ -101,6 +101,11 @@ Route::middleware(['web', 'auth'])->get(
     [\App\Http\Controllers\SignPaymentBundleController::class, 'thanks']
 )->name('sign.payment-bundle.thanks');
 
+// Public verification page — rate-limited 30/min, no auth required.
+Route::middleware(['web', 'throttle:30,1'])
+    ->get('/verify/payment-document/{code}', [\App\Http\Controllers\VerifyPaymentDocumentController::class, 'show'])
+    ->name('verify.payment-document');
+
 Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
