@@ -48,11 +48,15 @@ it('scopes the paid-pending-reconciliation queue', function () {
     expect((new FinanceCenter)->paidPendingReconciliationQueue()->count())->toBe(2);
 });
 
-it('lists the gated placeholder modules with honest disabled reasons', function () {
-    $gated = FinanceCenter::gatedPlaceholders();
+it('enables completed batch modules and keeps payroll honestly disabled', function () {
+    $modules = (new FinanceCenter)->batchPaymentModules();
 
-    expect($gated)->toHaveKeys(['payroll_payments', 'weekly_allowance', 'overtime_pay', 'late_pay_compensation']);
-    expect($gated['weekly_allowance'])->toBeString()->not->toBeEmpty();
+    expect($modules)->toHaveKeys(['payroll_payments', 'weekly_allowance', 'overtime_pay', 'late_pay_compensation']);
+    expect($modules['weekly_allowance']['enabled'])->toBeTrue();
+    expect($modules['overtime_pay']['enabled'])->toBeTrue();
+    expect($modules['late_pay_compensation']['enabled'])->toBeTrue();
+    expect($modules['payroll_payments']['enabled'])->toBeFalse();
+    expect($modules['payroll_payments']['disabled_reason'])->toContain('payroll batch-to-PaymentBundle');
 });
 
 function financeCenterEr(string $status): ExpenseRequest

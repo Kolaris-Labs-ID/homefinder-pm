@@ -26,6 +26,7 @@ class PaymentBundleService
         protected CanonicalPayloadHashService $canonical,
         protected PaymentBundleDocumentService $documents,
         protected PaymentBundleSignatureService $signatures,
+        protected BatchPaymentBundleService $batchSources,
     ) {}
 
     public function create(User $creator, array $attrs = []): PaymentBundle
@@ -107,56 +108,7 @@ class PaymentBundleService
 
     public function addWeeklyAllowanceBatch(PaymentBundle $bundle, WeeklyAllowanceBatch $wab, User $actor): PaymentBundleItem
     {
-        return DB::transaction(function () use ($bundle, $wab, $actor) {
-            $bundle = PaymentBundle::query()->lockForUpdate()->findOrFail($bundle->id);
-
-            if ($bundle->status !== PaymentBundle::STATUS_DRAFT) {
-                throw new \RuntimeException('Only a draft bundle can receive items.');
-            }
-
-            $wab = WeeklyAllowanceBatch::query()->lockForUpdate()->findOrFail($wab->id);
-
-            if ($wab->status !== WeeklyAllowanceBatch::STATUS_ELIGIBLE_FOR_BUNDLE) {
-                throw new \RuntimeException('Weekly allowance batch is not eligible for bundling.');
-            }
-
-            if (PaymentBundleItem::where('source_type', PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH)
-                ->where('source_id', $wab->id)
-                ->where('status', PaymentBundleItem::STATUS_ACTIVE)
-                ->exists()) {
-                throw new \RuntimeException('This weekly allowance batch is already in an active bundle.');
-            }
-
-            $snapshot = PaymentBundleSnapshot::forWeeklyAllowanceBatch($wab);
-
-            $item = PaymentBundleItem::create([
-                'payment_bundle_id' => $bundle->id,
-                'source_type' => PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH,
-                'source_id' => $wab->id,
-                'description' => $snapshot['description'],
-                'payee_name' => $snapshot['payee_name'],
-                'payee_bank_name' => null,
-                'payee_bank_account_last4' => null,
-                'amount' => $wab->total_amount,
-                'currency' => 'IDR',
-                'source_snapshot_json' => $snapshot,
-                'source_hash' => PaymentBundleSnapshot::hash($snapshot),
-                'status' => PaymentBundleItem::STATUS_ACTIVE,
-            ]);
-
-            $wab->update(['status' => WeeklyAllowanceBatch::STATUS_IN_PAYMENT_BUNDLE]);
-
-            $this->recomputeTotal($bundle);
-
-            $this->audit->log($bundle, 'payment_bundle.item_added', $actor, ['after' => [
-                'item_id' => $item->id,
-                'source_type' => $item->source_type,
-                'source_id' => $item->source_id,
-                'amount' => (string) $item->amount,
-            ]]);
-
-            return $item;
-        });
+        return $this->batchSources->addSource($bundle, $wab, $actor);
     }
 
     public function removeItem(PaymentBundleItem $item, User $actor): void
@@ -172,12 +124,19 @@ class PaymentBundleService
             if ($item->source_type === PaymentBundleItem::SOURCE_PAYMENT_REQUEST) {
                 $releasedSourceStatus = PaymentRequest::STATUS_APPROVED_FOR_BUNDLE;
                 PaymentRequest::find($item->source_id)?->update(['status' => $releasedSourceStatus]);
-            } elseif ($item->source_type === PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH) {
-                $releasedSourceStatus = WeeklyAllowanceBatch::STATUS_ELIGIBLE_FOR_BUNDLE;
-                WeeklyAllowanceBatch::find($item->source_id)?->update(['status' => $releasedSourceStatus]);
+            } elseif (in_array($item->source_type, [
+                PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH,
+                PaymentBundleItem::SOURCE_OVERTIME_PAY_BATCH,
+                PaymentBundleItem::SOURCE_LATE_PAY_COMPENSATION_BATCH,
+                PaymentBundleItem::SOURCE_PAYRUN_BATCH,
+            ], true)) {
+                $releasedSourceStatus = PaymentBundleItem::PAYMENT_STATUS_RELEASED;
+                $this->batchSources->releaseItem($item, $bundle, $actor);
             }
 
-            $item->update(['status' => PaymentBundleItem::STATUS_RELEASED]);
+            if ($item->fresh()->status !== PaymentBundleItem::STATUS_RELEASED) {
+                $item->update(['status' => PaymentBundleItem::STATUS_RELEASED]);
+            }
 
             $this->recomputeTotal($bundle);
 
@@ -374,6 +333,8 @@ class PaymentBundleService
                 throw new RuntimeException('Cannot submit an empty bundle.');
             }
 
+            $this->batchSources->assertNoSourceDrift($bundle, $actor);
+
             $users = $this->resolveAndValidateAssignment($bundle, $assignments);
 
             $signingLinks = [];
@@ -457,14 +418,21 @@ class PaymentBundleService
 
     private function releaseActiveItems(PaymentBundle $bundle, User $actor): void
     {
-        foreach ($bundle->items()->where('status', PaymentBundleItem::STATUS_ACTIVE)->get() as $item) {
+        foreach ($bundle->items()->whereIn('status', PaymentBundleItem::activePaymentStatuses())->get() as $item) {
             if ($item->source_type === PaymentBundleItem::SOURCE_PAYMENT_REQUEST) {
                 PaymentRequest::find($item->source_id)?->update(['status' => PaymentRequest::STATUS_APPROVED_FOR_BUNDLE]);
-            } elseif ($item->source_type === PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH) {
-                WeeklyAllowanceBatch::find($item->source_id)?->update(['status' => WeeklyAllowanceBatch::STATUS_ELIGIBLE_FOR_BUNDLE]);
+            } elseif (in_array($item->source_type, [
+                PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH,
+                PaymentBundleItem::SOURCE_OVERTIME_PAY_BATCH,
+                PaymentBundleItem::SOURCE_LATE_PAY_COMPENSATION_BATCH,
+                PaymentBundleItem::SOURCE_PAYRUN_BATCH,
+            ], true)) {
+                $this->batchSources->releaseItem($item, $bundle, $actor);
             }
 
-            $item->update(['status' => PaymentBundleItem::STATUS_RELEASED]);
+            if ($item->fresh()->status !== PaymentBundleItem::STATUS_RELEASED) {
+                $item->update(['status' => PaymentBundleItem::STATUS_RELEASED]);
+            }
 
             $this->audit->log($bundle, 'payment_bundle.item_released', $actor, ['after' => [
                 'item_id' => $item->id,

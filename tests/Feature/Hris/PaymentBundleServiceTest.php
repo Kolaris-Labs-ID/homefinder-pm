@@ -1,10 +1,12 @@
 <?php
 
+use App\Models\Hris\Employee;
 use App\Models\Hris\FinanceAuditLog;
 use App\Models\Hris\PaymentBundle;
 use App\Models\Hris\PaymentBundleItem;
 use App\Models\Hris\PaymentRequest;
 use App\Models\Hris\WeeklyAllowanceBatch;
+use App\Models\Hris\WeeklyAllowancePayment;
 use App\Models\User;
 use App\Services\Hris\PaymentBundleService;
 use App\Services\Hris\PaymentRequestService;
@@ -42,14 +44,34 @@ function approvedPr(array $overrides = []): PaymentRequest
 
 function eligibleWab(string $amount = '3000000'): WeeklyAllowanceBatch
 {
-    return WeeklyAllowanceBatch::create([
+    $employee = Employee::factory()->create([
+        'bank_name' => 'BCA',
+        'bank_account_number' => '1234567890',
+        'bank_account_holder' => 'Weekly Employee',
+    ]);
+
+    $batch = WeeklyAllowanceBatch::create([
         'week_start_date' => '2026-05-25',
         'week_end_date' => '2026-05-31',
         'payment_date' => '2026-06-02',
         'status' => WeeklyAllowanceBatch::STATUS_ELIGIBLE_FOR_BUNDLE,
-        'total_employees' => 4,
+        'total_employees' => 1,
         'total_amount' => $amount,
     ]);
+
+    WeeklyAllowancePayment::create([
+        'weekly_allowance_batch_id' => $batch->id,
+        'employee_id' => $employee->id,
+        'daily_rate' => $amount,
+        'days_present' => 1,
+        'total_amount' => $amount,
+        'bank_name' => 'BCA',
+        'bank_account_number' => '1234567890',
+        'bank_account_holder' => 'Weekly Employee',
+        'status' => WeeklyAllowancePayment::STATUS_APPROVED,
+    ]);
+
+    return $batch;
 }
 
 it('creates a draft bundle with PB number, verification code, zero total, and an audit row', function () {
@@ -102,9 +124,9 @@ it('adds an eligible weekly allowance batch and flips its status', function () {
     $item = $this->bundles->addWeeklyAllowanceBatch($bundle, $wab, $this->actor);
 
     expect($item->status)->toBe(PaymentBundleItem::STATUS_ACTIVE);
-    expect($item->payee_bank_name)->toBeNull();
-    expect($item->source_snapshot_json['total_employees'])->toBe(4);
-    expect($wab->fresh()->status)->toBe(WeeklyAllowanceBatch::STATUS_IN_PAYMENT_BUNDLE);
+    expect($item->payee_bank_name)->toBe('BCA');
+    expect($item->source_snapshot_json['payable_count'])->toBe(1);
+    expect($wab->fresh()->payment_status)->toBe(PaymentBundleItem::PAYMENT_STATUS_BUNDLED);
     expect(bccomp((string) $bundle->fresh()->total_amount, '3000000', 2))->toBe(0);
 });
 
@@ -131,7 +153,7 @@ it('releases the source and excludes released items from the total on removeItem
     expect(bccomp((string) $bundle->fresh()->total_amount, '3000000', 2))->toBe(0); // only WAB remains
 
     $this->bundles->removeItem($wabItem, $this->actor);
-    expect($wab->fresh()->status)->toBe(WeeklyAllowanceBatch::STATUS_ELIGIBLE_FOR_BUNDLE);
+    expect($wab->fresh()->payment_status)->toBe(PaymentBundleItem::PAYMENT_STATUS_RELEASED);
     expect(bccomp((string) $bundle->fresh()->total_amount, '0', 2))->toBe(0);
 });
 

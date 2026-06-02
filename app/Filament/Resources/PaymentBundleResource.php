@@ -3,11 +3,14 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PaymentBundleResource\Pages;
+use App\Models\Hris\LatePayCompensationBatch;
+use App\Models\Hris\OvertimePayBatch;
 use App\Models\Hris\PaymentBundle;
 use App\Models\Hris\PaymentBundleItem;
 use App\Models\Hris\PaymentRequest;
 use App\Models\Hris\WeeklyAllowanceBatch;
 use App\Models\User;
+use App\Services\Hris\BatchPaymentBundleService;
 use App\Services\Hris\PaymentBundlePaymentService;
 use App\Services\Hris\PaymentBundleService;
 use Filament\Forms;
@@ -109,12 +112,12 @@ class PaymentBundleResource extends Resource
                             ->label('Weekly Allowance Batch')
                             ->options(function () {
                                 return WeeklyAllowanceBatch::query()
-                                    ->where('status', WeeklyAllowanceBatch::STATUS_ELIGIBLE_FOR_BUNDLE)
+                                    ->where('payment_status', PaymentBundleItem::PAYMENT_STATUS_ELIGIBLE)
                                     ->whereNotIn('id', function ($q) {
                                         $q->select('source_id')
                                             ->from('payment_bundle_items')
                                             ->where('source_type', PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH)
-                                            ->where('status', PaymentBundleItem::STATUS_ACTIVE);
+                                            ->whereIn('status', PaymentBundleItem::activePaymentStatuses());
                                     })
                                     ->get()
                                     ->mapWithKeys(fn ($wab) => [
@@ -131,6 +134,72 @@ class PaymentBundleResource extends Resource
                             auth()->user()
                         ),
                         'Weekly allowance batch added to bundle'
+                    )),
+
+                Tables\Actions\Action::make('add_overtime_pay')
+                    ->icon('heroicon-o-plus-circle')
+                    ->label('Add Overtime Pay')
+                    ->visible(fn (PaymentBundle $r) => $r->status === PaymentBundle::STATUS_DRAFT && static::financeCan('payment_bundles.update_draft'))
+                    ->form([
+                        Forms\Components\Select::make('overtime_pay_batch_id')
+                            ->label('Overtime Pay Batch')
+                            ->options(function () {
+                                return OvertimePayBatch::query()
+                                    ->where('payment_status', PaymentBundleItem::PAYMENT_STATUS_ELIGIBLE)
+                                    ->whereNotIn('id', function ($q) {
+                                        $q->select('source_id')
+                                            ->from('payment_bundle_items')
+                                            ->where('source_type', PaymentBundleItem::SOURCE_OVERTIME_PAY_BATCH)
+                                            ->whereIn('status', PaymentBundleItem::activePaymentStatuses());
+                                    })
+                                    ->get()
+                                    ->mapWithKeys(fn ($batch) => [
+                                        $batch->id => "OT-{$batch->id} — {$batch->week_start_date} to {$batch->week_end_date} — ".number_format((float) $batch->total_amount, 2),
+                                    ]);
+                            })
+                            ->required()
+                            ->searchable(),
+                    ])
+                    ->action(fn (PaymentBundle $r, array $data) => static::run(
+                        fn () => app(BatchPaymentBundleService::class)->addSource(
+                            $r,
+                            OvertimePayBatch::findOrFail($data['overtime_pay_batch_id']),
+                            auth()->user()
+                        ),
+                        'Overtime pay batch added to bundle'
+                    )),
+
+                Tables\Actions\Action::make('add_late_pay_compensation')
+                    ->icon('heroicon-o-plus-circle')
+                    ->label('Add Late Pay')
+                    ->visible(fn (PaymentBundle $r) => $r->status === PaymentBundle::STATUS_DRAFT && static::financeCan('payment_bundles.update_draft'))
+                    ->form([
+                        Forms\Components\Select::make('late_pay_compensation_batch_id')
+                            ->label('Late Pay Compensation Batch')
+                            ->options(function () {
+                                return LatePayCompensationBatch::query()
+                                    ->where('payment_status', PaymentBundleItem::PAYMENT_STATUS_ELIGIBLE)
+                                    ->whereNotIn('id', function ($q) {
+                                        $q->select('source_id')
+                                            ->from('payment_bundle_items')
+                                            ->where('source_type', PaymentBundleItem::SOURCE_LATE_PAY_COMPENSATION_BATCH)
+                                            ->whereIn('status', PaymentBundleItem::activePaymentStatuses());
+                                    })
+                                    ->get()
+                                    ->mapWithKeys(fn ($batch) => [
+                                        $batch->id => "LPC-{$batch->id} — {$batch->scheduled_pay_date} to {$batch->actual_pay_date} — ".number_format((float) $batch->total_amount, 2),
+                                    ]);
+                            })
+                            ->required()
+                            ->searchable(),
+                    ])
+                    ->action(fn (PaymentBundle $r, array $data) => static::run(
+                        fn () => app(BatchPaymentBundleService::class)->addSource(
+                            $r,
+                            LatePayCompensationBatch::findOrFail($data['late_pay_compensation_batch_id']),
+                            auth()->user()
+                        ),
+                        'Late-pay compensation batch added to bundle'
                     )),
 
                 Tables\Actions\Action::make('submit_for_signature')

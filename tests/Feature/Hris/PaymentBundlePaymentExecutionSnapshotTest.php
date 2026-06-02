@@ -20,7 +20,7 @@ use Spatie\Permission\PermissionRegistrar;
 /**
  * Phase 10 — Payment execution from the frozen snapshot: beginPaymentRecording transitions an
  * authorized + signed bundle to payment_recording and returns instructions read ONLY from each
- * item's frozen snapshot (never the live source). Drift is detected + audited but non-blocking.
+ * item's frozen snapshot (never the live source). Drift is detected, audited, and blocking.
  */
 beforeEach(function () {
     Storage::fake('private');
@@ -147,6 +147,9 @@ it('moves an authorized + signed bundle to payment_recording and returns frozen 
 
     expect(FinanceAuditLog::where('event_type', 'payment_bundle.payment_recording_started')
         ->where('auditable_id', $bundle->id)->exists())->toBeTrue();
+
+    expect(FinanceAuditLog::where('event_type', 'batch_bank_detail_revealed')
+        ->where('auditable_id', $bundle->id)->exists())->toBeTrue();
 });
 
 // ─── 2. Payment uses the frozen snapshot, not the live source ───────────────────
@@ -163,16 +166,13 @@ it('returns the original snapshot values even after the live source is mutated',
     expect($instructions[0]['bank_account_number'])->toBe('9876543210');
     expect($instructions[0]['bank_name'])->toBe('BCA'); // frozen, not the mutated live 'CHANGED_BANK'
 
-    // And via beginPaymentRecording the paid instructions are still the frozen ones.
-    $begun = $this->payments->beginPaymentRecording($bundle->fresh(), $this->creator);
-    expect($begun[0]['payee_name'])->toBe('PT Frozen Vendor');
-    expect($begun[0]['amount'])->toBe('5000000.00');
-    expect($begun[0]['bank_account_number'])->toBe('9876543210');
+    expect(fn () => $this->payments->beginPaymentRecording($bundle->fresh(), $this->creator))
+        ->toThrow(RuntimeException::class, 'Batch source drift detected');
 });
 
 // ─── 3. Drift detection ──────────────────────────────────────────────────────────
 
-it('detects drift and audits it (non-blocking) when the live source changed', function () {
+it('detects drift, audits it, and blocks payment recording when the live source changed', function () {
     $pr = payExecApprovedPr(5000000, '9876543210');
     $bundle = payExecAuthorizedBundle($pr);
     $item = $bundle->items()->first();
@@ -181,9 +181,10 @@ it('detects drift and audits it (non-blocking) when the live source changed', fu
 
     expect($this->payments->detectDrift($item->fresh()))->toBeTrue();
 
-    $this->payments->beginPaymentRecording($bundle->fresh(), $this->creator);
+    expect(fn () => $this->payments->beginPaymentRecording($bundle->fresh(), $this->creator))
+        ->toThrow(RuntimeException::class, 'Batch source drift detected');
 
-    expect(FinanceAuditLog::where('event_type', 'payment_bundle.source_drift_detected')
+    expect(FinanceAuditLog::where('event_type', 'batch_source_drift_detected')
         ->where('auditable_id', $bundle->id)->count())->toBe(1);
 });
 

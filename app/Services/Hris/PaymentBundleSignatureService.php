@@ -25,6 +25,7 @@ class PaymentBundleSignatureService
         protected FinanceAuditLogger $audit,
         protected FinanceAttachmentService $attachments,
         protected PaymentBundleDocumentService $documents,
+        protected BatchPaymentBundleService $batchSources,
     ) {}
 
     public function createSigningLink(PaymentBundleSignature $sig, User $signer, int $ttlHours = 72): string
@@ -127,6 +128,7 @@ class PaymentBundleSignatureService
             }
 
             $this->assertSignableNow($bundle, $sig, $signer);
+            $this->batchSources->assertNoSourceDrift($bundle, $signer);
 
             $pngBytes = $this->decodePngDataUri($imageDataUri);
 
@@ -263,6 +265,8 @@ class PaymentBundleSignatureService
                     'canonical_payload_hash' => $bundle->canonical_payload_hash,
                 ],
             ]);
+
+            $this->batchSources->markBundleAuthorized($bundle->fresh());
         }
     }
 

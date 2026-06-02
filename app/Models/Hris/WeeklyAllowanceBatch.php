@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris;
 
+use App\Contracts\Hris\PayableBatchSource;
 use App\Models\Hris\Traits\HasPayrollApproval;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class WeeklyAllowanceBatch extends Model
+class WeeklyAllowanceBatch extends Model implements PayableBatchSource
 {
     use HasFactory;
     use HasPayrollApproval;
@@ -36,6 +37,7 @@ class WeeklyAllowanceBatch extends Model
         'week_end_date',
         'payment_date',
         'status',
+        'payment_status',
         'generated_by',
         'generated_at',
         'hr_reviewed_by',
@@ -128,6 +130,16 @@ class WeeklyAllowanceBatch extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(WeeklyAllowancePayment::class);
+    }
+
+    public function paymentSourceType(): string
+    {
+        return PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH;
+    }
+
+    public function paymentSourceId(): string
+    {
+        return (string) $this->getKey();
     }
 
     /**

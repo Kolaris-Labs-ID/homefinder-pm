@@ -4,6 +4,7 @@ namespace App\Services\Hris;
 
 use App\Models\Hris\LatePayCompensationBatch;
 use App\Models\Hris\OvertimePayBatch;
+use App\Models\Hris\PaymentBundleItem;
 use App\Models\Hris\PayrollApprovalLog;
 use App\Models\Hris\PayrollWorkflowConfig;
 use App\Models\Hris\PayrunBatch;
@@ -107,6 +108,7 @@ class PayrollApprovalService
 
             $previousStatus = $batch->status;
             $batch->status = 'paid';
+            $batch->payment_status = PaymentBundleItem::PAYMENT_STATUS_ELIGIBLE;
             $batch->paid_by = $approver->id;
             $batch->paid_at = now();
             $batch->save();

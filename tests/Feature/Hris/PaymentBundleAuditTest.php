@@ -147,6 +147,7 @@ it('full forward lifecycle emits every expected audit event', function () {
         'payment_bundle.authorized',
         'payment_bundle.signed_pdf_generated',
         'payment_bundle.payment_recording_started',
+        'batch_bank_detail_revealed',
         'payment_bundle.payment_proof_uploaded',
         'payment_bundle.marked_paid',
     ] as $event) {

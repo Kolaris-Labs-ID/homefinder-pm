@@ -4,7 +4,12 @@ namespace App\Filament\Pages;
 
 use App\Models\Hris\ExpenseRequest;
 use App\Models\Hris\FinanceAuditLog;
+use App\Models\Hris\LatePayCompensationBatch;
+use App\Models\Hris\OvertimePayBatch;
+use App\Models\Hris\PaymentBundle;
+use App\Models\Hris\PaymentBundleItem;
 use App\Models\Hris\PaymentRequest;
+use App\Models\Hris\WeeklyAllowanceBatch;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
 
@@ -80,14 +85,55 @@ class FinanceCenter extends Page
         return FinanceAuditLog::with('actor')->orderByDesc('id')->limit(20);
     }
 
-    /** Honest disabled states for batch payment sources not yet integrated (gated placeholders). */
+    public function batchPaymentModules(): array
+    {
+        return [
+            'weekly_allowance' => [
+                'label' => 'Weekly Allowance Payments',
+                'enabled' => true,
+                'summary' => $this->batchSummary(WeeklyAllowanceBatch::class),
+            ],
+            'overtime_pay' => [
+                'label' => 'Overtime Pay Payments',
+                'enabled' => true,
+                'summary' => $this->batchSummary(OvertimePayBatch::class),
+            ],
+            'late_pay_compensation' => [
+                'label' => 'Late Pay Compensation Payments',
+                'enabled' => true,
+                'summary' => $this->batchSummary(LatePayCompensationBatch::class),
+            ],
+            'payroll_payments' => [
+                'label' => 'Payroll Payments',
+                'enabled' => false,
+                'disabled_reason' => static::gatedPlaceholders()['payroll_payments'],
+            ],
+        ];
+    }
+
+    private function batchSummary(string $modelClass): array
+    {
+        return [
+            'eligible' => $modelClass::where('payment_status', PaymentBundleItem::PAYMENT_STATUS_ELIGIBLE)->count(),
+            'bundled' => $modelClass::where('payment_status', PaymentBundleItem::PAYMENT_STATUS_BUNDLED)->count(),
+            'blocked' => $modelClass::where('payment_status', PaymentBundleItem::PAYMENT_STATUS_BLOCKED)->count(),
+            'authorized' => PaymentBundle::whereHas('items', fn ($q) => $q
+                ->where('source_type', (new $modelClass)->paymentSourceType())
+                ->where('status', PaymentBundleItem::PAYMENT_STATUS_AUTHORIZED)
+            )->count(),
+            'recording' => PaymentBundle::whereHas('items', fn ($q) => $q
+                ->where('source_type', (new $modelClass)->paymentSourceType())
+                ->where('status', PaymentBundleItem::PAYMENT_STATUS_RECORDING)
+            )->count(),
+            'paid' => $modelClass::where('payment_status', PaymentBundleItem::PAYMENT_STATUS_PAID)->count(),
+        ];
+    }
+
+    /** Honest disabled states for batch payment sources not yet integrated. */
     public static function gatedPlaceholders(): array
     {
         return [
-            'payroll_payments' => 'Payroll Payment Requests are disabled until payroll calculation and approval stabilization is complete.',
-            'weekly_allowance' => 'Weekly Allowance Payment Requests are disabled until WeeklyAllowanceBatch status/test issues are fixed.',
-            'overtime_pay' => 'Overtime payment requests are disabled until batch payment integration is implemented.',
-            'late_pay_compensation' => 'Late-pay payment requests are disabled until batch payment integration is implemented.',
+            'payroll_payments' => 'Disabled until payroll batch-to-PaymentBundle integration has frozen payroll payee bank data and tax guard coverage.',
         ];
     }
 }

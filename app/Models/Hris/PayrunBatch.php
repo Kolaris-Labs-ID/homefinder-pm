@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris;
 
+use App\Contracts\Hris\PayableBatchSource;
 use App\Models\Hris\Traits\HasPayrollApproval;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -10,16 +11,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class PayrunBatch extends Model
+class PayrunBatch extends Model implements PayableBatchSource
 {
     use HasFactory;
     use HasPayrollApproval;
 
     // Status constants — 5-status set (COO removed, multi-finance approver)
     const STATUS_DRAFT = 'draft';
+
     const STATUS_CALCULATED = 'calculated';
+
     const STATUS_PENDING_FINANCE = 'pending_finance';
+
     const STATUS_REJECTED = 'rejected';
+
     const STATUS_PAID = 'paid';
 
     protected $fillable = [
@@ -27,6 +32,7 @@ class PayrunBatch extends Model
         'period_end_date',
         'pay_date',
         'status',
+        'payment_status',
         'notes',
         'calculated_at',
         'approved_at',
@@ -84,6 +90,16 @@ class PayrunBatch extends Model
     public function payrollRecords(): HasMany
     {
         return $this->hasMany(PayrollRecord::class);
+    }
+
+    public function paymentSourceType(): string
+    {
+        return PaymentBundleItem::SOURCE_PAYRUN_BATCH;
+    }
+
+    public function paymentSourceId(): string
+    {
+        return (string) $this->getKey();
     }
 
     /**
@@ -184,7 +200,7 @@ class PayrunBatch extends Model
      */
     public function getPeriodLabelAttribute(): string
     {
-        return $this->period_start_date->format('d M Y') . ' - ' . $this->period_end_date->format('d M Y');
+        return $this->period_start_date->format('d M Y').' - '.$this->period_end_date->format('d M Y');
     }
 
     /**
