@@ -35,11 +35,12 @@ $ALL_PERMISSIONS = [
 ];
 
 it('seeds all 14 payment_bundles permissions on the web guard', function () use ($ALL_PERMISSIONS) {
-    expect($ALL_PERMISSIONS)->toHaveCount(14);
     foreach ($ALL_PERMISSIONS as $perm) {
         expect(Permission::where('name', $perm)->where('guard_name', 'web')->exists())
             ->toBeTrue("missing permission: {$perm}");
     }
+    expect(Permission::where('guard_name', 'web')->where('name', 'LIKE', 'payment_bundles.%')->count())
+        ->toBe(14);
 });
 
 it('seeds finance_signer and executive_signer roles', function () {
