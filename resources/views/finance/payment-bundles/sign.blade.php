@@ -121,7 +121,7 @@
     <div class="card" style="border-color:#fecaca;">
         <h2 style="font-size:1rem;margin:0 0 .5rem;color:#991b1b">Reject this bundle</h2>
         <p class="muted" style="margin:0 0 .75rem">If you believe this bundle should not be signed, provide a reason and reject it.</p>
-        <form method="POST" action="{{ url('/sign/payment-bundles/'.$bundle->id.'/'.$signature->id.'/reject').'?'.request()->getQueryString() }}">
+        <form method="POST" action="{{ $rejectUrl }}">
             @csrf
             @if ($errors->has('reason'))
                 <div class="alert-error" style="margin-bottom:.75rem">{{ $errors->first('reason') }}</div>

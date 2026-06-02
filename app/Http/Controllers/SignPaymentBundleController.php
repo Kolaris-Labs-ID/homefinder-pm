@@ -8,6 +8,7 @@ use App\Services\Hris\FinanceAuditLogger;
 use App\Services\Hris\PaymentBundleService;
 use App\Services\Hris\PaymentBundleSignatureService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 use RuntimeException;
 
 /**
@@ -37,6 +38,13 @@ class SignPaymentBundleController extends Controller
             'signature' => $paymentSignature,
             'token' => (string) $request->query('token'),
             'canViewPdf' => auth()->user()->can('payment_bundles.download_pdf'),
+            // The reject route is `signed`; its HMAC is path-specific, so it must be signed for the
+            // reject path (reusing the show URL's signature on /reject would 403).
+            'rejectUrl' => URL::signedRoute('sign.payment-bundle.reject', [
+                'bundle' => $bundle,
+                'paymentSignature' => $paymentSignature,
+                'token' => (string) $request->query('token'),
+            ]),
         ]);
     }
 

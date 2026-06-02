@@ -292,3 +292,24 @@ it('throws when trying to reject a signature on a non-signing-state bundle', fun
     expect(fn () => $this->bundles->rejectSignature($f1sig->fresh(), $this->financeA, 'too late'))
         ->toThrow(RuntimeException::class);
 });
+
+it('the assigned signer rejects via the signed HTTP reject route (HMAC valid for the reject path)', function () {
+    $bundle = bundleInSigningState();
+    $f1sig = $bundle->signatures()->where('signature_slot', PaymentBundleSignatureSlot::FINANCE_SIGNER_1->value)->firstOrFail();
+
+    // Re-issue a link to capture the raw token, then sign the URL for the REJECT path specifically
+    // (reusing the show path's HMAC on /reject would 403 — this proves the path-specific signing).
+    $showUrl = $this->signatures->createSigningLink($f1sig->fresh(), $this->financeA);
+    parse_str(parse_url($showUrl, PHP_URL_QUERY), $q);
+    $rejectUrl = \Illuminate\Support\Facades\URL::signedRoute('sign.payment-bundle.reject', [
+        'bundle' => $bundle->id,
+        'paymentSignature' => $f1sig->id,
+        'token' => $q['token'],
+    ]);
+
+    $this->actingAs($this->financeA)
+        ->post($rejectUrl, ['reason' => 'Rejecting via HTTP'])
+        ->assertRedirect(route('sign.payment-bundle.thanks'));
+
+    expect($bundle->fresh()->status)->toBe(PaymentBundle::STATUS_REJECTED);
+});
