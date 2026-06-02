@@ -21,7 +21,7 @@ $ALL_PERMISSIONS = [
     'expense_requests.verify', 'expense_requests.reject', 'expense_requests.request_revision',
     'expense_requests.cancel',
     'payment_requests.view', 'payment_requests.view_all', 'payment_requests.create',
-    'payment_requests.submit_to_coo', 'payment_requests.approve_as_coo', 'payment_requests.reject_as_coo',
+    'payment_requests.submit_for_approval', 'payment_requests.approve', 'payment_requests.reject',
     'payment_requests.request_clarification', 'payment_requests.mark_paid', 'payment_requests.reconcile',
     'payment_requests.void', 'payment_requests.reverse',
     'finance_center.view', 'finance_center.view_sensitive_payment_data',
@@ -51,17 +51,17 @@ it('grants finance_reviewer expense-review duties but no payment power', functio
     expect($role->hasPermissionTo('expense_requests.view_all'))->toBeTrue();
     // No payment authority at all.
     expect($role->hasPermissionTo('payment_requests.create'))->toBeFalse();
-    expect($role->hasPermissionTo('payment_requests.approve_as_coo'))->toBeFalse();
+    expect($role->hasPermissionTo('payment_requests.approve'))->toBeFalse();
     expect($role->hasPermissionTo('payment_requests.mark_paid'))->toBeFalse();
 });
 
-it('lets finance_creator create/submit PRs but not approve as COO or pay', function () {
+it('lets finance_creator create/submit PRs but not approve or pay', function () {
     $role = Role::findByName('finance_creator', 'web');
     expect($role->hasPermissionTo('payment_requests.create'))->toBeTrue();
-    expect($role->hasPermissionTo('payment_requests.submit_to_coo'))->toBeTrue();
+    expect($role->hasPermissionTo('payment_requests.submit_for_approval'))->toBeTrue();
     expect($role->hasPermissionTo('expense_requests.view_all'))->toBeTrue();
     // Segregation: creator cannot self-approve, pay, or reconcile.
-    expect($role->hasPermissionTo('payment_requests.approve_as_coo'))->toBeFalse();
+    expect($role->hasPermissionTo('payment_requests.approve'))->toBeFalse();
     expect($role->hasPermissionTo('payment_requests.mark_paid'))->toBeFalse();
     expect($role->hasPermissionTo('payment_requests.reconcile'))->toBeFalse();
 });
@@ -72,7 +72,7 @@ it('lets finance_executor mark paid + upload proof but not reconcile', function 
     expect($role->hasPermissionTo('finance_attachments.upload'))->toBeTrue();
     // Segregation: executor cannot reconcile their own payment, approve, or create.
     expect($role->hasPermissionTo('payment_requests.reconcile'))->toBeFalse();
-    expect($role->hasPermissionTo('payment_requests.approve_as_coo'))->toBeFalse();
+    expect($role->hasPermissionTo('payment_requests.approve'))->toBeFalse();
     expect($role->hasPermissionTo('payment_requests.create'))->toBeFalse();
 });
 
@@ -81,13 +81,13 @@ it('lets finance_reconciler reconcile but not mark paid', function () {
     expect($role->hasPermissionTo('payment_requests.reconcile'))->toBeTrue();
     // Segregation: reconciler is not the payer.
     expect($role->hasPermissionTo('payment_requests.mark_paid'))->toBeFalse();
-    expect($role->hasPermissionTo('payment_requests.approve_as_coo'))->toBeFalse();
+    expect($role->hasPermissionTo('payment_requests.approve'))->toBeFalse();
 });
 
 it('grants COO approval power but never payment execution', function () {
     $role = Role::findByName('COO', 'web');
-    expect($role->hasPermissionTo('payment_requests.approve_as_coo'))->toBeTrue();
-    expect($role->hasPermissionTo('payment_requests.reject_as_coo'))->toBeTrue();
+    expect($role->hasPermissionTo('payment_requests.approve'))->toBeTrue();
+    expect($role->hasPermissionTo('payment_requests.reject'))->toBeTrue();
     expect($role->hasPermissionTo('finance_center.view_sensitive_payment_data'))->toBeTrue();
     // COO approves business, never moves money.
     expect($role->hasPermissionTo('payment_requests.mark_paid'))->toBeFalse();
@@ -97,6 +97,6 @@ it('grants COO approval power but never payment execution', function () {
 
 it('is idempotent — re-seeding does not duplicate permissions', function () use ($ALL_PERMISSIONS) {
     $this->seed(FinanceRolePermissionSeeder::class);
-    expect(Permission::where('name', 'payment_requests.approve_as_coo')->count())->toBe(1);
+    expect(Permission::where('name', 'payment_requests.approve')->count())->toBe(1);
     expect(Role::where('name', 'finance_creator')->count())->toBe(1);
 });

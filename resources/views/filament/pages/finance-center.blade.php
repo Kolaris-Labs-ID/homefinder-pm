@@ -9,7 +9,7 @@
         <x-filament::section>
             <x-slot name="heading">Payment requests</x-slot>
             <div class="text-3xl font-bold">{{ $this->paymentRequestQueue()->count() }}</div>
-            <p class="text-sm text-gray-500">draft / submitted to COO / clarification</p>
+            <p class="text-sm text-gray-500">draft / submitted for approval / clarification</p>
         </x-filament::section>
 
         <x-filament::section>

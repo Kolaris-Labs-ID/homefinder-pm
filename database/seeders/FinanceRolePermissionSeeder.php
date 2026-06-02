@@ -10,7 +10,7 @@ use Spatie\Permission\PermissionRegistrar;
 /**
  * Finance Center — roles & permissions (EXPENSE_MODULE.MD Phase 1).
  *
- * Segregation of duties: create (finance_creator) / approve (COO) /
+ * Segregation of duties: create (finance_creator) / approve (payment_approver) /
  * pay (finance_executor) / reconcile (finance_reconciler) are never held by one role.
  * `reverse` and `manage_settings` are reserved to super_admin (via Gate::before).
  */
@@ -26,7 +26,7 @@ class FinanceRolePermissionSeeder extends Seeder
             'expense_requests.verify', 'expense_requests.reject', 'expense_requests.request_revision',
             'expense_requests.cancel',
             'payment_requests.view', 'payment_requests.view_all', 'payment_requests.create',
-            'payment_requests.submit_to_coo', 'payment_requests.approve_as_coo', 'payment_requests.reject_as_coo',
+            'payment_requests.submit_for_approval', 'payment_requests.approve', 'payment_requests.reject',
             'payment_requests.request_clarification', 'payment_requests.mark_paid', 'payment_requests.reconcile',
             'payment_requests.void', 'payment_requests.reverse',
             'finance_center.view', 'finance_center.view_sensitive_payment_data',
@@ -49,7 +49,7 @@ class FinanceRolePermissionSeeder extends Seeder
             'finance_creator' => [
                 'expense_requests.view', 'expense_requests.view_all',
                 'payment_requests.view', 'payment_requests.view_all',
-                'payment_requests.create', 'payment_requests.submit_to_coo',
+                'payment_requests.create', 'payment_requests.submit_for_approval',
                 'payment_requests.void',
                 'finance_center.view', 'finance_center.view_sensitive_payment_data',
                 'finance_center.view_payroll_placeholders',
@@ -72,7 +72,7 @@ class FinanceRolePermissionSeeder extends Seeder
             ],
             'COO' => [
                 'payment_requests.view', 'payment_requests.view_all',
-                'payment_requests.approve_as_coo', 'payment_requests.reject_as_coo',
+                'payment_requests.approve', 'payment_requests.reject',
                 'payment_requests.request_clarification',
                 'finance_center.view', 'finance_center.view_sensitive_payment_data',
             ],
