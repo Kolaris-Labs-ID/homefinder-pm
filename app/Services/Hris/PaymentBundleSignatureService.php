@@ -195,7 +195,9 @@ class PaymentBundleSignatureService
      *   - the bundle status is exactly the one mapped to this slot's turn (status-driven ordering),
      *   - the slot being signed is pending,
      *   - the signer is not already the signed_by of another SIGNED signature on this bundle
-     *     (sign-time SoD / defense in depth against tampered assignments).
+     *     (sign-time SoD / defense in depth against tampered assignments),
+     *   - the signer is the slot's assigned_user_id (or, defensively when no signer is assigned,
+     *     holds the slot's required_permission).
      */
     public function assertSignableNow(PaymentBundle $bundle, PaymentBundleSignature $sig, User $signer): void
     {
@@ -215,6 +217,14 @@ class PaymentBundleSignatureService
 
         if ($alreadySigned) {
             throw new RuntimeException('This user has already signed another slot on this bundle.');
+        }
+
+        if ($sig->assigned_user_id !== null) {
+            if ($signer->id !== $sig->assigned_user_id) {
+                throw new RuntimeException('You are not the assigned signer for this slot.');
+            }
+        } elseif (! $signer->can($sig->required_permission)) {
+            throw new RuntimeException('You do not have permission to sign this slot.');
         }
     }
 

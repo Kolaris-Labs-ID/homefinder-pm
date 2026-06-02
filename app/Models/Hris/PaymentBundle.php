@@ -65,6 +65,16 @@ class PaymentBundle extends Model
         'metadata' => 'array',
     ];
 
+    public static function signaturePendingStatuses(): array
+    {
+        return [
+            self::STATUS_SUBMITTED_FOR_SIGNATURE,
+            self::STATUS_PENDING_FINANCE_SIGNATURE_1,
+            self::STATUS_PENDING_FINANCE_SIGNATURE_2,
+            self::STATUS_PENDING_EXECUTIVE_SIGNATURE,
+        ];
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(PaymentBundleItem::class);

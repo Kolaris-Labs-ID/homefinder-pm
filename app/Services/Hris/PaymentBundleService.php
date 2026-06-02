@@ -27,6 +27,7 @@ class PaymentBundleService
         protected PaymentBundleDocumentService $documents,
         protected PaymentBundleSignatureService $signatures,
         protected BatchPaymentBundleService $batchSources,
+        protected PaymentAuthorizationSettingsService $authSettings,
     ) {}
 
     public function create(User $creator, array $attrs = []): PaymentBundle
@@ -335,6 +336,24 @@ class PaymentBundleService
 
             $this->batchSources->assertNoSourceDrift($bundle, $actor);
 
+            // Signer assignment defaults to the configured Payment Authorization Settings. Only a
+            // user with manage_signers may override them; for anyone else, caller-supplied signers
+            // are replaced by the configured defaults — server-side authorization, since the
+            // disabled submit form fields are UI-only. When no complete default is configured yet,
+            // explicitly supplied assignments are still honored.
+            $provided = collect($assignments)->filter();
+            if ($provided->isEmpty() || ! $actor->can('payment_bundles.manage_signers')) {
+                $defaults = $this->authSettings->assignments();
+                $defaultsComplete = collect(PaymentBundleSignatureSlot::ordered())
+                    ->every(fn (PaymentBundleSignatureSlot $slot) => ! empty($defaults[$slot->value]));
+
+                if ($defaultsComplete) {
+                    $assignments = $defaults;
+                } elseif ($provided->isEmpty()) {
+                    throw new RuntimeException('Payment Authorization Settings are incomplete. Please assign Finance Signer 1, Finance Signer 2, and Executive Signer before submitting this bundle.');
+                }
+            }
+
             $users = $this->resolveAndValidateAssignment($bundle, $assignments);
 
             $signingLinks = [];
@@ -348,6 +367,13 @@ class PaymentBundleService
 
                 $signingLinks[$slot->value] = $this->signatures->createSigningLink($sig, $users[$slot->value]);
             }
+
+            $this->audit->log($bundle, 'payment_bundle_signers_assigned', $actor, ['after' => [
+                'bundle_number' => $bundle->bundle_number,
+                'finance_signer_1' => $users[PaymentBundleSignatureSlot::FINANCE_SIGNER_1->value]->id,
+                'finance_signer_2' => $users[PaymentBundleSignatureSlot::FINANCE_SIGNER_2->value]->id,
+                'executive_signer' => $users[PaymentBundleSignatureSlot::EXECUTIVE_SIGNER->value]->id,
+            ]]);
 
             $this->documents->generateUnsignedPdf($bundle, $actor);
             $bundle->refresh();
@@ -371,6 +397,59 @@ class PaymentBundleService
             ]);
 
             return $bundle->refresh();
+        });
+    }
+
+    /**
+     * Override the assigned signers BEFORE the first signature is captured. Locks the bundle,
+     * validates the new map against the same SoD + per-slot-permission rules as submit, then
+     * rewrites each PENDING signature row's assignment and reissues its signing link (fresh token).
+     * Refused once any slot is SIGNED or the bundle has left a signature-pending state.
+     *
+     * @param  array{finance_signer_1:int,finance_signer_2:int,executive_signer:int}  $assignments
+     */
+    public function reassignSigners(PaymentBundle $bundle, array $assignments, User $actor): PaymentBundle
+    {
+        return DB::transaction(function () use ($bundle, $assignments, $actor) {
+            $bundle = PaymentBundle::query()->lockForUpdate()->findOrFail($bundle->id);
+
+            if (! $actor->can('payment_bundles.manage_signers')) {
+                throw new RuntimeException('You are not allowed to reassign signers.');
+            }
+
+            if (! in_array($bundle->status, PaymentBundle::signaturePendingStatuses(), true)) {
+                throw new RuntimeException('Signers can only be reassigned while the bundle is awaiting signatures.');
+            }
+
+            if ($bundle->signatures()->where('status', PaymentBundleSignature::STATUS_SIGNED)->exists()) {
+                throw new RuntimeException('Signers cannot be changed after the first signature has been captured.');
+            }
+
+            $users = $this->resolveAndValidateAssignment($bundle, $assignments);
+
+            $before = [];
+            $after = [];
+            $signingLinks = $bundle->metadata['signing_links'] ?? [];
+
+            foreach (PaymentBundleSignatureSlot::ordered() as $slot) {
+                $sig = $bundle->signatures()->where('signature_slot', $slot->value)->firstOrFail();
+                $before[$slot->value] = $sig->assigned_user_id;
+
+                $signingLinks[$slot->value] = $this->signatures->createSigningLink($sig, $users[$slot->value]);
+
+                $after[$slot->value] = $sig->fresh()->assigned_user_id;
+            }
+
+            $bundle->update([
+                'metadata' => array_merge($bundle->metadata ?? [], ['signing_links' => $signingLinks]),
+            ]);
+
+            $this->audit->log($bundle, 'payment_bundle_signers_changed', $actor, [
+                'before' => $before,
+                'after' => $after,
+            ]);
+
+            return $bundle->fresh();
         });
     }
 
