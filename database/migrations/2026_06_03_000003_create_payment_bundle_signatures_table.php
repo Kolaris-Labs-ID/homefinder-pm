@@ -34,7 +34,7 @@ return new class extends Migration
             $table->text('rejection_reason')->nullable();
             $table->timestamps();
 
-            $table->unique(['payment_bundle_id', 'signature_slot']);
+            $table->unique(['payment_bundle_id', 'signature_slot'], 'pbs_bundle_slot_unique');
         });
     }
 
