@@ -13,7 +13,7 @@ beforeEach(function () {
     $this->coo = User::factory()->create();
 });
 
-function approvedPr(): PaymentRequest
+function snapshotApprovedPr(): PaymentRequest
 {
     $pr = test()->service->createManual(test()->creator, [
         'payee_type' => 'vendor', 'payee_name' => 'PT Vendor', 'bank_name' => 'BCA',
@@ -27,7 +27,7 @@ function approvedPr(): PaymentRequest
 }
 
 it('creates a snapshot json + hash on COO approval', function () {
-    $pr = approvedPr();
+    $pr = snapshotApprovedPr();
 
     expect($pr->approval_snapshot_json)->not->toBeNull();
     expect($pr->approval_snapshot_hash)->not->toBeNull();
@@ -37,7 +37,7 @@ it('creates a snapshot json + hash on COO approval', function () {
 });
 
 it('produces a hash that is stable for unchanged approved data', function () {
-    $pr = approvedPr();
+    $pr = snapshotApprovedPr();
 
     $recomputed = $this->service->hashSnapshot($pr->approval_snapshot_json);
 
@@ -45,7 +45,7 @@ it('produces a hash that is stable for unchanged approved data', function () {
 });
 
 it('voids approval and requires re-approval when the approved amount changes', function () {
-    $pr = approvedPr();
+    $pr = snapshotApprovedPr();
     $originalHash = $pr->approval_snapshot_hash;
 
     $this->service->updateApprovedDetails($pr, ['amount' => 9000000]);
@@ -62,7 +62,7 @@ it('voids approval and requires re-approval when the approved amount changes', f
 });
 
 it('blocks bank-account redirection after approval (forces re-approval)', function () {
-    $pr = approvedPr();
+    $pr = snapshotApprovedPr();
 
     $this->service->updateApprovedDetails($pr, ['bank_account_number' => '5555555555']);
 
