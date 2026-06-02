@@ -72,7 +72,7 @@ class PaymentBundle extends Model
 
     public function activeItems(): HasMany
     {
-        return $this->items()->where('status', PaymentBundleItem::STATUS_ACTIVE);
+        return $this->items()->whereIn('status', PaymentBundleItem::activePaymentStatuses());
     }
 
     public function signatures(): HasMany

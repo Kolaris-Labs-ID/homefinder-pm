@@ -421,6 +421,9 @@ describe('Payslip content validation', function () {
         $salaryStructure = SalaryStructure::factory()->create([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
+            // Pin the tax method: netto/gross_up add a tunjangan_pajak to gross_income, which would
+            // make this earnings-breakdown assertion non-deterministic under the random factory default.
+            'pph21_method' => SalaryStructure::PPH21_METHOD_GROSS,
             'basic_salary' => 10000000,
             'allowances_fixed' => [
                 ['type' => 'position', 'name' => 'Position Allowance', 'amount' => 2000000],

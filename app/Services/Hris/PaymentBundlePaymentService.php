@@ -3,6 +3,8 @@
 namespace App\Services\Hris;
 
 use App\Models\Hris\FinanceAttachment;
+use App\Models\Hris\LatePayCompensationBatch;
+use App\Models\Hris\OvertimePayBatch;
 use App\Models\Hris\PaymentBundle;
 use App\Models\Hris\PaymentBundleItem;
 use App\Models\Hris\PaymentRequest;
@@ -13,38 +15,55 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Phase 10/11 — Payment execution from the frozen snapshot. Once a bundle is authorized + signed,
- * finance pays each item MANUALLY using the values frozen at assembly time. This service is
- * snapshot-authoritative: payment details are read ONLY from PaymentBundleItem::source_snapshot_json,
- * never from the live PR/WAB, so a post-authorization edit to a source cannot change what gets paid.
- * Live-vs-frozen drift is detected and audited but never blocks (the signed snapshot is the contract).
- * Phase 11 adds proof upload (markPaid) and proof rejection (rejectPaymentProof).
+ * Payment execution from the frozen snapshot. Once a bundle is authorized + signed, finance pays
+ * each item manually using the values frozen at assembly time. This service is snapshot-authoritative:
+ * payment details are read only from PaymentBundleItem::source_snapshot_json, never from live sources.
+ * Drift blocks payment-recording and mark-paid entry so finance must void/recreate a changed bundle.
  */
 class PaymentBundlePaymentService
 {
     public function __construct(
         protected FinanceAuditLogger $audit,
         protected FinanceAttachmentService $attachments,
+        protected BatchPaymentBundleService $batchSources,
     ) {}
 
     /**
-     * READ-ONLY payment instructions for finance, built strictly from each item's frozen, decrypted
-     * snapshot. The returned bank_account_number is the FULL account stored in the snapshot and is
-     * sensitive: any UI/API exposure must be permission-gated in Phase 13. This service only returns
-     * the frozen data; it performs no gating itself.
+     * Internal frozen instructions builder. The returned bank_account_number is the full account
+     * stored in the encrypted snapshot. UI/API callers that expose these values must use
+     * revealPaymentInstructions() so the reveal is audited and permission-gated at the caller.
      *
      * @return array<int, array<string, mixed>>
      */
     public function paymentInstructions(PaymentBundle $bundle): array
     {
         $items = $bundle->items()
-            ->whereIn('status', [PaymentBundleItem::STATUS_ACTIVE, PaymentBundleItem::STATUS_PAYMENT_RECORDING])
+            ->whereIn('status', PaymentBundleItem::activePaymentStatuses())
             ->get();
 
-        return $items->map(function (PaymentBundleItem $item) {
+        return $items->flatMap(function (PaymentBundleItem $item) {
             $snap = $item->source_snapshot_json;
 
-            return [
+            if (PaymentBundleSnapshot::isVersionedBatchSnapshot($snap)) {
+                return collect($snap['payees'])->map(function (array $payee) use ($item, $snap) {
+                    $protected = collect($snap['protected_payees'] ?? [])
+                        ->firstWhere('payee_id', $payee['payee_id']);
+
+                    return [
+                        'item_id' => $item->id,
+                        'source_type' => $item->source_type,
+                        'payee_name' => $payee['payee_name'],
+                        'bank_name' => $payee['bank_name'],
+                        'bank_account_number' => $protected['bank_account_number'] ?? null,
+                        'amount' => $payee['amount'],
+                        'currency' => $payee['currency'],
+                        'description' => $snap['summary']['label'] ?? null,
+                        'drift' => $this->detectDrift($item),
+                    ];
+                });
+            }
+
+            return [[
                 'item_id' => $item->id,
                 'source_type' => $item->source_type,
                 'payee_name' => $snap['payee_name'],
@@ -54,8 +73,26 @@ class PaymentBundlePaymentService
                 'currency' => $snap['currency'],
                 'description' => $snap['description'] ?? null,
                 'drift' => $this->detectDrift($item),
-            ];
+            ]];
         })->all();
+    }
+
+    /**
+     * Actor-aware full-bank reveal path for manual payment execution. This deliberately audits
+     * metadata only; full account numbers stay out of the audit log.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function revealPaymentInstructions(PaymentBundle $bundle, User $actor): array
+    {
+        $instructions = $this->paymentInstructions($bundle);
+
+        $this->audit->log($bundle, 'batch_bank_detail_revealed', $actor, ['after' => [
+            'instruction_count' => count($instructions),
+            'item_ids' => collect($instructions)->pluck('item_id')->unique()->values()->all(),
+        ]]);
+
+        return $instructions;
     }
 
     /**
@@ -76,13 +113,17 @@ class PaymentBundlePaymentService
 
     /**
      * Move an authorized + signed bundle into payment_recording and hand finance the frozen
-     * instructions to pay manually. Detects (and audits) per-item drift without blocking. Does NOT
-     * mark anything paid and does NOT touch payment proof — that is Phase 11.
+     * instructions to pay manually. Drift blocks the transition so payment instructions cannot be
+     * revealed from a changed source.
      *
      * @return array<int, array<string, mixed>>
      */
     public function beginPaymentRecording(PaymentBundle $bundle, User $actor): array
     {
+        if ($bundle->status === PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT) {
+            $this->batchSources->assertNoSourceDrift($bundle, $actor);
+        }
+
         return DB::transaction(function () use ($bundle, $actor) {
             $bundle = PaymentBundle::query()->lockForUpdate()->findOrFail($bundle->id);
 
@@ -94,25 +135,14 @@ class PaymentBundlePaymentService
                 throw new \RuntimeException('A signed authorization document is required before payment.');
             }
 
-            $activeItems = $bundle->items()->where('status', PaymentBundleItem::STATUS_ACTIVE)->get();
-
-            foreach ($activeItems as $item) {
-                if ($this->detectDrift($item)) {
-                    $live = $this->liveSnapshot($item);
-                    $this->audit->log($bundle, 'payment_bundle.source_drift_detected', $actor, ['after' => [
-                        'item_id' => $item->id,
-                        'source_type' => $item->source_type,
-                        'source_id' => $item->source_id,
-                        'stored_hash' => $item->source_hash,
-                        'live_hash' => $live !== null ? PaymentBundleSnapshot::hash($live) : null,
-                    ]]);
-                }
-            }
+            $activeItems = $bundle->items()->whereIn('status', PaymentBundleItem::activePaymentStatuses())->get();
 
             $oldStatus = $bundle->status;
             $bundle->update(['status' => PaymentBundle::STATUS_PAYMENT_RECORDING]);
 
-            foreach ($activeItems as $item) {
+            $this->batchSources->markBundleRecording($bundle->fresh());
+
+            foreach ($activeItems->where('source_type', PaymentBundleItem::SOURCE_PAYMENT_REQUEST) as $item) {
                 $item->update(['status' => PaymentBundleItem::STATUS_PAYMENT_RECORDING]);
             }
 
@@ -121,7 +151,7 @@ class PaymentBundlePaymentService
                 'after' => ['status' => PaymentBundle::STATUS_PAYMENT_RECORDING],
             ]);
 
-            return $this->paymentInstructions($bundle->refresh());
+            return $this->revealPaymentInstructions($bundle->refresh(), $actor);
         });
     }
 
@@ -138,6 +168,14 @@ class PaymentBundlePaymentService
         ?string $reference = null,
         ?string $notes = null,
     ): PaymentBundle {
+        if (in_array($bundle->status, [
+            PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT,
+            PaymentBundle::STATUS_PAYMENT_RECORDING,
+            PaymentBundle::STATUS_PAYMENT_PROOF_REJECTED,
+        ], true)) {
+            $this->batchSources->assertNoSourceDrift($bundle, $actor);
+        }
+
         return DB::transaction(function () use ($bundle, $actor, $proof, $reference, $notes) {
             $bundle = PaymentBundle::query()->lockForUpdate()->findOrFail($bundle->id);
 
@@ -191,12 +229,11 @@ class PaymentBundlePaymentService
             ]);
 
             // Cascade paid status to items.
-            $itemStatuses = [PaymentBundleItem::STATUS_ACTIVE, PaymentBundleItem::STATUS_PAYMENT_RECORDING];
+            $itemStatuses = PaymentBundleItem::activePaymentStatuses();
             $items = $bundle->items()->whereIn('status', $itemStatuses)->get();
 
             foreach ($items as $item) {
-                $item->update(['status' => PaymentBundleItem::STATUS_PAID]);
-                $this->markSourcePaid($item);
+                $this->markSourcePaid($item, $bundle, $actor);
             }
 
             $this->audit->log($bundle, 'payment_bundle.marked_paid', $actor, [
@@ -249,12 +286,18 @@ class PaymentBundlePaymentService
     }
 
     /** Mark the live source record paid (best-effort; source may have been deleted). */
-    private function markSourcePaid(PaymentBundleItem $item): void
+    private function markSourcePaid(PaymentBundleItem $item, PaymentBundle $bundle, User $actor): void
     {
         if ($item->source_type === PaymentBundleItem::SOURCE_PAYMENT_REQUEST) {
+            $item->update(['status' => PaymentBundleItem::STATUS_PAID]);
             PaymentRequest::where('id', $item->source_id)->update(['status' => PaymentRequest::STATUS_PAID]);
-        } elseif ($item->source_type === PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH) {
-            WeeklyAllowanceBatch::where('id', $item->source_id)->update(['status' => WeeklyAllowanceBatch::STATUS_PAID]);
+        } elseif (in_array($item->source_type, [
+            PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH,
+            PaymentBundleItem::SOURCE_OVERTIME_PAY_BATCH,
+            PaymentBundleItem::SOURCE_LATE_PAY_COMPENSATION_BATCH,
+            PaymentBundleItem::SOURCE_PAYRUN_BATCH,
+        ], true)) {
+            $this->batchSources->markItemPaid($item, $bundle, 'payment-bundle:'.$bundle->id, $actor);
         }
     }
 
@@ -271,6 +314,18 @@ class PaymentBundlePaymentService
             $wab = WeeklyAllowanceBatch::find($item->source_id);
 
             return $wab !== null ? PaymentBundleSnapshot::forWeeklyAllowanceBatch($wab) : null;
+        }
+
+        if ($item->source_type === PaymentBundleItem::SOURCE_OVERTIME_PAY_BATCH) {
+            $batch = OvertimePayBatch::find($item->source_id);
+
+            return $batch !== null ? PaymentBundleSnapshot::forOvertimePayBatch($batch) : null;
+        }
+
+        if ($item->source_type === PaymentBundleItem::SOURCE_LATE_PAY_COMPENSATION_BATCH) {
+            $batch = LatePayCompensationBatch::find($item->source_id);
+
+            return $batch !== null ? PaymentBundleSnapshot::forLatePayCompensationBatch($batch) : null;
         }
 
         return null;

@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris;
 
+use App\Contracts\Hris\PayableBatchSource;
 use App\Models\Hris\Traits\HasPayrollApproval;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -10,15 +11,19 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class OvertimePayBatch extends Model
+class OvertimePayBatch extends Model implements PayableBatchSource
 {
     use HasFactory;
     use HasPayrollApproval;
 
     const STATUS_DRAFT = 'draft';
+
     const STATUS_CALCULATED = 'calculated';
+
     const STATUS_PENDING_FINANCE = 'pending_finance';
+
     const STATUS_REJECTED = 'rejected';
+
     const STATUS_PAID = 'paid';
 
     protected $fillable = [
@@ -26,6 +31,7 @@ class OvertimePayBatch extends Model
         'week_end_date',
         'payment_date',
         'status',
+        'payment_status',
         'generated_by',
         'generated_at',
         'submitted_by',
@@ -94,6 +100,16 @@ class OvertimePayBatch extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(OvertimePayment::class);
+    }
+
+    public function paymentSourceType(): string
+    {
+        return PaymentBundleItem::SOURCE_OVERTIME_PAY_BATCH;
+    }
+
+    public function paymentSourceId(): string
+    {
+        return (string) $this->getKey();
     }
 
     public function generatedBy(): BelongsTo
@@ -167,7 +183,7 @@ class OvertimePayBatch extends Model
 
     public function getWeekLabelAttribute(): string
     {
-        return $this->week_start_date->format('d M') . ' - ' . $this->week_end_date->format('d M Y');
+        return $this->week_start_date->format('d M').' - '.$this->week_end_date->format('d M Y');
     }
 
     public function getStatusLabelAttribute(): string

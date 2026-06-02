@@ -50,13 +50,30 @@
         </div>
     </x-filament::section>
 
-    <x-filament::section collapsible collapsed>
-        <x-slot name="heading">Batch payment modules (coming soon)</x-slot>
-        <div class="space-y-2">
-            @foreach ($this->gatedPlaceholders() as $key => $reason)
-                <div class="flex items-start gap-2 rounded-lg bg-gray-50 p-3 text-sm dark:bg-white/5">
-                    <x-filament::badge color="gray">{{ str($key)->headline() }}</x-filament::badge>
-                    <span class="text-gray-500">{{ $reason }}</span>
+    <x-filament::section>
+        <x-slot name="heading">Batch payment modules</x-slot>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            @foreach ($this->batchPaymentModules() as $module)
+                <div class="rounded-lg border border-gray-200 p-3 text-sm dark:border-white/10">
+                    <div class="mb-2 flex items-center justify-between gap-2">
+                        <span class="font-medium">{{ $module['label'] }}</span>
+                        <x-filament::badge color="{{ $module['enabled'] ? 'success' : 'gray' }}">
+                            {{ $module['enabled'] ? 'Enabled' : 'Disabled' }}
+                        </x-filament::badge>
+                    </div>
+
+                    @if ($module['enabled'])
+                        <div class="grid grid-cols-3 gap-2 text-xs text-gray-500">
+                            <div>Eligible <span class="font-semibold text-gray-900 dark:text-white">{{ $module['summary']['eligible'] }}</span></div>
+                            <div>Bundled <span class="font-semibold text-gray-900 dark:text-white">{{ $module['summary']['bundled'] }}</span></div>
+                            <div>Blocked <span class="font-semibold text-gray-900 dark:text-white">{{ $module['summary']['blocked'] }}</span></div>
+                            <div>Authorized <span class="font-semibold text-gray-900 dark:text-white">{{ $module['summary']['authorized'] }}</span></div>
+                            <div>Recording <span class="font-semibold text-gray-900 dark:text-white">{{ $module['summary']['recording'] }}</span></div>
+                            <div>Paid <span class="font-semibold text-gray-900 dark:text-white">{{ $module['summary']['paid'] }}</span></div>
+                        </div>
+                    @else
+                        <p class="text-gray-500">{{ $module['disabled_reason'] }}</p>
+                    @endif
                 </div>
             @endforeach
         </div>

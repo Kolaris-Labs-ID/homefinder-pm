@@ -77,7 +77,27 @@
             <tr>
                 <td>{{ $i }}</td>
                 <td>{{ $item['payee_name'] }}</td>
-                <td>{{ $item['source_type'] === 'payment_request' ? 'Payment Request' : 'Weekly Allowance' }}</td>
+                <td>
+                    @switch($item['source_type'])
+                        @case('payment_request')
+                            Payment Request
+                            @break
+                        @case('weekly_allowance_batch')
+                            Weekly Allowance
+                            @break
+                        @case('overtime_pay_batch')
+                            Overtime Pay
+                            @break
+                        @case('late_pay_compensation_batch')
+                            Late Pay Compensation
+                            @break
+                        @case('payrun_batch')
+                            Payroll
+                            @break
+                        @default
+                            Batch Payment
+                    @endswitch
+                </td>
                 <td>&bull;&bull;&bull;&bull; {{ $item['bank_last4'] }}</td>
                 <td class="amount">{{ number_format((float) $item['amount'], 2, '.', ',') }}</td>
             </tr>

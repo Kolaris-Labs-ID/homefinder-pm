@@ -2,6 +2,7 @@
 
 namespace App\Models\Hris;
 
+use App\Contracts\Hris\PayableBatchSource;
 use App\Models\Hris\Traits\HasPayrollApproval;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class LatePayCompensationBatch extends Model
+class LatePayCompensationBatch extends Model implements PayableBatchSource
 {
     use HasFactory;
     use HasPayrollApproval;
@@ -32,6 +33,7 @@ class LatePayCompensationBatch extends Model
         'days_late',
         'rate_percent',
         'status',
+        'payment_status',
         'generated_by',
         'generated_at',
         'submitted_by',
@@ -98,6 +100,16 @@ class LatePayCompensationBatch extends Model
     public function items(): HasMany
     {
         return $this->hasMany(LatePayCompensationItem::class);
+    }
+
+    public function paymentSourceType(): string
+    {
+        return PaymentBundleItem::SOURCE_LATE_PAY_COMPENSATION_BATCH;
+    }
+
+    public function paymentSourceId(): string
+    {
+        return (string) $this->getKey();
     }
 
     public function generatedBy(): BelongsTo
