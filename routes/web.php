@@ -68,6 +68,11 @@ Route::middleware('auth')->get('/admin/overtime-evidence', function (\Illuminate
         ->header('Cache-Control', 'private, max-age=86400');
 })->name('admin.overtime-evidence');
 
+Route::middleware(['web', 'auth'])->get(
+    '/finance/payment-bundles/{bundle}/unsigned-pdf',
+    [\App\Http\Controllers\PaymentBundlePdfController::class, 'unsigned']
+)->name('finance.payment-bundles.unsigned-pdf');
+
 Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');

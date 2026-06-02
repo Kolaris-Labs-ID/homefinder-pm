@@ -27,6 +27,12 @@ class FinanceAttachment extends Model
 
     const ROLE_SUPPORTING_DOCUMENT = 'supporting_document';
 
+    const ROLE_PAYMENT_BUNDLE_UNSIGNED_PDF = 'payment_bundle_unsigned_pdf';
+
+    const ROLE_PAYMENT_BUNDLE_SIGNED_PDF = 'payment_bundle_signed_pdf';
+
+    const ROLE_PAYMENT_BUNDLE_SIGNATURE_IMAGE = 'payment_bundle_signature_image';
+
     protected $fillable = [
         'attachable_type', 'attachable_id', 'attachment_role',
         'file_path', 'file_hash', 'file_size', 'mime_type', 'original_filename',
