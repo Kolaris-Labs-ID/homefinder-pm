@@ -10,14 +10,60 @@ use Illuminate\Http\Request;
 use RuntimeException;
 
 /**
- * Signing-link preview (Phase 6, GET only). Route is gated by `signed` (HMAC) + `auth`; Laravel's
- * middleware priority runs `auth` first, so a guest is bounced to login and returned to the intact
- * signed URL, where `signed` + the DB token gate then enforce. No bypass: HMAC/token still 403 post-auth.
- * Preview must NEVER consume the one-time token; consumption happens on the Phase 7 POST submit.
+ * Signing-link preview (GET, Phase 6) + signature capture (POST, Phase 7).
+ * Route is gated by `signed` (HMAC) + `auth`; Laravel's middleware priority runs `auth` first,
+ * so a guest is bounced to login and returned to the intact signed URL.
+ * Preview (GET) must NEVER consume the one-time token; consumption happens on the POST submit.
  */
 class SignPaymentBundleController extends Controller
 {
     public function show(Request $request, PaymentBundle $bundle, PaymentBundleSignature $paymentSignature, PaymentBundleSignatureService $signatures)
+    {
+        $this->assertGates($request, $bundle, $paymentSignature, $signatures);
+
+        app(FinanceAuditLogger::class)->log(
+            $paymentSignature,
+            'payment_bundle.signature_preview_viewed',
+            auth()->user(),
+            ['after' => [
+                'signature_id' => $paymentSignature->id,
+                'slot' => $paymentSignature->signature_slot->value,
+            ]],
+        );
+
+        return view('finance.payment-bundles.sign', [
+            'bundle' => $bundle,
+            'signature' => $paymentSignature,
+            'token' => (string) $request->query('token'),
+            'canViewPdf' => auth()->user()->can('payment_bundles.download_pdf'),
+        ]);
+    }
+
+    public function store(Request $request, PaymentBundle $bundle, PaymentBundleSignature $paymentSignature, PaymentBundleSignatureService $signatures)
+    {
+        $this->assertGates($request, $bundle, $paymentSignature, $signatures);
+
+        $request->validate([
+            'signature_image' => ['required', 'string'],
+            'confirmed' => ['accepted'],
+        ]);
+
+        try {
+            $signatures->submitSignature(
+                $paymentSignature,
+                $request->user(),
+                $request->input('signature_image'),
+                ['ip' => $request->ip(), 'user_agent' => $request->userAgent()],
+            );
+        } catch (RuntimeException $e) {
+            return back()->withErrors(['signature_image' => $e->getMessage()]);
+        }
+
+        return back()->with('success', 'Your signature has been recorded successfully.');
+    }
+
+    /** Shared gate checks: bundle-owns-signature, token validity, user identity, permission. */
+    private function assertGates(Request $request, PaymentBundle $bundle, PaymentBundleSignature $paymentSignature, PaymentBundleSignatureService $signatures): void
     {
         abort_unless($paymentSignature->payment_bundle_id === $bundle->id, 404);
 
@@ -31,27 +77,5 @@ class SignPaymentBundleController extends Controller
 
         abort_unless(auth()->id() === $paymentSignature->assigned_user_id, 403);
         abort_unless(auth()->user()->can($paymentSignature->required_permission), 403);
-
-        $this->audit($paymentSignature);
-
-        return view('finance.payment-bundles.sign', [
-            'bundle' => $bundle,
-            'signature' => $paymentSignature,
-            'token' => $token,
-            'canViewPdf' => auth()->user()->can('payment_bundles.download_pdf'),
-        ]);
-    }
-
-    private function audit(PaymentBundleSignature $signature): void
-    {
-        app(FinanceAuditLogger::class)->log(
-            $signature,
-            'payment_bundle.signature_preview_viewed',
-            auth()->user(),
-            ['after' => [
-                'signature_id' => $signature->id,
-                'slot' => $signature->signature_slot->value,
-            ]],
-        );
     }
 }

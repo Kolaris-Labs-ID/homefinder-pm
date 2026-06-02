@@ -89,6 +89,11 @@ Route::middleware(['web', 'signed', 'auth'])->get(
     [\App\Http\Controllers\SignPaymentBundleController::class, 'show']
 )->name('sign.payment-bundle');
 
+Route::middleware(['web', 'signed', 'auth'])->post(
+    '/sign/payment-bundles/{bundle}/{paymentSignature}',
+    [\App\Http\Controllers\SignPaymentBundleController::class, 'store']
+)->name('sign.payment-bundle.submit');
+
 Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
