@@ -87,7 +87,8 @@ class PaymentBundleDocumentService
     {
         return DB::transaction(function () use ($bundle, $actor) {
             if ($bundle->signed_pdf_attachment_id !== null) {
-                return $bundle->signedPdf;
+                // Idempotent: re-query rather than trust a possibly-stale cached relation.
+                return $bundle->signedPdf()->firstOrFail();
             }
 
             $signatures = [];
@@ -96,8 +97,8 @@ class PaymentBundleDocumentService
                 if ($att === null) {
                     continue;
                 }
-                $bytes = Storage::disk('private')->get($att->file_path);
-                $dataUri = 'data:image/png;base64,'.base64_encode($bytes);
+                $imageBytes = Storage::disk('private')->get($att->file_path);
+                $dataUri = 'data:image/png;base64,'.base64_encode($imageBytes);
                 $signatures[$sig->signature_slot->value] = [
                     'image_data_uri' => $dataUri,
                     'name' => $sig->signature_name,
