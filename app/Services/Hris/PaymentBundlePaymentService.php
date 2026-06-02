@@ -109,13 +109,17 @@ class PaymentBundlePaymentService
                 }
             }
 
+            $oldStatus = $bundle->status;
             $bundle->update(['status' => PaymentBundle::STATUS_PAYMENT_RECORDING]);
 
             foreach ($activeItems as $item) {
                 $item->update(['status' => PaymentBundleItem::STATUS_PAYMENT_RECORDING]);
             }
 
-            $this->audit->log($bundle, 'payment_bundle.payment_recording_started', $actor);
+            $this->audit->log($bundle, 'payment_bundle.payment_recording_started', $actor, [
+                'before' => ['status' => $oldStatus],
+                'after' => ['status' => PaymentBundle::STATUS_PAYMENT_RECORDING],
+            ]);
 
             return $this->paymentInstructions($bundle->refresh());
         });
@@ -175,6 +179,7 @@ class PaymentBundlePaymentService
                 ],
             ]);
 
+            $oldStatus = $bundle->status;
             $paidAt = now();
             $bundle->update([
                 'status' => PaymentBundle::STATUS_PAID,
@@ -195,7 +200,9 @@ class PaymentBundlePaymentService
             }
 
             $this->audit->log($bundle, 'payment_bundle.marked_paid', $actor, [
+                'before' => ['status' => $oldStatus],
                 'after' => [
+                    'status' => PaymentBundle::STATUS_PAID,
                     'paid_by' => $actor->id,
                     'paid_at' => $paidAt->toIso8601String(),
                     'payment_reference' => $reference,
@@ -225,6 +232,7 @@ class PaymentBundlePaymentService
             $meta['payment_proof_rejected_by'] = $actor->id;
             $meta['payment_proof_rejected_at'] = now()->toIso8601String();
 
+            $oldStatus = $bundle->status;
             $bundle->update([
                 'status' => PaymentBundle::STATUS_PAYMENT_PROOF_REJECTED,
                 'metadata' => $meta,
@@ -232,6 +240,8 @@ class PaymentBundlePaymentService
 
             $this->audit->log($bundle, 'payment_bundle.payment_proof_rejected', $actor, [
                 'reason' => $reason,
+                'before' => ['status' => $oldStatus],
+                'after' => ['status' => PaymentBundle::STATUS_PAYMENT_PROOF_REJECTED],
             ]);
 
             return $bundle->refresh();

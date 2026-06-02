@@ -249,12 +249,14 @@ class PaymentBundleSignatureService
 
         if ($bundle->status === PaymentBundle::STATUS_PENDING_EXECUTIVE_SIGNATURE
             && $signed(PaymentBundleSignatureSlot::EXECUTIVE_SIGNER)) {
+            $oldStatus = $bundle->status;
             $bundle->update([
                 'status' => PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT,
                 'authorized_at' => now(),
             ]);
 
             $this->audit->log($bundle, 'payment_bundle.authorized', null, [
+                'before' => ['status' => $oldStatus],
                 'after' => [
                     'status' => PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT,
                     'authorized_at' => $bundle->authorized_at?->toIso8601String(),

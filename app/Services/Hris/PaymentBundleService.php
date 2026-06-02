@@ -207,9 +207,13 @@ class PaymentBundleService
 
             $this->releaseActiveItems($bundle, $actor);
 
+            $oldStatus = $bundle->status;
             $bundle->update(['status' => PaymentBundle::STATUS_CANCELLED]);
 
-            $this->audit->log($bundle, 'payment_bundle.cancelled', $actor);
+            $this->audit->log($bundle, 'payment_bundle.cancelled', $actor, [
+                'before' => ['status' => $oldStatus],
+                'after' => ['status' => PaymentBundle::STATUS_CANCELLED],
+            ]);
 
             return $bundle->fresh();
         });
@@ -253,6 +257,7 @@ class PaymentBundleService
                 ]]);
             }
 
+            $oldStatus = $bundle->status;
             $bundle->update([
                 'status' => PaymentBundle::STATUS_VOIDED,
                 'metadata' => array_merge($bundle->metadata ?? [], [
@@ -262,7 +267,10 @@ class PaymentBundleService
                 ]),
             ]);
 
-            $this->audit->log($bundle, 'payment_bundle.voided', $actor, ['after' => ['reason' => $reason]]);
+            $this->audit->log($bundle, 'payment_bundle.voided', $actor, [
+                'before' => ['status' => $oldStatus],
+                'after' => ['status' => PaymentBundle::STATUS_VOIDED, 'reason' => $reason],
+            ]);
 
             return $bundle->fresh();
         });
@@ -327,6 +335,7 @@ class PaymentBundleService
 
             $this->releaseActiveItems($bundle, $signer);
 
+            $oldStatus = $bundle->status;
             $bundle->update([
                 'status' => PaymentBundle::STATUS_REJECTED,
                 'metadata' => array_merge($bundle->metadata ?? [], [
@@ -336,7 +345,10 @@ class PaymentBundleService
                 ]),
             ]);
 
-            $this->audit->log($bundle, 'payment_bundle.rejected', $signer, ['after' => ['reason' => $reason]]);
+            $this->audit->log($bundle, 'payment_bundle.rejected', $signer, [
+                'before' => ['status' => $oldStatus],
+                'after' => ['status' => PaymentBundle::STATUS_REJECTED, 'reason' => $reason],
+            ]);
 
             return $bundle->fresh();
         });
@@ -379,18 +391,23 @@ class PaymentBundleService
             $this->documents->generateUnsignedPdf($bundle, $actor);
             $bundle->refresh();
 
+            $oldStatus = $bundle->status;
             $bundle->update([
                 'status' => PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_1,
                 'submitted_at' => now(),
                 'metadata' => array_merge($bundle->metadata ?? [], ['signing_links' => $signingLinks]),
             ]);
 
-            $this->audit->log($bundle, 'payment_bundle.submitted_for_signature', $actor, ['after' => [
-                'total_amount' => (string) $bundle->total_amount,
-                'finance_signer_1' => $users[PaymentBundleSignatureSlot::FINANCE_SIGNER_1->value]->id,
-                'finance_signer_2' => $users[PaymentBundleSignatureSlot::FINANCE_SIGNER_2->value]->id,
-                'executive_signer' => $users[PaymentBundleSignatureSlot::EXECUTIVE_SIGNER->value]->id,
-            ]]);
+            $this->audit->log($bundle, 'payment_bundle.submitted_for_signature', $actor, [
+                'before' => ['status' => $oldStatus],
+                'after' => [
+                    'status' => PaymentBundle::STATUS_PENDING_FINANCE_SIGNATURE_1,
+                    'total_amount' => (string) $bundle->total_amount,
+                    'finance_signer_1' => $users[PaymentBundleSignatureSlot::FINANCE_SIGNER_1->value]->id,
+                    'finance_signer_2' => $users[PaymentBundleSignatureSlot::FINANCE_SIGNER_2->value]->id,
+                    'executive_signer' => $users[PaymentBundleSignatureSlot::EXECUTIVE_SIGNER->value]->id,
+                ],
+            ]);
 
             return $bundle->refresh();
         });
