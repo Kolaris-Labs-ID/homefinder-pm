@@ -9,6 +9,7 @@ use App\Models\Hris\PaymentBundleSignature;
 use App\Models\Hris\PaymentRequest;
 use App\Models\Hris\WeeklyAllowanceBatch;
 use App\Models\User;
+use App\Support\Finance\PaymentBundleSnapshot;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -71,23 +72,7 @@ class PaymentBundleService
                 throw new \RuntimeException('This payment request is already in an active bundle.');
             }
 
-            $snapshot = [
-                'source_type' => PaymentBundleItem::SOURCE_PAYMENT_REQUEST,
-                'source_id' => $pr->id,
-                'payment_request_id' => $pr->id,
-                'payment_request_number' => $pr->payment_request_number,
-                'payee_type' => $pr->payee_type,
-                'payee_name' => $pr->payee_name,
-                'bank_name' => $pr->bank_name,
-                'bank_account_last4' => $pr->bank_account_last4,
-                'bank_account_number' => $pr->bank_account_number,
-                'amount' => (string) $pr->amount,
-                'currency' => $pr->currency,
-                'description' => $pr->description,
-                'withholding_required' => $pr->withholding_required,
-                'withholding_amount' => $pr->withholding_amount !== null ? (string) $pr->withholding_amount : null,
-                'approval_snapshot_hash' => $pr->approval_snapshot_hash,
-            ];
+            $snapshot = PaymentBundleSnapshot::forPaymentRequest($pr);
 
             $item = PaymentBundleItem::create([
                 'payment_bundle_id' => $bundle->id,
@@ -101,7 +86,7 @@ class PaymentBundleService
                 'amount' => $pr->amount,
                 'currency' => $pr->currency,
                 'source_snapshot_json' => $snapshot,
-                'source_hash' => $this->snapshotHash($snapshot),
+                'source_hash' => PaymentBundleSnapshot::hash($snapshot),
                 'status' => PaymentBundleItem::STATUS_ACTIVE,
             ]);
 
@@ -142,17 +127,7 @@ class PaymentBundleService
                 throw new \RuntimeException('This weekly allowance batch is already in an active bundle.');
             }
 
-            $snapshot = [
-                'source_type' => PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH,
-                'source_id' => $wab->id,
-                'payee_name' => 'Weekly Allowance — '.$wab->week_label,
-                'amount' => (string) $wab->total_amount,
-                'currency' => 'IDR',
-                'week_start_date' => optional($wab->week_start_date)->toDateString(),
-                'week_end_date' => optional($wab->week_end_date)->toDateString(),
-                'total_employees' => $wab->total_employees,
-                'description' => 'Weekly allowance batch payout',
-            ];
+            $snapshot = PaymentBundleSnapshot::forWeeklyAllowanceBatch($wab);
 
             $item = PaymentBundleItem::create([
                 'payment_bundle_id' => $bundle->id,
@@ -165,7 +140,7 @@ class PaymentBundleService
                 'amount' => $wab->total_amount,
                 'currency' => 'IDR',
                 'source_snapshot_json' => $snapshot,
-                'source_hash' => $this->snapshotHash($snapshot),
+                'source_hash' => PaymentBundleSnapshot::hash($snapshot),
                 'status' => PaymentBundleItem::STATUS_ACTIVE,
             ]);
 
@@ -348,28 +323,5 @@ class PaymentBundleService
         } while (PaymentBundle::where('public_verification_code', $code)->exists());
 
         return $code;
-    }
-
-    /**
-     * Deterministic sha256 over the plaintext business fields (recursive key-sort + canonical JSON),
-     * so drift between an authorized item and its live source is detectable in later phases.
-     */
-    private function snapshotHash(array $data): string
-    {
-        $this->ksortRecursive($data);
-
-        return hash('sha256', json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-    }
-
-    private function ksortRecursive(array &$data): void
-    {
-        foreach ($data as &$value) {
-            if (is_array($value)) {
-                $this->ksortRecursive($value);
-            }
-        }
-        unset($value);
-
-        ksort($data);
     }
 }
