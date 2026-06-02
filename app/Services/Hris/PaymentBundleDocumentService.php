@@ -4,9 +4,11 @@ namespace App\Services\Hris;
 
 use App\Models\Hris\FinanceAttachment;
 use App\Models\Hris\PaymentBundle;
+use App\Models\Hris\PaymentBundleSignature;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Generates the canonical-payload-bound PDF for a payment bundle (Phase 5).
@@ -74,6 +76,61 @@ class PaymentBundleDocumentService
                     'attachment_id' => $attachment->id,
                     'unsigned_pdf_file_hash' => $pdfHash,
                     'canonical_payload_hash' => $bundle->canonical_payload_hash,
+                ],
+            ]);
+
+            return $attachment;
+        });
+    }
+
+    public function generateSignedPdf(PaymentBundle $bundle, User $actor): FinanceAttachment
+    {
+        return DB::transaction(function () use ($bundle, $actor) {
+            if ($bundle->signed_pdf_attachment_id !== null) {
+                return $bundle->signedPdf;
+            }
+
+            $signatures = [];
+            foreach ($bundle->signatures()->where('status', PaymentBundleSignature::STATUS_SIGNED)->get() as $sig) {
+                $att = $sig->signatureImage;
+                if ($att === null) {
+                    continue;
+                }
+                $bytes = Storage::disk('private')->get($att->file_path);
+                $dataUri = 'data:image/png;base64,'.base64_encode($bytes);
+                $signatures[$sig->signature_slot->value] = [
+                    'image_data_uri' => $dataUri,
+                    'name' => $sig->signature_name,
+                    'role' => $sig->signature_role,
+                    'signed_at' => optional($sig->signed_at)->toDayDateTimeString(),
+                ];
+            }
+
+            $html = $this->renderHtml($bundle, $signatures);
+            $bytes = Pdf::loadHtml($html)->output();
+
+            $attachment = $this->attachments->storeGeneratedFile(
+                $bundle,
+                $bytes,
+                FinanceAttachment::ROLE_PAYMENT_BUNDLE_SIGNED_PDF,
+                "bundle-{$bundle->bundle_number}-signed.pdf",
+                'application/pdf',
+                $actor,
+            );
+
+            $pdfHash = hash('sha256', $bytes);
+
+            $bundle->update([
+                'signed_pdf_attachment_id' => $attachment->id,
+                'signed_pdf_file_hash' => $pdfHash,
+                'signed_payload_hash' => $bundle->canonical_payload_hash,
+            ]);
+
+            $this->audit->log($bundle, 'payment_bundle.signed_pdf_generated', $actor, [
+                'after' => [
+                    'signed_pdf_attachment_id' => $attachment->id,
+                    'signed_pdf_file_hash' => $pdfHash,
+                    'signed_payload_hash' => $bundle->canonical_payload_hash,
                 ],
             ]);
 

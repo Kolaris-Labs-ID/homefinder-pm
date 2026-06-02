@@ -24,6 +24,7 @@ class PaymentBundleSignatureService
     public function __construct(
         protected FinanceAuditLogger $audit,
         protected FinanceAttachmentService $attachments,
+        protected PaymentBundleDocumentService $documents,
     ) {}
 
     public function createSigningLink(PaymentBundleSignature $sig, User $signer, int $ttlHours = 72): string
@@ -176,6 +177,12 @@ class PaymentBundleSignatureService
             ]);
 
             $this->advanceAfterSignature($bundle);
+
+            $bundle->refresh();
+            if ($bundle->status === PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT
+                && $bundle->signed_pdf_attachment_id === null) {
+                $this->documents->generateSignedPdf($bundle, $signer);
+            }
 
             return $sig->fresh();
         });
