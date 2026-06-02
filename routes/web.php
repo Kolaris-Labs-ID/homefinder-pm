@@ -73,6 +73,11 @@ Route::middleware(['web', 'auth'])->get(
     [\App\Http\Controllers\PaymentBundlePdfController::class, 'unsigned']
 )->name('finance.payment-bundles.unsigned-pdf');
 
+Route::middleware(['web', 'auth'])->get(
+    '/finance/payment-bundles/{bundle}/signed-pdf',
+    [\App\Http\Controllers\PaymentBundlePdfController::class, 'signed']
+)->name('finance.payment-bundles.signed-pdf');
+
 // Named `login` target so the `auth` middleware can redirect guests (Laravel falls back to route('login')).
 // Plain redirect (NOT ->guest()) so the intended signed URL stored by `auth` survives to /admin/login.
 Route::get('/login', fn () => redirect('/admin/login'))->name('login');

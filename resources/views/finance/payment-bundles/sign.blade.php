@@ -117,6 +117,23 @@
         </form>
     </div>
 
+    {{-- Reject form --}}
+    <div class="card" style="border-color:#fecaca;">
+        <h2 style="font-size:1rem;margin:0 0 .5rem;color:#991b1b">Reject this bundle</h2>
+        <p class="muted" style="margin:0 0 .75rem">If you believe this bundle should not be signed, provide a reason and reject it.</p>
+        <form method="POST" action="{{ url('/sign/payment-bundles/'.$bundle->id.'/'.$signature->id.'/reject').'?'.request()->getQueryString() }}">
+            @csrf
+            @if ($errors->has('reason'))
+                <div class="alert-error" style="margin-bottom:.75rem">{{ $errors->first('reason') }}</div>
+            @endif
+            <textarea name="reason" rows="3" required placeholder="Rejection reason…"
+                style="width:100%;box-sizing:border-box;border:1px solid #d4d4d8;border-radius:8px;padding:.5rem .75rem;font-size:.9rem;resize:vertical;"></textarea>
+            <div class="actions" style="margin-top:.75rem">
+                <button type="submit" class="btn btn-outline" style="border-color:#fca5a5;color:#991b1b;">Reject Bundle</button>
+            </div>
+        </form>
+    </div>
+
 </div>
 
 {{-- PDF.js (CDN) --}}
