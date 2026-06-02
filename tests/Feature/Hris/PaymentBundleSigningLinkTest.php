@@ -108,6 +108,14 @@ it('rejects a different authenticated user with 403 (wrong-user gate)', function
     $this->actingAs($other)->get($url)->assertForbidden();
 });
 
+it('rejects the assigned signer who lacks the required permission with 403 (permission gate)', function () {
+    // Assigned to the link but holds no role/permission — identity gate passes, permission gate must block.
+    $noPerm = User::factory()->create();
+    $url = $this->svc->createSigningLink($this->sig, $noPerm);
+
+    $this->actingAs($noPerm)->get($url)->assertForbidden();
+});
+
 it('rejects a tampered URL with 403 (broken HMAC)', function () {
     $url = $this->svc->createSigningLink($this->sig, $this->signer);
     parse_str(parse_url($url, PHP_URL_QUERY), $q);
