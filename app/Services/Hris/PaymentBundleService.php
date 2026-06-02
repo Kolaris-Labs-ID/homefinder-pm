@@ -30,7 +30,7 @@ class PaymentBundleService
                 'bundle_version' => 1,
                 'period_start' => $attrs['period_start'] ?? null,
                 'period_end' => $attrs['period_end'] ?? null,
-                'total_amount' => 0,
+                'total_amount' => '0.00',
                 'currency' => $attrs['currency'] ?? 'IDR',
                 'created_by' => $creator->id,
             ]);
@@ -44,6 +44,8 @@ class PaymentBundleService
     public function addPaymentRequest(PaymentBundle $bundle, PaymentRequest $pr, User $actor): PaymentBundleItem
     {
         return DB::transaction(function () use ($bundle, $pr, $actor) {
+            $bundle = PaymentBundle::query()->lockForUpdate()->findOrFail($bundle->id);
+
             if ($bundle->status !== PaymentBundle::STATUS_DRAFT) {
                 throw new \RuntimeException('Only a draft bundle can receive items.');
             }
@@ -113,6 +115,8 @@ class PaymentBundleService
     public function addWeeklyAllowanceBatch(PaymentBundle $bundle, WeeklyAllowanceBatch $wab, User $actor): PaymentBundleItem
     {
         return DB::transaction(function () use ($bundle, $wab, $actor) {
+            $bundle = PaymentBundle::query()->lockForUpdate()->findOrFail($bundle->id);
+
             if ($bundle->status !== PaymentBundle::STATUS_DRAFT) {
                 throw new \RuntimeException('Only a draft bundle can receive items.');
             }
@@ -181,32 +185,35 @@ class PaymentBundleService
                 throw new \RuntimeException('Items can only be removed from a draft bundle.');
             }
 
+            $releasedSourceStatus = null;
             if ($item->source_type === PaymentBundleItem::SOURCE_PAYMENT_REQUEST) {
-                $pr = PaymentRequest::find($item->source_id);
-                $pr?->update(['status' => PaymentRequest::STATUS_APPROVED_FOR_BUNDLE]);
+                $releasedSourceStatus = PaymentRequest::STATUS_APPROVED_FOR_BUNDLE;
+                PaymentRequest::find($item->source_id)?->update(['status' => $releasedSourceStatus]);
             } elseif ($item->source_type === PaymentBundleItem::SOURCE_WEEKLY_ALLOWANCE_BATCH) {
-                $wab = WeeklyAllowanceBatch::find($item->source_id);
-                $wab?->update(['status' => WeeklyAllowanceBatch::STATUS_ELIGIBLE_FOR_BUNDLE]);
+                $releasedSourceStatus = WeeklyAllowanceBatch::STATUS_ELIGIBLE_FOR_BUNDLE;
+                WeeklyAllowanceBatch::find($item->source_id)?->update(['status' => $releasedSourceStatus]);
             }
 
             $item->update(['status' => PaymentBundleItem::STATUS_RELEASED]);
 
             $this->recomputeTotal($bundle);
 
+            // Two distinct lifecycle events (plan §14): the item leaving the bundle, and the
+            // underlying source becoming eligible again.
             $this->audit->log($bundle, 'payment_bundle.item_removed', $actor, ['after' => [
                 'item_id' => $item->id,
-                'source_type' => $item->source_type,
-                'source_id' => $item->source_id,
+                'bundle_total' => (string) $bundle->fresh()->total_amount,
             ]]);
             $this->audit->log($bundle, 'payment_bundle.item_released', $actor, ['after' => [
                 'item_id' => $item->id,
                 'source_type' => $item->source_type,
                 'source_id' => $item->source_id,
+                'released_source_status' => $releasedSourceStatus,
             ]]);
         });
     }
 
-    public function recomputeTotal(PaymentBundle $bundle): void
+    private function recomputeTotal(PaymentBundle $bundle): void
     {
         $total = '0';
         foreach ($bundle->items()->where('status', PaymentBundleItem::STATUS_ACTIVE)->get() as $item) {

@@ -24,7 +24,7 @@ class PaymentBundleItemFactory extends Factory
         return [
             'payment_bundle_id' => PaymentBundle::factory(),
             'source_type' => PaymentBundleItem::SOURCE_PAYMENT_REQUEST,
-            'source_id' => $this->faker->unique()->numberBetween(1, 100000),
+            'source_id' => $this->faker->unique()->numberBetween(1, 2147483000),
             'payee_name' => $snapshot['payee_name'],
             'payee_bank_name' => 'BCA',
             'payee_bank_account_last4' => $this->faker->numerify('####'),
