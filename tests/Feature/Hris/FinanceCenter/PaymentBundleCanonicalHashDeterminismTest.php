@@ -115,65 +115,111 @@ describe('Invariance: same payload → same hash', function () {
         expect($svc->hash($pReordered))->toBe($svc->hash($p));
     });
 
-    it('item list order does not change the hash (items are pre-sorted before hashing)', function () {
-        // NOTE: the service's build() sorts items by source_type ASC, source_id ASC.
-        // When feeding hash() directly we must provide them pre-sorted; swapping order
-        // would change the JSON and thus the hash — which is correct behavior.
-        // This test asserts that feeding items in canonical order yields the same hash
-        // regardless of whether the PHP array was assembled forward or backward.
+    it('build() canonicalizes item order regardless of DB insertion order', function () {
+        // Items inserted in NON-canonical order (source_id=99 first, source_id=1 second).
+        // build() must sort by source_type ASC, source_id ASC, so source_id=1 must appear first.
+        $creator = \App\Models\User::factory()->create();
+        $bundle = \App\Models\Hris\PaymentBundle::create([
+            'bundle_number' => 'PB-TEST-ORDER-001',
+            'status' => \App\Models\Hris\PaymentBundle::STATUS_DRAFT,
+            'bundle_version' => 1,
+            'total_amount' => '200000.00',
+            'currency' => 'IDR',
+            'created_by' => $creator->id,
+        ]);
+
+        // Insert higher source_id FIRST to create non-canonical DB order
+        \Illuminate\Support\Facades\DB::table('payment_bundle_items')->insert([
+            'payment_bundle_id' => $bundle->id,
+            'source_type' => 'payment_request',
+            'source_id' => 99,
+            'payee_name' => 'Payee B',
+            'payee_bank_account_last4' => '9999',
+            'amount' => '100000.00',
+            'currency' => 'IDR',
+            'source_snapshot_json' => 'placeholder',
+            'source_hash' => hash('sha256', 'placeholder-b'),
+            'status' => \App\Models\Hris\PaymentBundleItem::PAYMENT_STATUS_BUNDLED,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Insert lower source_id SECOND
+        \Illuminate\Support\Facades\DB::table('payment_bundle_items')->insert([
+            'payment_bundle_id' => $bundle->id,
+            'source_type' => 'payment_request',
+            'source_id' => 1,
+            'payee_name' => 'Payee A',
+            'payee_bank_account_last4' => '1111',
+            'amount' => '100000.00',
+            'currency' => 'IDR',
+            'source_snapshot_json' => 'placeholder',
+            'source_hash' => hash('sha256', 'placeholder-a'),
+            'status' => \App\Models\Hris\PaymentBundleItem::PAYMENT_STATUS_BUNDLED,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         $svc = app(CanonicalPayloadHashService::class);
-        $p = basePayload();
+        $payload = $svc->build($bundle->fresh());
 
-        // Same two items in same canonical order but assembled in reversed PHP array order
-        // ksortRecursive sorts top-level keys; items[] is a list (int-keyed) so index order is preserved.
-        // The service expects items to be pre-sorted (build() does this). Test that identical
-        // pre-sorted lists hash identically whether constructed in one direction or another.
-        $pCopy = $p;
-        $pCopy['items'] = [$p['items'][0], $p['items'][1]]; // same canonical order
+        // source_type ASC, source_id ASC → source_id=1 must be first
+        expect($payload['items'][0]['source_id'])->toBe(1);
+        expect($payload['items'][1]['source_id'])->toBe(99);
 
-        expect($svc->hash($pCopy))->toBe($svc->hash($p));
+        // Hash must be stable: build twice and compare
+        $hash1 = $svc->hash($svc->build($bundle->fresh()));
+        $hash2 = $svc->hash($svc->build($bundle->fresh()));
+        expect($hash1)->toBe($hash2);
     });
 
-    it('decimal formatting: integer string "7500000" hashes identically to "7500000.00" for total_amount', function () {
-        // money() applies number_format((float)$v, 2, '.', '') — but hash() receives the already-formatted
-        // string from build(). This test passes the raw string variants into the payload to confirm
-        // that if a caller passes "7500000" vs "7500000.00", the ksortRecursive+JSON step is the same
-        // for already-normalized strings. (build() normalizes before hash() is called.)
+    it('build() normalizes decimals before hashing; hash() does not', function () {
+        // hash() is NOT decimal-normalizing: "7500000" and "7500000.00" produce different hashes.
+        // build() normalizes via money() before hashing, so the canonical hash is always stable.
         $svc = app(CanonicalPayloadHashService::class);
-        $base = goldenFixturePayload();
 
-        $withInt = $base;
-        $withDot0 = $base;
-        $withDot00 = $base;
+        // NEGATIVE: hash() alone does NOT normalize decimal representations
+        expect($svc->hash(['total_amount' => '7500000']))
+            ->not->toBe($svc->hash(['total_amount' => '7500000.00']));
 
-        // Manually normalise as build() would — then compare hashes
-        $normalize = fn (string $v) => number_format((float) $v, 2, '.', '');
+        // POSITIVE via build(): a real bundle produces a stable hash regardless of how the
+        // DB stores the decimal — because build() always passes amounts through money() first.
+        $creator = \App\Models\User::factory()->create();
+        $bundle = \App\Models\Hris\PaymentBundle::create([
+            'bundle_number' => 'PB-TEST-DEC-001',
+            'status' => \App\Models\Hris\PaymentBundle::STATUS_DRAFT,
+            'bundle_version' => 1,
+            'total_amount' => '7500000', // stored without decimals
+            'currency' => 'IDR',
+            'created_by' => $creator->id,
+        ]);
 
-        $withInt['total_amount'] = $normalize('7500000');
-        $withDot0['total_amount'] = $normalize('7500000.0');
-        $withDot00['total_amount'] = $normalize('7500000.00');
+        $svc = app(CanonicalPayloadHashService::class);
+        $payload = $svc->build($bundle->fresh());
 
-        $withInt['items'][0]['amount'] = $normalize('7500000');
-        $withDot0['items'][0]['amount'] = $normalize('7500000.0');
-        $withDot00['items'][0]['amount'] = $normalize('7500000.00');
+        // build() must have normalized to "7500000.00"
+        expect($payload['total_amount'])->toBe('7500000.00');
 
-        $h1 = $svc->hash($withInt);
-        $h2 = $svc->hash($withDot0);
-        $h3 = $svc->hash($withDot00);
-
+        // Hash is stable across two build() calls
+        $h1 = $svc->hash($svc->build($bundle->fresh()));
+        $h2 = $svc->hash($svc->build($bundle->fresh()));
         expect($h1)->toBe($h2);
-        expect($h2)->toBe($h3);
     });
 
     it('null assigned_signer_id is stable: a slot mapped to null hashes consistently', function () {
         // Explicit null vs absent key behaves differently after JSON encoding.
         // build() always includes a slot key even when assigned_user_id is null (sets it to null).
-        // This test asserts that null values hash consistently (two calls with null yield same hash).
+        // This test asserts that null values hash consistently across two distinct-but-equal inputs.
         $svc = app(CanonicalPayloadHashService::class);
-        $p = basePayload();
-        $p['assigned_signer_ids']['finance_signer_2'] = null;
 
-        expect($svc->hash($p))->toBe($svc->hash($p));
+        $p1 = basePayload();
+        $p1['assigned_signer_ids']['finance_signer_2'] = null;
+
+        $p2 = basePayload();
+        $p2['assigned_signer_ids']['finance_signer_2'] = null;
+
+        // Two independently constructed payloads with identical content incl. null signer must hash the same
+        expect($svc->hash($p1))->toBe($svc->hash($p2));
     });
 
     it('null vs absent signer id produces DIFFERENT hashes (null-vs-absent is explicit)', function () {
@@ -190,18 +236,31 @@ describe('Invariance: same payload → same hash', function () {
     });
 
     it('timestamps are NOT part of the canonical payload (confirmed: no created_at/updated_at in hash input)', function () {
-        // build() only emits: bundle_number, bundle_version, currency, total_amount,
-        // required_signature_slots, assigned_signer_ids, items.
-        // Injecting timestamp keys into a hash() call changes the hash — proving timestamps
-        // would change it IF included. Since build() never includes them, the hash is timestamp-stable.
-        $svc = app(CanonicalPayloadHashService::class);
-        $clean = basePayload();
+        // DIRECT assertion: build() on a real persisted bundle must not include timestamp keys.
+        $creator = \App\Models\User::factory()->create();
+        $bundle = \App\Models\Hris\PaymentBundle::create([
+            'bundle_number' => 'PB-TEST-TS-001',
+            'status' => \App\Models\Hris\PaymentBundle::STATUS_DRAFT,
+            'bundle_version' => 1,
+            'total_amount' => '100000.00',
+            'currency' => 'IDR',
+            'created_by' => $creator->id,
+        ]);
 
+        $svc = app(CanonicalPayloadHashService::class);
+        $payload = $svc->build($bundle->fresh());
+
+        // build() must not emit timestamp keys — catching any future regression
+        expect(array_key_exists('created_at', $payload))->toBeFalse();
+        expect(array_key_exists('updated_at', $payload))->toBeFalse();
+
+        // INDIRECT: injecting timestamps into hash() input changes the hash — proving they
+        // WOULD matter if build() ever leaked them.
+        $clean = basePayload();
         $withTimestamps = $clean;
         $withTimestamps['created_at'] = '2026-01-01T00:00:00Z';
         $withTimestamps['updated_at'] = '2026-06-03T12:00:00Z';
 
-        // Hashes differ → timestamps WOULD matter if included → build() correctly excludes them
         expect($svc->hash($withTimestamps))->not->toBe($svc->hash($clean));
     });
 
@@ -210,11 +269,17 @@ describe('Invariance: same payload → same hash', function () {
         // money() uses number_format((float)$v, 2) which is safe for values < 2^53.
         // 5,000,000,000 (5B IDR) < 9,007,199,254,740,992 (2^53) — no precision loss here.
         $svc = app(CanonicalPayloadHashService::class);
-        $p = basePayload();
-        $p['total_amount'] = '5000000000.00';
-        $p['items'][0]['amount'] = '5000000000.00';
 
-        expect($svc->hash($p))->toBe($svc->hash($p));
+        $p1 = basePayload();
+        $p1['total_amount'] = '5000000000.00';
+        $p1['items'][0]['amount'] = '5000000000.00';
+
+        $p2 = basePayload();
+        $p2['total_amount'] = '5000000000.00';
+        $p2['items'][0]['amount'] = '5000000000.00';
+
+        // Two independently constructed payloads with the same large IDR amount must hash identically
+        expect($svc->hash($p1))->toBe($svc->hash($p2));
     });
 });
 
