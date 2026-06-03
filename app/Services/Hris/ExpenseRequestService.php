@@ -5,6 +5,7 @@ namespace App\Services\Hris;
 use App\Models\Hris\Employee;
 use App\Models\Hris\ExpenseRequest;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -18,11 +19,24 @@ class ExpenseRequestService
 
     public function __construct(private FinanceAuditLogger $audit) {}
 
+    /**
+     * Idempotent on (employee, client_request_id): a repeated create with the same key
+     * returns the existing ER instead of inserting a duplicate (mobile double-submit / retry).
+     */
     public function create(Employee $employee, array $data, ?User $actor = null): ExpenseRequest
     {
-        return DB::transaction(function () use ($employee, $data, $actor) {
+        $clientRequestId = $data['client_request_id'] ?? null;
+
+        if ($clientRequestId !== null) {
+            if ($existing = $this->findByClientRequestId($employee, $clientRequestId)) {
+                return $existing;
+            }
+        }
+
+        return DB::transaction(function () use ($employee, $data, $actor, $clientRequestId) {
             $attrs = $this->details($data) + [
                 'request_number' => $this->generateRequestNumber(),
+                'client_request_id' => $clientRequestId,
                 'employee_id' => $employee->id,
                 'currency' => $data['currency'] ?? 'IDR',
                 'payment_mode' => $data['payment_mode'],
@@ -30,11 +44,27 @@ class ExpenseRequestService
             ];
             $this->applyBankAccount($attrs, $data);
 
-            $er = ExpenseRequest::create($attrs);
+            try {
+                $er = ExpenseRequest::create($attrs);
+            } catch (QueryException $e) {
+                // Concurrent duplicate for the same key lost the unique-index race — return the winner.
+                if ($clientRequestId !== null && $existing = $this->findByClientRequestId($employee, $clientRequestId)) {
+                    return $existing;
+                }
+                throw $e;
+            }
+
             $this->audit->log($er, 'expense_request.draft_created', $actor ?? $employee->user);
 
             return $er;
         });
+    }
+
+    private function findByClientRequestId(Employee $employee, string $clientRequestId): ?ExpenseRequest
+    {
+        return ExpenseRequest::where('employee_id', $employee->id)
+            ->where('client_request_id', $clientRequestId)
+            ->first();
     }
 
     public function submit(ExpenseRequest $er, ?User $actor = null): void

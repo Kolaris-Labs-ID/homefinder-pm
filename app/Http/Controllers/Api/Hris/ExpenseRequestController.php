@@ -41,7 +41,8 @@ class ExpenseRequestController extends Controller
 
         $er = $this->service->create($employee, $validated);
 
-        return response()->json(['data' => $this->detail($er)], 201);
+        // 201 for a fresh draft; 200 when an idempotent replay returned the existing ER.
+        return response()->json(['data' => $this->detail($er)], $er->wasRecentlyCreated ? 201 : 200);
     }
 
     public function show(Request $request, ExpenseRequest $expenseRequest): JsonResponse
@@ -115,6 +116,7 @@ class ExpenseRequestController extends Controller
         $required = $forCreate ? 'required' : 'sometimes';
 
         return [
+            'client_request_id' => ['nullable', 'string', 'max:64'],
             'category' => [$required, 'string', 'max:100'],
             'title' => [$required, 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],

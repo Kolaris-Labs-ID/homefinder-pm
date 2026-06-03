@@ -48,7 +48,7 @@ class ExpenseRequest extends Model
     const MODE_OTHER = 'other';
 
     protected $fillable = [
-        'request_number', 'employee_id', 'department_id', 'project_id',
+        'request_number', 'client_request_id', 'employee_id', 'department_id', 'project_id',
         'category', 'title', 'description', 'amount', 'currency',
         'fx_rate', 'fx_rate_source', 'fx_rate_locked_at', 'expense_date', 'payment_mode',
         'payee_name', 'payee_bank_name', 'payee_bank_account_number_encrypted', 'payee_bank_account_last4',
