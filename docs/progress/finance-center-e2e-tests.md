@@ -526,6 +526,66 @@ tests/Fixtures/payment_bundle_canonical_payload_v1.sha256
 **Recommended fix:** reject `amount <= 0` (via `bccomp`) in `createManual`. **DEFERRED — money path, owner approval (bug-gate).**
 **Tests:** characterization tests labeled "GAP-C" in `ManualPaymentRequestFlowTest`.
 
+### BUG-8 — `PaymentRequestService::varianceMetadata()` uses `(float)` cast for ratio comparison
+
+**Detected in:** Phase 11 (`FinanceMoneyIntegrityTest` — no-float guard)
+**Service:** `app/Services/Hris/PaymentRequestService.php` — `varianceMetadata()` line ~118:
+`(float) bcdiv($absDiff, (string) $er->amount, 6)` used as a ratio flag against constant `0.10`.
+**Gap:** The `(float)` cast is used purely for a > comparison, not for storing money. Precision impact is negligible (the ratio has 6dp of bcdiv precision before the cast). Nonetheless it violates the no-float rule in money-handling code.
+**Severity:** Very low — no stored amount is affected; only the `variance_risk_flag` metadata field could in theory be miscalculated for ratios very close to 0.10 (e.g. exactly 0.1000000 at 6dp might cast to 0.09999999... or vice versa).
+**Recommended fix:** replace with `bccomp(bcdiv($absDiff, (string) $er->amount, 6), '0.100000', 6) > 0`. **DEFERRED.**
+**Tests:** allowlisted with `PaymentRequestService.php => 1` in the no-float guard in `FinanceMoneyIntegrityTest`.
+
+### BUG-8b — `ReimbursementController` returns `amount` as a JSON number (float cast)
+
+**Detected in:** Phase 11 (`FinanceMoneyIntegrityTest` — API amount-as-string test)
+**Controller:** `app/Http/Controllers/Api/Hris/ReimbursementController.php` — lines 37 and 76:
+`'amount' => (float) $r->amount` in the `index()` and `store()` JSON responses.
+**Gap:** The mobile client receives `amount` as a JSON number (e.g. `350000`) rather than the canonical string `"350000.00"`. This is inconsistent with the ER API (`ExpenseRequestController` returns amounts as strings) and breaks any mobile-side string type assertion.
+**Severity:** Medium — affects mobile client contract. No money calculation is wrong (the numeric value is correct) but the type contract is violated. Could cause silent bugs in mobile parsers that expect a string.
+**Recommended fix:** Remove the `(float)` cast; Eloquent's `decimal:2` cast already returns the value as a string. **DEFERRED — mobile contract, owner approval (bug-gate).**
+**Tests:** characterization test "Reimbursement API returns amount as string — BUG-8b: currently returns float" in `FinanceMoneyIntegrityTest` asserts the current (broken) behavior. Flip to `->toBeTrue()` + `->toBeString()` when fixed.
+
+---
+
+## Phase 11 — Money integrity test classification
+
+**File:** `tests/Feature/Hris/FinanceCenter/FinanceMoneyIntegrityTest.php`  
+**Tests:** 6 (all green)
+
+### Already covered (not duplicated)
+
+| Case | Covered in |
+|------|-----------|
+| amount stored as string `'5000000.00'` | `PaymentRequestLifecycleTest` L37 |
+| bccomp total after addPaymentRequest | `PaymentBundleServiceTest` L106 |
+| bccomp total after addWeeklyAllowanceBatch | `PaymentBundleServiceTest` L130 |
+| multi-item sum | `PaymentBundleServiceTest` L138 |
+| batch total (weekly+overtime+latepay) | `BatchPaymentBundleServiceTest` L45 |
+| zero amount GAP-C / BUG-7 | `ManualPaymentRequestFlowTest` L286 |
+| negative amount GAP-C / BUG-7 | `ManualPaymentRequestFlowTest` L302 |
+| large amount (100B IDR) | `ManualPaymentRequestFlowTest` L259 |
+| IDR display does not mutate stored value | `ManualPaymentRequestFlowTest` L266 |
+| ER API returns amount as string | `ExpenseRequestApiTest` L41 |
+| No-float guard for BatchPaymentBundleService + BatchPayments/* + snapshot support | `BatchPaymentNoFloatGuardTest` |
+
+### Net-new cases
+
+1. **Bundle total == bcadd sum of PR items** — verifies item amounts copy PR amounts exactly and sum matches bundle total via bcadd + bccomp.
+2. **Bundle total == bcadd sum of batch-source items** — same check for batch (WAB) sources.
+3. **Decimal scale consistency** — PR, item, bundle all carry exactly 2dp (regex check + bccomp equality).
+4. **Reimbursement API amount type (BUG-8b characterization)** — documents that `/api/hris/reimbursements` currently returns amount as JSON number, not string.
+5. **ER API amount regression guard** — confirms ER API still returns amount as string (the correct behavior).
+6. **Extended no-float guard** — covers `PaymentBundleService`, `PaymentBundlePaymentService`, `PaymentBundleSignatureService`, `CanonicalPayloadHashService`, `PaymentRequestService`, `PaymentRequest`, `PaymentBundle`, `PaymentBundleItem`. Allowlist: `CanonicalPayloadHashService.php => 1` (BUG-3) and `PaymentRequestService.php => 1` (BUG-8). Guard would FAIL on any new float cast in these files.
+
+### Float occurrences found
+
+| File | Line | Code | Status |
+|------|------|------|--------|
+| `CanonicalPayloadHashService.php` | 108 | `number_format((float) $v, 2, '.', '')` | BUG-3 — allowlisted |
+| `PaymentRequestService.php` | 118 | `(float) bcdiv($absDiff, (string) $er->amount, 6)` | BUG-8 — allowlisted |
+| `ReimbursementController.php` | 37, 76 | `(float) $r->amount` | BUG-8b — not in guard scope (controller) |
+
 ---
 
 ## Residual hardening
