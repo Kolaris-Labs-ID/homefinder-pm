@@ -190,6 +190,24 @@ describe('Area 2 — ER→PR one-active-per-ER (APP-LEVEL ONLY — see Bug log)'
         expect(fn () => $service->createFromExpenseRequest($er->fresh(), $creator))
             ->toThrow(\RuntimeException::class, 'Only a finance-verified expense request can become a payment request.');
     });
+
+    it('the service alreadyActive guard fires when an active PR already exists for a still-verified ER', function () {
+        // APP-LEVEL ONLY — see Bug log. Directly exercises the lockForUpdate "alreadyActive" race-defense
+        // guard (not the status guard): ER stays finance_verified while an active PR already points at it.
+        $employee = Employee::factory()->create();
+        $er = ExpenseRequest::create(erBase($employee, ['status' => ExpenseRequest::STATUS_FINANCE_VERIFIED]));
+        $creator = User::factory()->create();
+
+        // Insert the first active PR directly so the ER status is NOT advanced to pr_created.
+        PaymentRequest::create(prBase($creator, PaymentRequest::SOURCE_EXPENSE_REQUEST, $er->id, [
+            'status' => PaymentRequest::STATUS_DRAFT,
+        ]));
+
+        $service = app(\App\Services\Hris\PaymentRequestService::class);
+
+        expect(fn () => $service->createFromExpenseRequest($er->fresh(), $creator))
+            ->toThrow(\RuntimeException::class, 'This expense request already has an active payment request.');
+    });
 });
 
 // ---------------------------------------------------------------------------
