@@ -137,6 +137,11 @@ class PaymentRequestService
 
     public function createManual(User $creator, array $data): PaymentRequest
     {
+        $amount = $data['amount'] ?? null;
+        if ($amount !== null && bccomp((string) $amount, '0', 2) <= 0) {
+            throw new \RuntimeException('A payment request amount must be greater than zero.');
+        }
+
         return DB::transaction(function () use ($creator, $data) {
             $attrs = $this->details($data) + [
                 'payment_request_number' => $this->generateNumber(),
@@ -224,12 +229,26 @@ class PaymentRequestService
         ]);
     }
 
+    /** Statuses where detail edits are still permitted (pre-payment). */
+    private const EDITABLE_STATUSES = [
+        PaymentRequest::STATUS_DRAFT,
+        PaymentRequest::STATUS_NEEDS_CLARIFICATION,
+        PaymentRequest::STATUS_SUBMITTED_TO_COO,
+        PaymentRequest::STATUS_APPROVED_BY_COO,
+        PaymentRequest::STATUS_REJECTED_BY_COO,
+        PaymentRequest::STATUS_APPROVED_FOR_BUNDLE,
+    ];
+
     /**
      * Edit PR details. Touching a sensitive field while approved voids the approval,
      * returns the PR to draft, clears the snapshot, and requires COO re-approval.
      */
     public function updateApprovedDetails(PaymentRequest $pr, array $data): void
     {
+        if (! in_array($pr->status, self::EDITABLE_STATUSES, true)) {
+            throw new \RuntimeException('A payment request can no longer be edited once it is in a payment or terminal state.');
+        }
+
         $attrs = $this->details($data);
         $this->applyBank($attrs, $data);
 

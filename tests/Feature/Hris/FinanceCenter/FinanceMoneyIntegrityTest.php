@@ -174,12 +174,10 @@ it('amount decimal scale is consistent (exactly 2 dp) across PR, bundle item, an
     expect(bccomp($prAmount, $bundleTotal, 2))->toBe(0);
 });
 
-// 4. Reimbursement API returns amount as STRING — documents BUG-8b
-//    BUG-8b: ReimbursementController::index() and ::store() cast `$r->amount` to (float)
-//    before JSON serialisation, so the response carries a JSON number (float) not a string.
-//    This test documents the CURRENT (broken) behavior.
-//    When BUG-8b is fixed (cast removed), this test must be updated to ->toBeString().
-it('Reimbursement API /api/hris/reimbursements returns amount as string — BUG-8b: currently returns float', function () {
+// 4. Reimbursement API returns amount as STRING (BUG-8b fixed)
+//    Cast removed from ReimbursementController::index() and ::store().
+//    Eloquent decimal:2 cast yields the string directly.
+it('Reimbursement API /api/hris/reimbursements returns amount as a string', function () {
     $this->seed(FinanceRolePermissionSeeder::class);
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 
@@ -196,17 +194,11 @@ it('Reimbursement API /api/hris/reimbursements returns amount as string — BUG-
 
     $rawAmount = $res->json('data.0.amount');
 
-    // BUG-8b CHARACTERIZATION: the controller does `(float) $r->amount`, so the JSON
-    // payload carries a JSON number (e.g. 350000 or 350000.5), NOT the string '350000.00'.
-    // PHP's json_decode returns int for whole-number floats (350000.0 → 350000 int).
-    // In all cases the value is NOT a string.
-    // When BUG-8b is fixed (cast removed), flip this to ->toBeTrue() and assert ->toBeString().
-    expect(is_string($rawAmount))->toBeFalse(
-        'BUG-8b: ReimbursementController returns amount as a JSON number, not a string. '
+    expect(is_string($rawAmount))->toBeTrue(
+        'BUG-8b fixed: ReimbursementController must return amount as string. '
         .'Actual PHP type: '.gettype($rawAmount).', value: '.var_export($rawAmount, true)
     );
-    // Sanity: the numeric value is correct even though the type is wrong
-    expect((int) $rawAmount)->toBe(350000);
+    expect($rawAmount)->toBeString()->toBe('350000.00');
 });
 
 // 5. ER API still returns amount as string (regression guard — the correct one)

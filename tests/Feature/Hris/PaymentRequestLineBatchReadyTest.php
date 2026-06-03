@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Hris\PaymentRequest;
 use App\Models\Hris\PaymentRequestLine;
 use App\Models\User;
 use App\Services\Hris\PaymentRequestService;
@@ -13,7 +12,7 @@ beforeEach(function () {
     $this->service = app(PaymentRequestService::class);
     $this->pr = $this->service->createManual(User::factory()->create(), [
         'payee_type' => 'batch', 'payee_name' => 'Payroll', 'bank_name' => 'BCA',
-        'amount' => 0, 'currency' => 'IDR',
+        'amount' => 1, 'currency' => 'IDR',
     ]);
 });
 

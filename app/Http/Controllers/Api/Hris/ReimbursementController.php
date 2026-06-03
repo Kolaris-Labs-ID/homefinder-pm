@@ -22,7 +22,7 @@ class ReimbursementController extends Controller
     {
         $employee = $request->user()->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json([
                 'message' => 'Employee profile not found',
             ], 404);
@@ -34,7 +34,7 @@ class ReimbursementController extends Controller
             'data' => $reimbursements->map(fn ($r) => [
                 'id' => $r->id,
                 'type' => $r->type,
-                'amount' => (float) $r->amount,
+                'amount' => $r->amount,
                 'description' => $r->description,
                 'status' => $r->status,
                 'rejection_reason' => $r->rejection_reason,
@@ -51,7 +51,7 @@ class ReimbursementController extends Controller
     {
         $employee = $request->user()->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json([
                 'message' => 'Employee profile not found',
             ], 404);
@@ -73,7 +73,7 @@ class ReimbursementController extends Controller
             'data' => [
                 'id' => $reimbursement->id,
                 'type' => $reimbursement->type,
-                'amount' => (float) $reimbursement->amount,
+                'amount' => $reimbursement->amount,
                 'status' => $reimbursement->status,
             ],
         ], 201);
@@ -86,7 +86,7 @@ class ReimbursementController extends Controller
     {
         $employee = $request->user()->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json([
                 'message' => 'Employee profile not found',
             ], 404);

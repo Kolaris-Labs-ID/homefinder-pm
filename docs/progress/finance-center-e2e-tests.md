@@ -502,29 +502,28 @@ tests/Fixtures/payment_bundle_canonical_payload_v1.sha256
 **Recommended fix (Phase 11):** replace the `(float)` cast with arbitrary-precision normalization, e.g. `bcadd($v, '0', 2)`.
 **Tests:** large-IDR determinism case in `PaymentBundleCanonicalHashDeterminismTest` (with `// NOTE: (float) cast — see BUG / Phase 11`)
 
-### BUG-5 — `PaymentRequestService::updateApprovedDetails` has no post-payment state guard
+### BUG-5 — `PaymentRequestService::updateApprovedDetails` has no post-payment state guard — RESOLVED
 
 **Detected in:** Phase 5 (`ManualPaymentRequestFlowTest`)
 **Service:** `app/Services/Hris/PaymentRequestService.php::updateApprovedDetails`
-**Gap:** The only status check voids the COO snapshot when status is `approved_by_coo`. There is NO guard preventing edits when the PR is `in_payment_bundle`, `paid`, `paid_pending_reconciliation`, `reconciled`, or `reversed`. Amount/payee/bank can be mutated on a paid or bundled PR without exception.
-**Severity:** Medium-low. The payment bundle/payment execution uses a FROZEN snapshot (Phase 7 confirms), so mutating the live PR after bundling does not change what is actually paid — this is a data-hygiene/audit-integrity hole, not (yet proven) a payment-execution hole. Editing a `paid` PR is still clearly invalid.
-**Recommended fix:** add a state guard (analogous to BUG-4) blocking `updateApprovedDetails` once the PR is bundled/paid/reconciled. **DEFERRED — payment-lifecycle zone, requires owner approval (bug-gate).**
-**Tests:** characterization tests in `ManualPaymentRequestFlowTest` (labeled "BUG-A: …") assert the mutation currently succeeds; flip to `->toThrow` when guarded.
+**Fix:** Added `EDITABLE_STATUSES` constant (`draft`, `needs_clarification`, `submitted_to_coo`, `approved_by_coo`, `rejected_by_coo`, `approved_for_bundle`) and an `in_array` guard at the top of `updateApprovedDetails`. States not in that list (`in_payment_bundle`, `scheduled_for_payment`, `paid`, `paid_pending_reconciliation`, `reconciled`, `reconciliation_failed`, `payment_failed`, `voided`, `reversed`, `cancelled`) now throw `\RuntimeException('A payment request can no longer be edited once it is in a payment or terminal state.')`.
+**UI gate mirrored:** `PaymentRequestResource` has no edit page (`canCreate()=false`, pages: index+view only) and no form action gated by editable states — the service is the sole enforcement point. The allowed-state set mirrors the pre-payment lifecycle analogous to BUG-4's `canReview()` pattern.
+**Tests:** 4 BUG-A characterization tests flipped to `->toThrow(\RuntimeException::class, '...')` in `ManualPaymentRequestFlowTest`. "allowed on draft" and "allowed/voids on approved_by_coo" tests unchanged (still pass).
+**Commit:** fix(finance): BUG-5/6/7 PR edit+amount guards + BUG-8b reimbursement amount-as-string
 
-### BUG-6 — `updateApprovedDetails` has no `source_type` guard
-
-**Detected in:** Phase 5 (`ManualPaymentRequestFlowTest`)
-**Gap:** An ER-sourced PR (`source_type = expense_request`) can be edited through the manual-PR edit path; the service treats all source types identically.
-**Severity:** Low. **DEFERRED — owner approval (bug-gate).**
-**Tests:** characterization test labeled "BUG-B" in `ManualPaymentRequestFlowTest`.
-
-### BUG-7 — `createManual` does not reject zero/negative amounts
+### BUG-6 — `updateApprovedDetails` has no `source_type` guard — RECLASSIFIED: not a bug
 
 **Detected in:** Phase 5 (`ManualPaymentRequestFlowTest`)
-**Service:** `PaymentRequestService::createManual` — no amount validation; Filament `canCreate()=false` means no form-level guard either, so the service is the only enforcement point and it has none.
-**Severity:** Medium — a zero or negative payment amount is never valid.
-**Recommended fix:** reject `amount <= 0` (via `bccomp`) in `createManual`. **DEFERRED — money path, owner approval (bug-gate).**
-**Tests:** characterization tests labeled "GAP-C" in `ManualPaymentRequestFlowTest`.
+**Reclassification:** The `PaymentRequestResource` has NO form action, no edit page, and no gating by `source_type` anywhere. Correcting bank details or amount on an ER-sourced PR before payment is a legitimate and intended operation. No source_type guard should be added.
+**Tests:** BUG-B characterization test renamed and rewritten to assert the LEGITIMATE behavior: editing an ER-sourced approved PR voids the snapshot and returns the PR to draft (same as a manual PR). Test now passes as a positive assertion.
+
+### BUG-7 — `createManual` does not reject zero/negative amounts — RESOLVED
+
+**Detected in:** Phase 5 (`ManualPaymentRequestFlowTest`)
+**Service:** `PaymentRequestService::createManual`
+**Fix:** Added guard before the DB transaction: `if (bccomp((string) $amount, '0', 2) <= 0) throw new \RuntimeException('A payment request amount must be greater than zero.')`.
+**Collateral:** `PaymentRequestLineBatchReadyTest::beforeEach` used `amount => 0` as a test shortcut for batch-line container PRs; updated to `amount => 1` (the test does not assert on header amount).
+**Tests:** 2 GAP-C characterization tests flipped to `->toThrow(\RuntimeException::class, '...')` in `ManualPaymentRequestFlowTest`.
 
 ### BUG-8 — `PaymentRequestService::varianceMetadata()` uses `(float)` cast for ratio comparison
 
@@ -536,15 +535,13 @@ tests/Fixtures/payment_bundle_canonical_payload_v1.sha256
 **Recommended fix:** replace with `bccomp(bcdiv($absDiff, (string) $er->amount, 6), '0.100000', 6) > 0`. **DEFERRED.**
 **Tests:** allowlisted with `PaymentRequestService.php => 1` in the no-float guard in `FinanceMoneyIntegrityTest`.
 
-### BUG-8b — `ReimbursementController` returns `amount` as a JSON number (float cast)
+### BUG-8b — `ReimbursementController` returns `amount` as a JSON number (float cast) — RESOLVED
 
 **Detected in:** Phase 11 (`FinanceMoneyIntegrityTest` — API amount-as-string test)
-**Controller:** `app/Http/Controllers/Api/Hris/ReimbursementController.php` — lines 37 and 76:
-`'amount' => (float) $r->amount` in the `index()` and `store()` JSON responses.
-**Gap:** The mobile client receives `amount` as a JSON number (e.g. `350000`) rather than the canonical string `"350000.00"`. This is inconsistent with the ER API (`ExpenseRequestController` returns amounts as strings) and breaks any mobile-side string type assertion.
-**Severity:** Medium — affects mobile client contract. No money calculation is wrong (the numeric value is correct) but the type contract is violated. Could cause silent bugs in mobile parsers that expect a string.
-**Recommended fix:** Remove the `(float)` cast; Eloquent's `decimal:2` cast already returns the value as a string. **DEFERRED — mobile contract, owner approval (bug-gate).**
-**Tests:** characterization test "Reimbursement API returns amount as string — BUG-8b: currently returns float" in `FinanceMoneyIntegrityTest` asserts the current (broken) behavior. Flip to `->toBeTrue()` + `->toBeString()` when fixed.
+**Controller:** `app/Http/Controllers/Api/Hris/ReimbursementController.php`
+**Fix:** Removed `(float)` cast on `$r->amount` (`index()`) and on `$reimbursement->amount` (`store()`). Eloquent's `decimal:2` cast on `Reimbursement::$casts['amount']` returns the canonical string (e.g. `"350000.00"`) directly.
+**Collateral:** `ReimbursementTest` line 165 asserted `->assertJsonPath('data.amount', 500000)` — updated to `->assertJsonPath('data.amount', '500000.00')`.
+**Tests:** BUG-8b test in `FinanceMoneyIntegrityTest` flipped: `is_string($rawAmount)->toBeTrue()` + `->toBeString()->toBe('350000.00')`.
 
 ### BUG-9 — `revealPaymentInstructions` has no internal permission check (defense-in-depth gap, NOT an active vuln)
 

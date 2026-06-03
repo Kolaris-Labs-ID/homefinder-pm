@@ -107,110 +107,68 @@ it('updateApprovedDetails on approved_by_coo voids approval and returns to draft
         ->and($pr->fresh()->approval_snapshot_hash)->toBeNull();
 });
 
-// ─── edit-locking: LOCKED states (BUG-A) ────────────────────────────────────
-//
-// The service does NOT throw for these states — updateApprovedDetails silently
-// applies the change. These tests assert the ACTUAL service behavior (no throw)
-// and document it as BUG-A. Tests that follow the expected-safe pattern
-// (->toThrow) are intentionally inverted to show the gap.
+// ─── edit-locking: LOCKED states (BUG-5 fixed) ──────────────────────────────
 
-it('updateApprovedDetails on in_payment_bundle does NOT throw — BUG-A: missing edit lock', function () {
+it('updateApprovedDetails on in_payment_bundle throws RuntimeException', function () {
     $pr = p5_approved();
-
-    // Forcibly place the PR into in_payment_bundle (simulating bundle add).
     $pr->update(['status' => PaymentRequest::STATUS_IN_PAYMENT_BUNDLE]);
     $pr = $pr->fresh();
-    expect($pr->status)->toBe(PaymentRequest::STATUS_IN_PAYMENT_BUNDLE);
 
-    // BUG-A: the service accepts the update (no throw) and mutates a bundled PR.
-    // A correct implementation would throw RuntimeException here.
-    $threw = false;
-    try {
-        $this->svc->updateApprovedDetails($pr, ['amount' => 9_999_999]);
-    } catch (\RuntimeException $e) {
-        $threw = true;
-    }
+    expect(fn () => $this->svc->updateApprovedDetails($pr, ['amount' => 9_999_999]))
+        ->toThrow(\RuntimeException::class, 'A payment request can no longer be edited once it is in a payment or terminal state.');
+});
 
-    // Assert the BUG: no exception thrown (change is silently accepted).
-    expect($threw)->toBeFalse('BUG-A: updateApprovedDetails should throw for in_payment_bundle but does not');
-    expect($pr->fresh()->amount)->toBe('9999999.00'); // the mutation happened
-})->group('p5-edit-lock-bug');
-
-it('updateApprovedDetails on paid does NOT throw — BUG-A: missing edit lock', function () {
+it('updateApprovedDetails on paid throws RuntimeException', function () {
     $pr = p5_approved();
     $pr->update(['status' => PaymentRequest::STATUS_PAID]);
     $pr = $pr->fresh();
 
-    $threw = false;
-    try {
-        $this->svc->updateApprovedDetails($pr, ['payee_name' => 'Rogue Payee']);
-    } catch (\RuntimeException $e) {
-        $threw = true;
-    }
+    expect(fn () => $this->svc->updateApprovedDetails($pr, ['payee_name' => 'Rogue Payee']))
+        ->toThrow(\RuntimeException::class, 'A payment request can no longer be edited once it is in a payment or terminal state.');
+});
 
-    expect($threw)->toBeFalse('BUG-A: updateApprovedDetails should throw for paid but does not');
-    expect($pr->fresh()->payee_name)->toBe('Rogue Payee'); // mutation succeeded
-})->group('p5-edit-lock-bug');
-
-it('updateApprovedDetails on reconciled does NOT throw — BUG-A: missing edit lock', function () {
+it('updateApprovedDetails on reconciled throws RuntimeException', function () {
     $pr = p5_approved();
     $pr->update(['status' => PaymentRequest::STATUS_RECONCILED]);
     $pr = $pr->fresh();
 
-    $threw = false;
-    try {
-        $this->svc->updateApprovedDetails($pr, ['amount' => 1]);
-    } catch (\RuntimeException $e) {
-        $threw = true;
-    }
+    expect(fn () => $this->svc->updateApprovedDetails($pr, ['amount' => 1]))
+        ->toThrow(\RuntimeException::class, 'A payment request can no longer be edited once it is in a payment or terminal state.');
+});
 
-    expect($threw)->toBeFalse('BUG-A: updateApprovedDetails should throw for reconciled but does not');
-})->group('p5-edit-lock-bug');
-
-it('updateApprovedDetails on paid_pending_reconciliation does NOT throw — BUG-A', function () {
+it('updateApprovedDetails on paid_pending_reconciliation throws RuntimeException', function () {
     $pr = p5_approved();
     $pr->update(['status' => PaymentRequest::STATUS_PAID_PENDING_RECONCILIATION]);
     $pr = $pr->fresh();
 
-    $threw = false;
-    try {
-        $this->svc->updateApprovedDetails($pr, ['amount' => 1]);
-    } catch (\RuntimeException $e) {
-        $threw = true;
-    }
+    expect(fn () => $this->svc->updateApprovedDetails($pr, ['amount' => 1]))
+        ->toThrow(\RuntimeException::class, 'A payment request can no longer be edited once it is in a payment or terminal state.');
+});
 
-    expect($threw)->toBeFalse('BUG-A: updateApprovedDetails should throw for paid_pending_reconciliation but does not');
-})->group('p5-edit-lock-bug');
-
-// ─── ER-sourced PR edit via updateApprovedDetails (BUG-B) ───────────────────
+// ─── ER-sourced PR edit via updateApprovedDetails (BUG-6 reclassified: not a bug) ─
 //
-// updateApprovedDetails has no source_type guard: an ER-sourced PR can be
-// mutated through the manual-PR edit path. While the method itself allows it
-// (voiding the COO snapshot when sensitive fields change), there is no guard
-// preventing finance_creator from calling it on an ER-sourced PR. This test
-// documents the absence of that guard (BUG-B).
+// BUG-6 reclassified: approved-detail correction is INTENDED for all source types.
+// The Filament PaymentRequestResource has no edit page and no form actions gated by
+// source_type — all lifecycle actions (void, mark_paid, reconcile) treat ER-sourced and
+// manual PRs identically. Correcting bank details / amount on an ER-sourced PR before
+// payment is a legitimate operation. No source_type guard should be added.
 
-it('updateApprovedDetails accepts an ER-sourced PR with no source_type guard — BUG-B', function () {
-    // Create a PR that claims to be ER-sourced (simulated with source_type override).
+it('updateApprovedDetails on an ER-sourced approved PR voids snapshot and returns to draft (legitimate)', function () {
     $pr = $this->svc->createManual($this->creator, p5_payload([
         'source_type' => PaymentRequest::SOURCE_EXPENSE_REQUEST,
-        'source_id' => 9999, // non-existent ER — service doesn't check
+        'source_id' => 9999,
     ]));
     $this->svc->submitToCoo($pr);
     $this->svc->approveAsCoo($pr, $this->coo);
     $pr = $pr->fresh();
     expect($pr->source_type)->toBe(PaymentRequest::SOURCE_EXPENSE_REQUEST);
 
-    // BUG-B: the service does not throw for source_type=expense_request.
-    $threw = false;
-    try {
-        $this->svc->updateApprovedDetails($pr, ['amount' => 7_000_000]);
-    } catch (\RuntimeException $e) {
-        $threw = true;
-    }
+    // Legitimate: correcting amount voids snapshot → draft (same as manual PR).
+    $this->svc->updateApprovedDetails($pr, ['amount' => 7_000_000]);
 
-    expect($threw)->toBeFalse('BUG-B: updateApprovedDetails should guard against ER-sourced PRs but does not');
-})->group('p5-edit-lock-bug');
+    expect($pr->fresh()->status)->toBe(PaymentRequest::STATUS_DRAFT)
+        ->and($pr->fresh()->approval_snapshot_hash)->toBeNull();
+});
 
 // ─── delete: no hard-delete mechanism ───────────────────────────────────────
 
@@ -275,42 +233,14 @@ it('IDR display formatting (money cast) does not mutate the stored decimal value
         ->and($displayed)->toBe('7,750,500.00'); // display is separate
 });
 
-// ─── money assertions: zero and negative (GAP-C) ────────────────────────────
-//
-// The service has NO validation for zero or negative amounts in createManual.
-// These tests document that the service currently ACCEPTS them (gap).
-// If you expect them to be rejected at the service layer, these tests would
-// be written ->toThrow() — but that would PASS (the service doesn't throw).
-// Instead we document the actual behavior and mark it as GAP-C.
+// ─── money assertions: zero and negative (BUG-7 fixed) ─────────────────────
 
-it('zero amount is NOT rejected by createManual — GAP-C: missing service validation', function () {
-    $threw = false;
-    $pr = null;
-    try {
-        $pr = $this->svc->createManual($this->creator, p5_payload(['amount' => 0]));
-    } catch (\Throwable $e) {
-        $threw = true;
-    }
+it('zero amount is rejected by createManual', function () {
+    expect(fn () => $this->svc->createManual($this->creator, p5_payload(['amount' => 0])))
+        ->toThrow(\RuntimeException::class, 'A payment request amount must be greater than zero.');
+});
 
-    // GAP-C: no exception; a PR with amount=0.00 is created.
-    expect($threw)->toBeFalse('GAP-C: createManual should reject zero amount but does not');
-    if ($pr !== null) {
-        expect($pr->fresh()->amount)->toBe('0.00');
-    }
-})->group('p5-money-gap');
-
-it('negative amount is NOT rejected by createManual — GAP-C: missing service validation', function () {
-    $threw = false;
-    $pr = null;
-    try {
-        $pr = $this->svc->createManual($this->creator, p5_payload(['amount' => -1_000]));
-    } catch (\Throwable $e) {
-        $threw = true;
-    }
-
-    // GAP-C: no exception; a PR with negative amount is created.
-    expect($threw)->toBeFalse('GAP-C: createManual should reject negative amount but does not');
-    if ($pr !== null) {
-        expect($pr->fresh()->amount)->toBe('-1000.00');
-    }
-})->group('p5-money-gap');
+it('negative amount is rejected by createManual', function () {
+    expect(fn () => $this->svc->createManual($this->creator, p5_payload(['amount' => -1_000])))
+        ->toThrow(\RuntimeException::class, 'A payment request amount must be greater than zero.');
+});

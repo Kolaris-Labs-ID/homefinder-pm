@@ -162,7 +162,7 @@ describe('Reimbursement create endpoint', function () {
                 ],
             ])
             ->assertJsonPath('data.type', Reimbursement::TYPE_MEDICAL)
-            ->assertJsonPath('data.amount', 500000)
+            ->assertJsonPath('data.amount', '500000.00')
             ->assertJsonPath('data.status', Reimbursement::STATUS_PENDING);
 
         // Verify reimbursement was created in database
@@ -215,8 +215,6 @@ describe('Reimbursement create endpoint', function () {
         $reimbursement = Reimbursement::find($response->json('data.id'));
         expect($reimbursement->description)->toBeNull();
     });
-
-
 
     it('validates required fields', function () {
         $employee = Employee::factory()->create();
@@ -358,8 +356,6 @@ describe('Reimbursement cancel endpoint', function () {
         // Verify reimbursement was deleted
         expect(Reimbursement::find($reimbursement->id))->toBeNull();
     });
-
-
 
     it('prevents cancelling approved reimbursement', function () {
         $employee = Employee::factory()->create();
