@@ -84,6 +84,10 @@ class ExpenseRequestService
 
     public function verify(ExpenseRequest $er, User $financeUser, ?string $notes = null): void
     {
+        if (! in_array($er->status, [ExpenseRequest::STATUS_SUBMITTED, ExpenseRequest::STATUS_UNDER_FINANCE_REVIEW], true)) {
+            throw new \RuntimeException('Only a submitted expense request can be verified.');
+        }
+
         DB::transaction(function () use ($er, $financeUser, $notes) {
             $er->update([
                 'status' => ExpenseRequest::STATUS_FINANCE_VERIFIED,
@@ -97,6 +101,10 @@ class ExpenseRequestService
 
     public function reject(ExpenseRequest $er, User $financeUser, string $reason): void
     {
+        if (! in_array($er->status, [ExpenseRequest::STATUS_SUBMITTED, ExpenseRequest::STATUS_UNDER_FINANCE_REVIEW], true)) {
+            throw new \RuntimeException('Only a submitted expense request can be rejected.');
+        }
+
         DB::transaction(function () use ($er, $financeUser, $reason) {
             $er->update([
                 'status' => ExpenseRequest::STATUS_REJECTED,
@@ -110,6 +118,10 @@ class ExpenseRequestService
 
     public function requestRevision(ExpenseRequest $er, User $financeUser, string $note): void
     {
+        if (! in_array($er->status, [ExpenseRequest::STATUS_SUBMITTED, ExpenseRequest::STATUS_UNDER_FINANCE_REVIEW], true)) {
+            throw new \RuntimeException('Only a submitted expense request can have a revision requested.');
+        }
+
         DB::transaction(function () use ($er, $financeUser, $note) {
             $er->update([
                 'status' => ExpenseRequest::STATUS_NEEDS_REVISION,

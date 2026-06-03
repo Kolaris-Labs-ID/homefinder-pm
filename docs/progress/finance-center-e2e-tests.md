@@ -480,6 +480,19 @@ tests/Fixtures/payment_bundle_canonical_payload_v1.sha256
 **Recommended fix:** Make `client_request_id` required (NOT NULL) for the create endpoint, or generate a server-side fallback key when absent.
 **Tests proving the gap:** "null client_request_id rows are allowed (NULL ≠ NULL)" in Area 1.
 
+### BUG-4 — `ExpenseRequestService` review methods lacked state guards (service/API path exploitable) — RESOLVED
+
+**Detected in:** Phase 3 (`ExpenseRequestFinanceReviewTest`, illegal-transition block-list tests)
+**Service:** `app/Services/Hris/ExpenseRequestService.php` — `verify()`, `reject()`, `requestRevision()`
+**Gap:** All three review methods had no source-state validation. Only the Filament `canReview()` UI gate prevented invalid transitions; the service layer (and by extension the API path) was unguarded. An ER in status `finance_verified`, `rejected`, `cancelled`, `record_only_closed`, or `draft` could be re-verified, re-rejected, or have revision requested against it — silently overwriting status.
+**Fix:** Added an `in_array` guard at the top of each method, mirroring `ExpenseRequestResource::canReview()` exactly:
+- Allowed states: `STATUS_SUBMITTED` and `STATUS_UNDER_FINANCE_REVIEW`
+- Exception messages: `'Only a submitted expense request can be verified.'`, `'Only a submitted expense request can be rejected.'`, `'Only a submitted expense request can have a revision requested.'`
+**Throws:** `\RuntimeException` — consistent with existing codebase style (see `submit()`, `revise()`, `closeAsRecordOnly()`, and `PaymentRequestService`).
+**Tests:** 5 bug-gate tests in `tests/Feature/Hris/FinanceCenter/ExpenseRequestFinanceReviewTest.php` — `->group('bug')` removed, now pass as normal tests.
+**Full suite impact:** Zero regressions. Suite: `Tests: 2570 deprecated (130480 assertions)` — no failures.
+**Commit:** fix(expense): guard ExpenseRequestService verify/reject/requestRevision against invalid source states (BUG-4)
+
 ### BUG-3 — `CanonicalPayloadHashService::money()` uses a `(float)` cast (precision loss above 2^53)
 
 **Detected in:** Phase 6 (`PaymentBundleCanonicalHashDeterminismTest`)

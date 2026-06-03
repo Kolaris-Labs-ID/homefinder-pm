@@ -17,11 +17,8 @@
  *    Non-sensitive field change does NOT reset.
  * 2. Illegal-transition block-list at service layer.
  *
- * BUG FOUND: ExpenseRequestService.verify(), reject(), requestRevision() have no state
- * guard. The Filament canReview() check is the only enforcement. Tests marked @bug below
- * assert the DESIRED behavior (service should throw on illegal state). They will FAIL
- * until the service adds state guards.
- * → DONE_WITH_CONCERNS: do not merge without fixing the service gaps.
+ * BUG-4 FIXED: ExpenseRequestService.verify(), reject(), requestRevision() now guard
+ * against invalid source states, mirroring canReview() (submitted | under_finance_review).
  */
 
 use App\Models\Hris\Employee;
@@ -121,19 +118,14 @@ it('changing a non-sensitive field (description) after verify does NOT reset ver
     expect($fresh->finance_reviewed_by)->not->toBeNull();
 });
 
-// ─── Phase 3 net-new: illegal-transition block-list (BUG TESTS) ──────────────
-// The following tests assert DESIRED behavior. They are currently FAILING because
-// ExpenseRequestService has no state guards on verify/reject/requestRevision.
-// Fix: add state validation in each service method before updating.
+// ─── Phase 3 net-new: illegal-transition block-list (BUG-4 fixed) ────────────
 
 it('verify throws when ER is already finance_verified', function () {
     $er = p3_verifiedEr();
 
-    // DESIRED: service should reject re-verification of an already-verified ER.
-    // ACTUAL: service has no state guard — this will NOT throw (test fails = bug exposed).
     expect(fn () => $this->svc->verify($er, $this->finance, 'again'))
-        ->toThrow(\RuntimeException::class);
-})->group('bug');
+        ->toThrow(\RuntimeException::class, 'Only a submitted expense request can be verified.');
+});
 
 it('verify throws when ER is rejected', function () {
     $er = p3_draft();
@@ -141,19 +133,17 @@ it('verify throws when ER is rejected', function () {
     $this->svc->submit($er);
     $this->svc->reject($er, $this->finance, 'duplicate');
 
-    // DESIRED: service should block verify on a rejected ER.
     expect(fn () => $this->svc->verify($er->fresh(), $this->finance, 'override'))
-        ->toThrow(\RuntimeException::class);
-})->group('bug');
+        ->toThrow(\RuntimeException::class, 'Only a submitted expense request can be verified.');
+});
 
 it('verify throws when ER is cancelled', function () {
     $er = p3_draft();
     $this->svc->cancel($er);
 
-    // DESIRED: service should block verify on a cancelled ER.
     expect(fn () => $this->svc->verify($er->fresh(), $this->finance, 'notes'))
-        ->toThrow(\RuntimeException::class);
-})->group('bug');
+        ->toThrow(\RuntimeException::class, 'Only a submitted expense request can be verified.');
+});
 
 it('verify throws when ER is record_only_closed', function () {
     $er = p3_draft(['payment_mode' => ExpenseRequest::MODE_COMPANY_PAID_RECORD_ONLY]);
@@ -162,10 +152,9 @@ it('verify throws when ER is record_only_closed', function () {
     $this->svc->verify($er, $this->finance, 'recorded');
     $this->svc->closeAsRecordOnly($er);
 
-    // DESIRED: service should block verify on a record_only_closed ER.
     expect(fn () => $this->svc->verify($er->fresh(), $this->finance, 're-verify'))
-        ->toThrow(\RuntimeException::class);
-})->group('bug');
+        ->toThrow(\RuntimeException::class, 'Only a submitted expense request can be verified.');
+});
 
 it('requestRevision throws when ER is rejected', function () {
     $er = p3_draft();
@@ -173,7 +162,6 @@ it('requestRevision throws when ER is rejected', function () {
     $this->svc->submit($er);
     $this->svc->reject($er, $this->finance, 'invalid');
 
-    // DESIRED: service should block requestRevision on a rejected ER.
     expect(fn () => $this->svc->requestRevision($er->fresh(), $this->finance, 'please fix'))
-        ->toThrow(\RuntimeException::class);
-})->group('bug');
+        ->toThrow(\RuntimeException::class, 'Only a submitted expense request can have a revision requested.');
+});
