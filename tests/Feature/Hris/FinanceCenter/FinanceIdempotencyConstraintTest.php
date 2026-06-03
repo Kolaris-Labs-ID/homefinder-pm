@@ -125,59 +125,37 @@ describe('Area 1 — ExpenseRequest client_request_id uniqueness', function () {
 });
 
 // ---------------------------------------------------------------------------
-// Area 2 — ER → PR: one active PR per ER source (APP-LEVEL ONLY)
+// Area 2 — ER → PR: one active PR per ER source (DB-LEVEL + APP-LEVEL)
 // ---------------------------------------------------------------------------
-// See Bug log: no DB unique index on (source_type, source_id) in payment_requests.
-// A concurrent race could double-insert an active PR for the same ER.
+// BUG-1 RESOLVED: partial unique index payment_requests_active_source_unique
+// enforces one active PR per (source_type, source_id) at the DB layer.
+// Manual PRs (source_id IS NULL) are exempt — multiple active manual PRs allowed.
 // ---------------------------------------------------------------------------
 
-describe('Area 2 — ER→PR one-active-per-ER (APP-LEVEL ONLY — see Bug log)', function () {
-    it('the payment_requests table has no unique index on (source_type, source_id)', function () {
-        // APP-LEVEL ONLY — see Bug log
-        // Check SQLite index SQL for a UNIQUE index that covers both source_type and source_id columns
-        $rows = DB::select("SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='payment_requests'");
+describe('Area 2 — ER→PR one-active-per-ER (DB-LEVEL via payment_requests_active_source_unique)', function () {
+    it('the partial unique index payment_requests_active_source_unique exists on payment_requests', function () {
+        $indexes = collect(DB::select("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='payment_requests'"))
+            ->pluck('name')
+            ->toArray();
 
-        $hasUniqueCompositeSourceIndex = collect($rows)->contains(function ($row) {
-            if ($row->sql === null) {
-                return false; // auto-generated PK index — not unique composite
-            }
-            $isUnique = str_contains(strtoupper($row->sql), 'CREATE UNIQUE INDEX');
-            $coversSource = str_contains($row->sql, 'source_type') && str_contains($row->sql, 'source_id');
-
-            return $isUnique && $coversSource;
-        });
-
-        expect($hasUniqueCompositeSourceIndex)->toBeFalse(
-            'Expected no DB unique composite index on (source_type, source_id) in payment_requests. '.
-            'If one was added, update this test and remove the Bug-log entry.'
-        );
+        expect($indexes)->toContain('payment_requests_active_source_unique');
     });
 
-    it('two active PRs for the same ER source CAN be inserted at the DB layer (proves gap is app-level only)', function () {
-        // APP-LEVEL ONLY — see Bug log
+    it('two active PRs for the same ER source are BLOCKED at the DB layer (QueryException)', function () {
         $employee = Employee::factory()->create();
         $er = ExpenseRequest::create(erBase($employee));
         $creator = User::factory()->create();
 
         $base = prBase($creator, PaymentRequest::SOURCE_EXPENSE_REQUEST, $er->id);
 
-        $pr1 = PaymentRequest::create($base);
-        // Second insert for same ER — no DB constraint stops this
-        $pr2 = PaymentRequest::create(array_merge($base, [
-            'payment_request_number' => 'PR-'.uniqid(),
-        ]));
+        PaymentRequest::create($base);
 
-        expect($pr1->exists)->toBeTrue();
-        expect($pr2->exists)->toBeTrue();
-        expect(
-            PaymentRequest::where('source_type', PaymentRequest::SOURCE_EXPENSE_REQUEST)
-                ->where('source_id', $er->id)
-                ->count()
-        )->toBe(2);
+        expect(fn () => PaymentRequest::create(array_merge($base, [
+            'payment_request_number' => 'PR-'.uniqid(),
+        ])))->toThrow(QueryException::class);
     });
 
     it('the service-level guard rejects a duplicate active PR for the same ER', function () {
-        // APP-LEVEL ONLY — see Bug log
         $employee = Employee::factory()->create();
         $er = ExpenseRequest::create(erBase($employee, ['status' => ExpenseRequest::STATUS_FINANCE_VERIFIED]));
         $creator = User::factory()->create();
@@ -192,8 +170,8 @@ describe('Area 2 — ER→PR one-active-per-ER (APP-LEVEL ONLY — see Bug log)'
     });
 
     it('the service alreadyActive guard fires when an active PR already exists for a still-verified ER', function () {
-        // APP-LEVEL ONLY — see Bug log. Directly exercises the lockForUpdate "alreadyActive" race-defense
-        // guard (not the status guard): ER stays finance_verified while an active PR already points at it.
+        // Directly exercises the lockForUpdate "alreadyActive" race-defense guard:
+        // ER stays finance_verified while an active PR already points at it.
         $employee = Employee::factory()->create();
         $er = ExpenseRequest::create(erBase($employee, ['status' => ExpenseRequest::STATUS_FINANCE_VERIFIED]));
         $creator = User::factory()->create();
@@ -207,6 +185,74 @@ describe('Area 2 — ER→PR one-active-per-ER (APP-LEVEL ONLY — see Bug log)'
 
         expect(fn () => $service->createFromExpenseRequest($er->fresh(), $creator))
             ->toThrow(\RuntimeException::class, 'This expense request already has an active payment request.');
+    });
+
+    it('multiple active MANUAL PRs are allowed (manual PRs have null source_id and are exempt from the index)', function () {
+        // Footgun guard: manual PRs must never be blocked by the index.
+        // source_id IS NULL → generated column / WHERE predicate excludes them → no UNIQUE conflict.
+        $creator = User::factory()->create();
+
+        $pr1 = PaymentRequest::create([
+            'payment_request_number' => 'PR-'.uniqid(),
+            'source_type' => PaymentRequest::SOURCE_MANUAL,
+            'source_id' => null,
+            'created_by' => $creator->id,
+            'payee_name' => 'Manual Payee 1',
+            'amount' => '500000.00',
+            'currency' => 'IDR',
+            'status' => PaymentRequest::STATUS_DRAFT,
+        ]);
+
+        $pr2 = PaymentRequest::create([
+            'payment_request_number' => 'PR-'.uniqid(),
+            'source_type' => PaymentRequest::SOURCE_MANUAL,
+            'source_id' => null,
+            'created_by' => $creator->id,
+            'payee_name' => 'Manual Payee 2',
+            'amount' => '750000.00',
+            'currency' => 'IDR',
+            'status' => PaymentRequest::STATUS_DRAFT,
+        ]);
+
+        $pr3 = PaymentRequest::create([
+            'payment_request_number' => 'PR-'.uniqid(),
+            'source_type' => PaymentRequest::SOURCE_MANUAL,
+            'source_id' => null,
+            'created_by' => $creator->id,
+            'payee_name' => 'Manual Payee 3',
+            'amount' => '250000.00',
+            'currency' => 'IDR',
+            'status' => PaymentRequest::STATUS_SUBMITTED_TO_COO,
+        ]);
+
+        expect($pr1->exists)->toBeTrue();
+        expect($pr2->exists)->toBeTrue();
+        expect($pr3->exists)->toBeTrue();
+        expect(
+            PaymentRequest::where('source_type', PaymentRequest::SOURCE_MANUAL)
+                ->whereNull('source_id')
+                ->count()
+        )->toBeGreaterThanOrEqual(3);
+    });
+
+    it('a second active PR is allowed for the same source after the first becomes inactive (voided)', function () {
+        $employee = Employee::factory()->create();
+        $er = ExpenseRequest::create(erBase($employee));
+        $creator = User::factory()->create();
+
+        $base = prBase($creator, PaymentRequest::SOURCE_EXPENSE_REQUEST, $er->id);
+
+        // First PR — active
+        $pr1 = PaymentRequest::create($base);
+        // Make it inactive (voided) — now outside the index predicate
+        $pr1->update(['status' => PaymentRequest::STATUS_VOIDED]);
+
+        // Second PR — should be allowed because pr1 is voided (inactive)
+        $pr2 = PaymentRequest::create(array_merge($base, [
+            'payment_request_number' => 'PR-'.uniqid(),
+        ]));
+
+        expect($pr2->exists)->toBeTrue();
     });
 });
 

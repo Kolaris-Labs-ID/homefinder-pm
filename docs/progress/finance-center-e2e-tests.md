@@ -462,14 +462,25 @@ tests/Fixtures/payment_bundle_canonical_payload_v1.sha256
 
 ## Bug log
 
-### BUG-1 — ER→PR one-active-per-source enforced at app layer only (no DB unique index)
+### BUG-1 — ER→PR one-active-per-source enforced at app layer only (no DB unique index) — RESOLVED
 
 **Detected in:** Phase 1 (`FinanceIdempotencyConstraintTest`, Area 2)  
 **Table:** `payment_requests`  
-**Gap:** No unique or partial unique index on `(source_type, source_id)`. The "one active PR per ER" rule is enforced solely by `PaymentRequestService::createFromExpenseRequest` via a `whereNotIn(status, INACTIVE_STATUSES)->exists()` check under a `lockForUpdate()` transaction.  
-**Race risk:** A concurrent request that reaches the exists-check simultaneously (before either commits) can bypass the guard and double-insert two active PRs for the same ER source. The `lockForUpdate()` mitigates but does not eliminate this on all MySQL isolation levels.  
-**Recommended fix:** Add a partial/conditional unique index on `payment_requests (source_type, source_id)` WHERE status NOT IN (rejected_by_coo, voided, cancelled, reversed) — using a MySQL generated column or a PostgreSQL/SQLite WHERE clause, matching the migration pattern already used in `payment_bundle_items`.  
-**Tests proving the gap:** "two active PRs for the same ER source CAN be inserted at the DB layer (proves gap is app-level only)" — confirms a direct `PaymentRequest::create()` bypass succeeds.
+**Gap:** No unique or partial unique index on `(source_type, source_id)`. The "one active PR per ER" rule was enforced solely by `PaymentRequestService::createFromExpenseRequest` via a `whereNotIn(status, INACTIVE_STATUSES)->exists()` check under a `lockForUpdate()` transaction.  
+**Race risk:** A concurrent request that reached the exists-check simultaneously (before either committed) could bypass the guard and double-insert two active PRs for the same ER source.  
+**Fix:** Migration `2026_06_03_000005_add_active_source_unique_to_payment_requests.php` adds the partial unique index `payment_requests_active_source_unique` on `(source_type, source_id)`.  
+**Index definition:**  
+- SQLite/PostgreSQL: `CREATE UNIQUE INDEX … WHERE source_id IS NOT NULL AND status NOT IN ('rejected_by_coo', 'voided', 'cancelled', 'reversed')`  
+- MySQL/MariaDB: generated column `active_source_key = CASE WHEN source_id IS NOT NULL AND status NOT IN (…) THEN CONCAT(source_type, '#', source_id) ELSE NULL END` + `UNIQUE INDEX` on that column  
+**INACTIVE_STATUSES mirrored:** `rejected_by_coo`, `voided`, `cancelled`, `reversed` (matches `PaymentRequestService::INACTIVE_STATUSES` exactly).  
+**Manual PR carve-out:** Manual PRs (`source_type = 'manual'`) have `source_id = NULL`. The `source_id IS NOT NULL` predicate/generated-column condition excludes them from the index entirely — multiple active manual PRs are never blocked.  
+**Tests updated in** `FinanceIdempotencyConstraintTest` (Area 2):  
+- "no unique index exists" → flipped to assert `payment_requests_active_source_unique` DOES exist  
+- "two active PRs CAN be inserted (proves gap)" → flipped to assert second insert THROWS `QueryException`  
+- "service-level guard rejects" and "alreadyActive guard" tests kept/verified passing  
+- New test: "multiple active MANUAL PRs are allowed" — footgun protection  
+- New test: "second active PR allowed after first is voided" — inactive-status exemption  
+**Full suite:** Tests: 2629 deprecated (132472 assertions), 0 failures.
 
 ### BUG-2 — NULL `client_request_id` gives no idempotency protection
 
