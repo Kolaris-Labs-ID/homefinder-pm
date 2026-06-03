@@ -127,8 +127,8 @@
                         <h4 class="font-bold text-purple-800 dark:text-purple-300">Approval PR</h4>
                     </div>
                     <ul class="list-disc space-y-2 pl-6 text-gray-700 dark:text-gray-300">
-                        <li>Submit PR ke COO/Executive</li>
-                        <li>COO approve atau reject</li>
+                        <li>Submit PR ke Executive yang ditugaskan</li>
+                        <li>Executive approve atau reject</li>
                         <li>Snapshot persetujuan disimpan & dibekukan</li>
                     </ul>
                 </div>
@@ -172,7 +172,7 @@
                 <span class="text-gray-400">→</span>
                 <span class="rounded-full bg-indigo-100 px-3 py-1 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">PR</span>
                 <span class="text-gray-400">→</span>
-                <span class="rounded-full bg-purple-100 px-3 py-1 text-purple-800 dark:bg-purple-900 dark:text-purple-200">COO OK</span>
+                <span class="rounded-full bg-purple-100 px-3 py-1 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Executive OK</span>
                 <span class="text-gray-400">→</span>
                 <span class="rounded-full bg-teal-100 px-3 py-1 text-teal-800 dark:bg-teal-900 dark:text-teal-200">Bundle</span>
                 <span class="text-gray-400">→</span>
@@ -413,10 +413,10 @@
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-white/5">
                             <tr><td class="px-4 py-2"><x-filament::badge color="gray">Draft</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">draft</code></td><td class="px-4 py-2">Finance sedang menyusun draft PR</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="info">Submitted to COO (Diajukan ke COO)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">submitted_to_coo</code></td><td class="px-4 py-2">Menunggu persetujuan dari Executive / COO</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="success">Approved by COO (Disetujui COO)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">approved_by_coo</code></td><td class="px-4 py-2">Disetujui oleh COO/Executive</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="danger">Rejected by COO (Ditolak COO)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">rejected_by_coo</code></td><td class="px-4 py-2">Ditolak oleh COO/Executive</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">Needs Clarification (Butuh Klarifikasi)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">needs_clarification</code></td><td class="px-4 py-2">COO meminta klarifikasi atau informasi tambahan</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="info">Submitted for Approval (Diajukan untuk Approval)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">submitted_to_coo</code></td><td class="px-4 py-2">Menunggu persetujuan dari Executive yang ditugaskan</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="success">Approved (Disetujui Executive)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">approved_by_coo</code></td><td class="px-4 py-2">Disetujui oleh Executive yang ditugaskan</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="danger">Rejected (Ditolak Executive)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">rejected_by_coo</code></td><td class="px-4 py-2">Ditolak oleh Executive yang ditugaskan</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">Needs Clarification (Butuh Klarifikasi)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">needs_clarification</code></td><td class="px-4 py-2">Executive meminta klarifikasi atau informasi tambahan</td></tr>
                             <tr><td class="px-4 py-2"><x-filament::badge color="primary">Approved for Bundle (Siap Masuk Bundle)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">approved_for_bundle</code></td><td class="px-4 py-2">Siap untuk dimasukkan ke dalam Payment Bundle</td></tr>
                             <tr><td class="px-4 py-2"><x-filament::badge color="info">In Payment Bundle (Dalam Bundle)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">in_payment_bundle</code></td><td class="px-4 py-2">Sudah masuk di dalam salah satu bundle pembayaran</td></tr>
                             <tr><td class="px-4 py-2"><x-filament::badge color="warning">Scheduled for Payment (Dijadwalkan Dibayar)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">scheduled_for_payment</code></td><td class="px-4 py-2">Dijadwalkan untuk dibayarkan</td></tr>
@@ -433,7 +433,7 @@
             <div>
                 <h4 class="mb-2 font-semibold text-gray-900 dark:text-white">4.3 Approval Snapshot (Snapshot Persetujuan)</h4>
                 <p class="mb-2 text-gray-600 dark:text-gray-400">
-                    Saat COO/Executive menyetujui PR, sistem membuat <strong>snapshot data bisnis yang dibekukan</strong>:
+                    Saat Executive menyetujui PR, sistem membuat <strong>snapshot data bisnis yang dibekukan</strong>:
                 </p>
                 <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
                     <div class="grid grid-cols-1 gap-1 text-xs md:grid-cols-2">
@@ -448,7 +448,7 @@
                     </div>
                 </div>
                 <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-                    <strong>⚠️ Setelah disetujui:</strong> Mengubah jumlah, penerima, bank, atau bukti akan <strong>membatalkan persetujuan</strong> dan membutuhkan persetujuan ulang dari COO.
+                    <strong>⚠️ Setelah disetujui:</strong> Mengubah jumlah, penerima, bank, atau bukti akan <strong>membatalkan persetujuan</strong> dan membutuhkan persetujuan ulang dari Executive.
                 </div>
             </div>
         </div>
@@ -544,7 +544,7 @@
                         <tbody class="divide-y divide-gray-100 dark:divide-white/5">
                             <tr>
                                 <td class="px-4 py-2 font-medium">payment_request</td>
-                                <td class="px-4 py-2">PR yang sudah approved_by_coo</td>
+                                <td class="px-4 py-2">PR yang sudah disetujui Executive</td>
                                 <td class="px-4 py-2"><x-filament::badge color="success">Aktif</x-filament::badge></td>
                             </tr>
                             <tr>
@@ -881,14 +881,14 @@
                                 <th class="px-3 py-2 text-left font-semibold">Hak Akses</th>
                                 <th class="px-3 py-2 text-center font-semibold">Finance Reviewer</th>
                                 <th class="px-3 py-2 text-center font-semibold">Finance Creator</th>
-                                <th class="px-3 py-2 text-center font-semibold">COO/Executive</th>
+                                <th class="px-3 py-2 text-center font-semibold">Executive</th>
                                 <th class="px-3 py-2 text-center font-semibold">Admin</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-white/5">
                             <tr><td class="px-3 py-2">Lihat PR</td><td class="px-3 py-2 text-center">✅</td><td class="px-3 py-2 text-center">✅</td><td class="px-3 py-2 text-center">✅</td><td class="px-3 py-2 text-center">✅</td></tr>
                             <tr><td class="px-3 py-2">Buat PR</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">✅</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">✅</td></tr>
-                            <tr><td class="px-3 py-2">Submit ke COO</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">✅</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">✅</td></tr>
+                            <tr><td class="px-3 py-2">Submit untuk Approval</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">✅</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">✅</td></tr>
                             <tr><td class="px-3 py-2">Approve/Reject</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">✅</td><td class="px-3 py-2 text-center">✅</td></tr>
                             <tr><td class="px-3 py-2">Minta klarifikasi</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">✅</td><td class="px-3 py-2 text-center">✅</td></tr>
                             <tr><td class="px-3 py-2">Tandai paid</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">❌</td><td class="px-3 py-2 text-center">✅</td></tr>
