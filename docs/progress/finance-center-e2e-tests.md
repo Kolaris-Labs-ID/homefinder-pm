@@ -479,3 +479,32 @@ tests/Fixtures/payment_bundle_canonical_payload_v1.sha256
 **Severity:** Low — current mobile client always sends `client_request_id` (Phase 17 verifies this). Risk is limited to legacy clients or direct API callers.
 **Recommended fix:** Make `client_request_id` required (NOT NULL) for the create endpoint, or generate a server-side fallback key when absent.
 **Tests proving the gap:** "null client_request_id rows are allowed (NULL ≠ NULL)" in Area 1.
+
+### BUG-3 — `CanonicalPayloadHashService::money()` uses a `(float)` cast (precision loss above 2^53)
+
+**Detected in:** Phase 6 (`PaymentBundleCanonicalHashDeterminismTest`)
+**Service:** `app/Services/Hris/CanonicalPayloadHashService.php` — `money()` does `number_format((float) $v, 2, '.', '')`.
+**Gap:** The `(float)` cast loses integer precision above 2^53 (9,007,199,254,740,992). Empirically confirmed: `"9007199254740993.00"` canonicalizes to `"9007199254740992.00"` — a 1-IDR drift — which would change/destabilize the canonical hash for such amounts.
+**Severity:** Negligible in practice — 9 quadrillion IDR is not a real payment amount; values up to 100 billion IDR are stable. But it is a correctness smell in money handling and violates the "no float in money" rule.
+**Recommended fix (Phase 11):** replace the `(float)` cast with arbitrary-precision normalization, e.g. `bcadd($v, '0', 2)`.
+**Tests:** large-IDR determinism case in `PaymentBundleCanonicalHashDeterminismTest` (with `// NOTE: (float) cast — see BUG / Phase 11`)
+
+---
+
+## Residual hardening
+
+### Audit immutability is APP-LEVEL ONLY (no DB triggers / REVOKE)
+
+**Context (Phase 14):** `FinanceAuditLog::booted()` has `updating` and `deleting` hooks that throw `RuntimeException` — this stops Eloquent ORM mutations. However, any DB user with direct table access (a raw `DB::table()` query, a MySQL CLI session, or a compromised service bypassing Eloquent) can `UPDATE` or `DELETE` rows without triggering the guard.
+
+**Tamper detectability:** The SHA-256 hash chain makes tampering DETECTABLE after the fact. Running a chain re-validation walk (`FinanceAuditLogger::recompute()` + `previous_hash` linkage per row) reveals:
+- Any field mutation: `recompute(row) ≠ stored current_hash` for the tampered row.
+- Any row deletion: the surviving row after the gap has `previous_hash` that no longer matches the prior surviving row's `current_hash`.
+- Any `previous_hash` forgery: both the linkage check and the re-hash fail for that row.
+
+**Test strategy:** `tests/Feature/Hris/FinanceCenter/FinanceAuditTrailIntegrityTest.php` (Phase 14) intentionally uses raw `DB::table()` queries to simulate the attacker path and verifies that `walkChain()` returns errors in every tamper scenario. This correctly represents the residual threat model: ORM-path mutations are blocked; raw-query mutations are detectable but not prevented.
+
+**Recommended deferred production hardening:**
+1. **DB-level append-only enforcement:** Grant the application DB user only `INSERT` + `SELECT` on `finance_audit_logs` (REVOKE UPDATE, DELETE). Prevent even super-user tampering via a `BEFORE UPDATE/DELETE` trigger that raises an error.
+2. **Scheduled chain integrity audit:** Run a background job that walks the chain periodically and alerts on any broken link (tamper detection moves from manual/on-demand to automatic).
+3. **External anchor:** Periodically publish the chain head's `current_hash` to an immutable external log (e.g. a signed email receipt, a blockchain timestamp, or an append-only S3 object) so hash-chain forgery requires defeating an out-of-band anchor..
