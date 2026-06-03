@@ -502,6 +502,30 @@ tests/Fixtures/payment_bundle_canonical_payload_v1.sha256
 **Recommended fix (Phase 11):** replace the `(float)` cast with arbitrary-precision normalization, e.g. `bcadd($v, '0', 2)`.
 **Tests:** large-IDR determinism case in `PaymentBundleCanonicalHashDeterminismTest` (with `// NOTE: (float) cast — see BUG / Phase 11`)
 
+### BUG-5 — `PaymentRequestService::updateApprovedDetails` has no post-payment state guard
+
+**Detected in:** Phase 5 (`ManualPaymentRequestFlowTest`)
+**Service:** `app/Services/Hris/PaymentRequestService.php::updateApprovedDetails`
+**Gap:** The only status check voids the COO snapshot when status is `approved_by_coo`. There is NO guard preventing edits when the PR is `in_payment_bundle`, `paid`, `paid_pending_reconciliation`, `reconciled`, or `reversed`. Amount/payee/bank can be mutated on a paid or bundled PR without exception.
+**Severity:** Medium-low. The payment bundle/payment execution uses a FROZEN snapshot (Phase 7 confirms), so mutating the live PR after bundling does not change what is actually paid — this is a data-hygiene/audit-integrity hole, not (yet proven) a payment-execution hole. Editing a `paid` PR is still clearly invalid.
+**Recommended fix:** add a state guard (analogous to BUG-4) blocking `updateApprovedDetails` once the PR is bundled/paid/reconciled. **DEFERRED — payment-lifecycle zone, requires owner approval (bug-gate).**
+**Tests:** characterization tests in `ManualPaymentRequestFlowTest` (labeled "BUG-A: …") assert the mutation currently succeeds; flip to `->toThrow` when guarded.
+
+### BUG-6 — `updateApprovedDetails` has no `source_type` guard
+
+**Detected in:** Phase 5 (`ManualPaymentRequestFlowTest`)
+**Gap:** An ER-sourced PR (`source_type = expense_request`) can be edited through the manual-PR edit path; the service treats all source types identically.
+**Severity:** Low. **DEFERRED — owner approval (bug-gate).**
+**Tests:** characterization test labeled "BUG-B" in `ManualPaymentRequestFlowTest`.
+
+### BUG-7 — `createManual` does not reject zero/negative amounts
+
+**Detected in:** Phase 5 (`ManualPaymentRequestFlowTest`)
+**Service:** `PaymentRequestService::createManual` — no amount validation; Filament `canCreate()=false` means no form-level guard either, so the service is the only enforcement point and it has none.
+**Severity:** Medium — a zero or negative payment amount is never valid.
+**Recommended fix:** reject `amount <= 0` (via `bccomp`) in `createManual`. **DEFERRED — money path, owner approval (bug-gate).**
+**Tests:** characterization tests labeled "GAP-C" in `ManualPaymentRequestFlowTest`.
+
 ---
 
 ## Residual hardening
