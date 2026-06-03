@@ -153,26 +153,35 @@ it('finance_creator (no bundle mark_paid perm) is blocked from mark_paid bundle 
         ->and($bundle->fresh()->paid_at)->toBeNull();
 })->group('p15-bun');
 
-// ─── mark_paid (bundle): permission gate passes for finance_executor ──────────
-// The service may reject the action for business reasons (no signed PDF), but the
-// permission gate itself passes (action IS mounted). We verify the action attempts
-// to execute by checking the Livewire component mounts the action.
+// ─── mark_paid (bundle): authorized (finance_executor) — variant (a) ─────────
+// The executor satisfies BOTH visible() conditions on mark_paid:
+//   1. bundle status ∈ [authorized_for_payment, payment_recording, payment_proof_rejected]
+//   2. financeCan('payment_bundles.mark_paid')
+// We forceFill signed_pdf_attachment_id so the service precondition is met (same
+// pattern as BatchPaymentBundleMarkPaidTest). Total amount is 0 so SoD is skipped.
+// This is variant (a): full action invocation → bundle transitions to STATUS_PAID.
 
-it('finance_executor (has mark_paid perm) action mounts for mark_paid bundle (permission gate passes)', function () {
+it('finance_executor (has mark_paid perm) can mark_paid bundle via direct mount (authorized)', function () {
     $executor = FinanceCenterFlowFactory::financeExecutor();
     $creator = FinanceCenterFlowFactory::financeCreator();
     $bundle = PaymentBundle::factory()->create([
         'status' => PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT,
         'created_by' => $creator->id,
     ]);
+    // Satisfy the signed-PDF service precondition without generating a real PDF.
+    $bundle->forceFill(['signed_pdf_attachment_id' => 999])->save();
 
-    // finance_executor has payment_bundles.mark_paid → visible() = true → action mounts
-    // Verify via canViewAny (executor has payment_bundles.view)
-    \Pest\Laravel\actingAs($executor);
-    expect(\App\Filament\Resources\PaymentBundleResource::canViewAny())->toBeTrue();
+    $proof = UploadedFile::fake()->create('bundle_proof.pdf', 10, 'application/pdf');
 
-    // Verify the action IS visible (not hidden) for executor on authorized bundle
-    $resource = new \App\Filament\Resources\PaymentBundleResource;
-    $canMarkPaid = \App\Filament\Resources\PaymentBundleResource::financeCan('payment_bundles.mark_paid');
-    expect($canMarkPaid)->toBeTrue();
+    Livewire::actingAs($executor)
+        ->test(ListPaymentBundles::class)
+        ->mountTableAction('mark_paid', $bundle)
+        ->set('mountedTableActionsData.0.proof', $proof)
+        ->set('mountedTableActionsData.0.payment_reference', 'BUNDLE-AUTH-001')
+        ->callMountedTableAction();
+
+    $fresh = $bundle->fresh();
+    expect($fresh->status)->toBe(PaymentBundle::STATUS_PAID)
+        ->and($fresh->paid_at)->not->toBeNull()
+        ->and($fresh->payment_reference)->toBe('BUNDLE-AUTH-001');
 })->group('p15-bun');
