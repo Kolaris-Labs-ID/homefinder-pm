@@ -615,3 +615,17 @@ tests/Fixtures/payment_bundle_canonical_payload_v1.sha256
 1. **DB-level append-only enforcement:** Grant the application DB user only `INSERT` + `SELECT` on `finance_audit_logs` (REVOKE UPDATE, DELETE). Prevent even super-user tampering via a `BEFORE UPDATE/DELETE` trigger that raises an error.
 2. **Scheduled chain integrity audit:** Run a background job that walks the chain periodically and alerts on any broken link (tamper detection moves from manual/on-demand to automatic).
 3. **External anchor:** Periodically publish the chain head's `current_hash` to an immutable external log (e.g. a signed email receipt, a blockchain timestamp, or an append-only S3 object) so hash-chain forgery requires defeating an out-of-band anchor..
+
+---
+
+## Phase 18 — Mobile E2E smoke (NOT added — tooling absent, deferred)
+
+**Status:** No mobile E2E tooling exists (Phase 0 confirmed: no Maestro, no Detox in `partnershub-app/frontend`). Per the plan, new E2E tooling was NOT added without approval. The Phase 17 unit/integration tests (`expenseSubmitter.test.ts`, `expenseApi.test.ts`, `expenseErrors.test.ts` — 29 tests) cover the idempotency/double-submit logic at the submitter+api layer, which is where the duplicate-submit bug actually lived.
+
+**Recommended Maestro setup (if/when approved):**
+1. Add Maestro: `curl -Ls "https://get.maestro.mobile.dev" | bash`; create `partnershub-app/frontend/.maestro/`.
+2. Flow `expense-request-submit.yaml`: launch app → login as employee → open Expense Request → fill form → attach evidence → submit → assert success message → open Expense History → assert the submitted item appears.
+3. Flow `expense-request-double-submit.yaml`: fill form → tap submit twice rapidly → assert exactly one success → navigate to history → assert only ONE submitted expense exists (the real-device guarantee complementing the unit-level in-flight-guard test).
+4. CI: add a Maestro Cloud / `maestro test` step gated behind a build (EAS dev client). Wire into `.eas/workflows/` per the existing CI conventions.
+
+**Why deferred:** adding a native E2E runner + a dev-client build pipeline is infra work beyond test-hardening scope and needs owner sign-off (CI minutes, device farm). The duplicate-submit risk is already covered at the logic layer (Phase 17).
