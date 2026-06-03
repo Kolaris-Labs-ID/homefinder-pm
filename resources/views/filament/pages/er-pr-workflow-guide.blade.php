@@ -13,7 +13,7 @@
     <x-filament::section collapsible collapsed>
         <x-slot name="heading">📑 Daftar Isi</x-slot>
         <nav class="columns-1 gap-4 text-sm md:columns-2">
-            <ol class="list-decimal space-y-1 pl-5">
+            <ol class="list-decimal space-y-2 pl-6">
                 <li><a href="#ringkasan" class="text-primary-600 hover:underline dark:text-primary-400">Ringkasan Arsitektur</a></li>
                 <li><a href="#alur-utama" class="text-primary-600 hover:underline dark:text-primary-400">Alur Kerja Utama (End-to-End)</a></li>
                 <li><a href="#er" class="text-primary-600 hover:underline dark:text-primary-400">Expense Request (ER) — Pengajuan Biaya</a></li>
@@ -80,17 +80,17 @@
         <x-slot name="heading">2. Alur Kerja Utama (End-to-End)</x-slot>
         <div class="space-y-4 text-sm">
             {{-- Visual step-by-step flow --}}
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {{-- Step 1 --}}
                 <div class="rounded-xl border-2 border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/50">
                     <div class="mb-2 flex items-center gap-2">
                         <span class="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">1</span>
                         <h4 class="font-bold text-blue-800 dark:text-blue-300">Pengajuan (Karyawan)</h4>
                     </div>
-                    <ul class="ml-4 list-disc space-y-1 text-gray-700 dark:text-gray-300">
+                    <ul class="list-disc space-y-2 pl-6 text-gray-700 dark:text-gray-300">
                         <li>Karyawan membuat Expense Request (ER)</li>
                         <li>Upload bukti (struk, invoice, dll.)</li>
-                        <li>Submit ER → status <code class="rounded bg-blue-100 px-1 text-xs dark:bg-blue-900">submitted</code></li>
+                        <li>Submit ER → status **Submitted (Diajukan)**</li>
                     </ul>
                 </div>
 
@@ -100,7 +100,7 @@
                         <span class="flex h-7 w-7 items-center justify-center rounded-full bg-amber-600 text-xs font-bold text-white">2</span>
                         <h4 class="font-bold text-amber-800 dark:text-amber-300">Review Finance</h4>
                     </div>
-                    <ul class="ml-4 list-disc space-y-1 text-gray-700 dark:text-gray-300">
+                    <ul class="list-disc space-y-2 pl-6 text-gray-700 dark:text-gray-300">
                         <li>Finance mereview ER yang masuk</li>
                         <li>Opsi: <strong>Verifikasi</strong>, <strong>Minta Revisi</strong>, atau <strong>Tolak</strong></li>
                         <li>ER terverifikasi → siap dikonversi ke PR</li>
@@ -113,7 +113,7 @@
                         <span class="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">3</span>
                         <h4 class="font-bold text-indigo-800 dark:text-indigo-300">Konversi ER → PR</h4>
                     </div>
-                    <ul class="ml-4 list-disc space-y-1 text-gray-700 dark:text-gray-300">
+                    <ul class="list-disc space-y-2 pl-6 text-gray-700 dark:text-gray-300">
                         <li>Finance membuat Payment Request dari ER</li>
                         <li>Atau PR manual tanpa ER (operasional)</li>
                         <li>Data default disalin, bisa di-adjust</li>
@@ -126,7 +126,7 @@
                         <span class="flex h-7 w-7 items-center justify-center rounded-full bg-purple-600 text-xs font-bold text-white">4</span>
                         <h4 class="font-bold text-purple-800 dark:text-purple-300">Approval PR</h4>
                     </div>
-                    <ul class="ml-4 list-disc space-y-1 text-gray-700 dark:text-gray-300">
+                    <ul class="list-disc space-y-2 pl-6 text-gray-700 dark:text-gray-300">
                         <li>Submit PR ke COO/Executive</li>
                         <li>COO approve atau reject</li>
                         <li>Snapshot persetujuan disimpan & dibekukan</li>
@@ -139,7 +139,7 @@
                         <span class="flex h-7 w-7 items-center justify-center rounded-full bg-teal-600 text-xs font-bold text-white">5</span>
                         <h4 class="font-bold text-teal-800 dark:text-teal-300">Payment Bundle & Tanda Tangan</h4>
                     </div>
-                    <ul class="ml-4 list-disc space-y-1 text-gray-700 dark:text-gray-300">
+                    <ul class="list-disc space-y-2 pl-6 text-gray-700 dark:text-gray-300">
                         <li>PR dikelompokkan ke Payment Bundle</li>
                         <li>Tanda tangan berurutan: Finance 1 → Finance 2 → Executive</li>
                         <li>Bundle diotorisasi untuk pembayaran</li>
@@ -152,10 +152,10 @@
                         <span class="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">6</span>
                         <h4 class="font-bold text-emerald-800 dark:text-emerald-300">Pembayaran & Penutupan</h4>
                     </div>
-                    <ul class="ml-4 list-disc space-y-1 text-gray-700 dark:text-gray-300">
+                    <ul class="list-disc space-y-2 pl-6 text-gray-700 dark:text-gray-300">
                         <li>Finance bayar manual di luar sistem</li>
                         <li>Upload bukti pembayaran ke sistem</li>
-                        <li>Bundle ditandai <code class="rounded bg-emerald-100 px-1 text-xs dark:bg-emerald-900">PAID</code></li>
+                        <li>Bundle ditandai **Paid (Dibayar)**</li>
                     </ul>
                 </div>
             </div>
@@ -251,58 +251,69 @@
                         <thead class="bg-gray-50 dark:bg-white/5">
                             <tr>
                                 <th class="px-4 py-2 text-left font-semibold">Status</th>
+                                <th class="px-4 py-2 text-left font-semibold">Kode Sistem (Tech)</th>
                                 <th class="px-4 py-2 text-left font-semibold">Penjelasan</th>
                                 <th class="px-4 py-2 text-left font-semibold">Aksi Selanjutnya</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-white/5">
                             <tr>
-                                <td class="px-4 py-2"><x-filament::badge color="gray">draft</x-filament::badge></td>
-                                <td class="px-4 py-2">Karyawan belum submit</td>
+                                <td class="px-4 py-2"><x-filament::badge color="gray">Draft</x-filament::badge></td>
+                                <td class="px-4 py-2"><code class="text-xs">draft</code></td>
+                                <td class="px-4 py-2">Karyawan belum mengirimkan pengajuan</td>
                                 <td class="px-4 py-2">Submit (wajib ada bukti)</td>
                             </tr>
                             <tr>
-                                <td class="px-4 py-2"><x-filament::badge color="info">submitted</x-filament::badge></td>
-                                <td class="px-4 py-2">Menunggu review Finance</td>
+                                <td class="px-4 py-2"><x-filament::badge color="info">Submitted (Diajukan)</x-filament::badge></td>
+                                <td class="px-4 py-2"><code class="text-xs">submitted</code></td>
+                                <td class="px-4 py-2">Menunggu review dari Finance</td>
                                 <td class="px-4 py-2">Finance mulai review</td>
                             </tr>
                             <tr>
-                                <td class="px-4 py-2"><x-filament::badge color="warning">under_finance_review</x-filament::badge></td>
-                                <td class="px-4 py-2">Sedang direview Finance</td>
+                                <td class="px-4 py-2"><x-filament::badge color="warning">Under Finance Review (Sedang Direview)</x-filament::badge></td>
+                                <td class="px-4 py-2"><code class="text-xs">under_finance_review</code></td>
+                                <td class="px-4 py-2">Sedang direview oleh Finance</td>
                                 <td class="px-4 py-2">Verifikasi / Revisi / Tolak</td>
                             </tr>
                             <tr>
-                                <td class="px-4 py-2"><x-filament::badge color="success">verified</x-filament::badge></td>
+                                <td class="px-4 py-2"><x-filament::badge color="success">Verified (Terverifikasi)</x-filament::badge></td>
+                                <td class="px-4 py-2"><code class="text-xs">verified</code></td>
                                 <td class="px-4 py-2">Terverifikasi oleh Finance</td>
                                 <td class="px-4 py-2">Buat PR dari ER ini</td>
                             </tr>
                             <tr>
-                                <td class="px-4 py-2"><x-filament::badge color="warning">needs_revision</x-filament::badge></td>
-                                <td class="px-4 py-2">Karyawan harus merevisi</td>
+                                <td class="px-4 py-2"><x-filament::badge color="warning">Needs Revision (Butuh Revisi)</x-filament::badge></td>
+                                <td class="px-4 py-2"><code class="text-xs">needs_revision</code></td>
+                                <td class="px-4 py-2">Karyawan harus merevisi pengajuan</td>
                                 <td class="px-4 py-2">Karyawan revisi → submit ulang</td>
                             </tr>
                             <tr>
-                                <td class="px-4 py-2"><x-filament::badge color="danger">rejected</x-filament::badge></td>
-                                <td class="px-4 py-2">Ditolak Finance</td>
+                                <td class="px-4 py-2"><x-filament::badge color="danger">Rejected (Ditolak)</x-filament::badge></td>
+                                <td class="px-4 py-2"><code class="text-xs">rejected</code></td>
+                                <td class="px-4 py-2">Ditolak oleh Finance</td>
                                 <td class="px-4 py-2">—</td>
                             </tr>
                             <tr>
-                                <td class="px-4 py-2"><x-filament::badge color="primary">pr_created</x-filament::badge></td>
+                                <td class="px-4 py-2"><x-filament::badge color="primary">PR Created (PR Dibuat)</x-filament::badge></td>
+                                <td class="px-4 py-2"><code class="text-xs">pr_created</code></td>
                                 <td class="px-4 py-2">PR sudah dibuat dari ER ini</td>
                                 <td class="px-4 py-2">Proses PR di tahap berikutnya</td>
                             </tr>
                             <tr>
-                                <td class="px-4 py-2"><x-filament::badge color="gray">record_only_closed</x-filament::badge></td>
-                                <td class="px-4 py-2">Khusus mode company_paid</td>
+                                <td class="px-4 py-2"><x-filament::badge color="gray">Record Only Closed (Selesai Pencatatan)</x-filament::badge></td>
+                                <td class="px-4 py-2"><code class="text-xs">record_only_closed</code></td>
+                                <td class="px-4 py-2">Khusus mode company_paid (Hanya Pencatatan)</td>
                                 <td class="px-4 py-2">—</td>
                             </tr>
                             <tr>
-                                <td class="px-4 py-2"><x-filament::badge color="gray">cancelled</x-filament::badge></td>
+                                <td class="px-4 py-2"><x-filament::badge color="gray">Cancelled (Dibatalkan)</x-filament::badge></td>
+                                <td class="px-4 py-2"><code class="text-xs">cancelled</code></td>
                                 <td class="px-4 py-2">ER dibatalkan</td>
                                 <td class="px-4 py-2">—</td>
                             </tr>
                             <tr>
-                                <td class="px-4 py-2"><x-filament::badge color="success">closed</x-filament::badge></td>
+                                <td class="px-4 py-2"><x-filament::badge color="success">Closed (Selesai)</x-filament::badge></td>
+                                <td class="px-4 py-2"><code class="text-xs">closed</code></td>
                                 <td class="px-4 py-2">ER selesai (PR sudah dibayar)</td>
                                 <td class="px-4 py-2">—</td>
                             </tr>
@@ -337,10 +348,10 @@
             <div>
                 <h4 class="mb-2 font-semibold text-gray-900 dark:text-white">3.5 Alur ER di Mobile (ESS)</h4>
                 <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                    <ol class="ml-4 list-decimal space-y-1 text-gray-700 dark:text-gray-300">
-                        <li>Karyawan buka app → Menu "Pengajuan Biaya" / "Expense Request"</li>
-                        <li>Isi formulir:
-                            <ul class="ml-4 mt-1 list-disc space-y-0.5 text-gray-600 dark:text-gray-400">
+                    <ol class="list-decimal space-y-3 pl-6 text-gray-700 dark:text-gray-300">
+                        <li class="pl-1">Karyawan buka app → Menu "Pengajuan Biaya" / "Expense Request"</li>
+                        <li class="pl-1">Isi formulir:
+                            <ul class="list-disc space-y-1.5 pl-6 mt-2 text-gray-600 dark:text-gray-400">
                                 <li>Kategori, Judul & Deskripsi</li>
                                 <li>Jumlah (Rp), Tanggal pengeluaran</li>
                                 <li>Mode pembayaran</li>
@@ -349,8 +360,8 @@
                                 <li>Departemen & Proyek (opsional)</li>
                             </ul>
                         </li>
-                        <li>Upload bukti (foto/scan struk, invoice, dll.)</li>
-                        <li>Simpan sebagai Draft atau langsung Submit</li>
+                        <li class="pl-1">Upload bukti (foto/scan struk, invoice, dll.)</li>
+                        <li class="pl-1">Simpan sebagai Draft atau langsung Submit</li>
                     </ol>
                 </div>
             </div>
@@ -396,22 +407,23 @@
                         <thead class="bg-gray-50 dark:bg-white/5">
                             <tr>
                                 <th class="px-4 py-2 text-left font-semibold">Status</th>
+                                <th class="px-4 py-2 text-left font-semibold">Kode Sistem (Tech)</th>
                                 <th class="px-4 py-2 text-left font-semibold">Penjelasan</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-white/5">
-                            <tr><td class="px-4 py-2"><x-filament::badge color="gray">draft</x-filament::badge></td><td class="px-4 py-2">Finance membuat PR</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="info">submitted_to_coo</x-filament::badge></td><td class="px-4 py-2">Menunggu persetujuan Executive</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="success">approved_by_coo</x-filament::badge></td><td class="px-4 py-2">Disetujui oleh COO/Executive</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="danger">rejected_by_coo</x-filament::badge></td><td class="px-4 py-2">Ditolak oleh COO/Executive</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">needs_clarification</x-filament::badge></td><td class="px-4 py-2">COO minta info tambahan</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="primary">approved_for_bundle</x-filament::badge></td><td class="px-4 py-2">Siap masuk Payment Bundle</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="info">in_payment_bundle</x-filament::badge></td><td class="px-4 py-2">Sudah di dalam bundle</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">scheduled_for_payment</x-filament::badge></td><td class="px-4 py-2">Dijadwalkan untuk bayar</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="success">paid</x-filament::badge></td><td class="px-4 py-2">Pembayaran selesai</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">paid_pending_reconciliation</x-filament::badge></td><td class="px-4 py-2">Sudah bayar, menunggu rekonsiliasi</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="success">reconciled</x-filament::badge></td><td class="px-4 py-2">Rekonsiliasi selesai</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="gray">voided / reversed / cancelled</x-filament::badge></td><td class="px-4 py-2">PR dibatalkan/di-void/di-reverse</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="gray">Draft</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">draft</code></td><td class="px-4 py-2">Finance sedang menyusun draft PR</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="info">Submitted to COO (Diajukan ke COO)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">submitted_to_coo</code></td><td class="px-4 py-2">Menunggu persetujuan dari Executive / COO</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="success">Approved by COO (Disetujui COO)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">approved_by_coo</code></td><td class="px-4 py-2">Disetujui oleh COO/Executive</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="danger">Rejected by COO (Ditolak COO)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">rejected_by_coo</code></td><td class="px-4 py-2">Ditolak oleh COO/Executive</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">Needs Clarification (Butuh Klarifikasi)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">needs_clarification</code></td><td class="px-4 py-2">COO meminta klarifikasi atau informasi tambahan</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="primary">Approved for Bundle (Siap Masuk Bundle)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">approved_for_bundle</code></td><td class="px-4 py-2">Siap untuk dimasukkan ke dalam Payment Bundle</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="info">In Payment Bundle (Dalam Bundle)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">in_payment_bundle</code></td><td class="px-4 py-2">Sudah masuk di dalam salah satu bundle pembayaran</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">Scheduled for Payment (Dijadwalkan Dibayar)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">scheduled_for_payment</code></td><td class="px-4 py-2">Dijadwalkan untuk dibayarkan</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="success">Paid (Dibayar)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">paid</code></td><td class="px-4 py-2">Pembayaran selesai dilakukan</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">Paid Pending Reconciliation (Menunggu Rekonsiliasi)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">paid_pending_reconciliation</code></td><td class="px-4 py-2">Sudah dibayar, menunggu pencocokan bank (rekonsiliasi)</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="success">Reconciled (Terekonsiliasi)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">reconciled</code></td><td class="px-4 py-2">Proses rekonsiliasi transaksi selesai</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="gray">Voided / Reversed / Cancelled (Batal/Void)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">voided</code> / <code class="text-xs">reversed</code> / <code class="text-xs">cancelled</code></td><td class="px-4 py-2">PR dibatalkan, di-void, atau di-reverse</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -452,15 +464,15 @@
                 <div class="space-y-2">
                     <div class="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950/50">
                         <span class="text-green-600">✅</span>
-                        <span class="text-green-800 dark:text-green-300">ER harus berstatus <code class="rounded bg-green-100 px-1 dark:bg-green-900">finance_verified</code></span>
+                        <span class="text-green-800 dark:text-green-300">ER harus berstatus **Verified (Terverifikasi)** (kode: <code class="text-xs">verified</code>)</span>
                     </div>
                     <div class="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/50">
                         <span class="text-red-600">❌</span>
-                        <span class="text-red-800 dark:text-red-300">ER bukan mode <code class="rounded bg-red-100 px-1 dark:bg-red-900">company_paid_record_only</code></span>
+                        <span class="text-red-800 dark:text-red-300">ER bukan mode **Catatan Saja (Record Only)** (kode: <code class="text-xs">company_paid_record_only</code>)</span>
                     </div>
                     <div class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/50">
                         <span class="text-blue-600">👤</span>
-                        <span class="text-blue-800 dark:text-blue-300">Pembuat PR harus memiliki role <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">finance_creator</code></span>
+                        <span class="text-blue-800 dark:text-blue-300">Pembuat PR harus memiliki role **Finance Creator** (kode: <code class="text-xs">finance_creator</code>)</span>
                     </div>
                 </div>
             </div>
@@ -469,15 +481,15 @@
             <div>
                 <h4 class="mb-2 font-semibold text-gray-900 dark:text-white">5.2 Proses Konversi</h4>
                 <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                    <ol class="ml-4 list-decimal space-y-2 text-gray-700 dark:text-gray-300">
-                        <li>Finance klik <strong>"Buat Payment Request"</strong> pada ER yang terverifikasi</li>
-                        <li>Sistem kunci baris ER (lock row)</li>
-                        <li>Cek belum ada PR aktif dari ER ini</li>
-                        <li>Salin data default: jumlah, payee, bank</li>
-                        <li>Finance bisa adjust jumlah (perlu justifikasi jika berbeda)</li>
-                        <li>Buat PR dalam transaksi DB</li>
-                        <li>Ubah status ER → <code class="rounded bg-gray-100 px-1 dark:bg-white/10">pr_created</code></li>
-                        <li>Catat di audit log</li>
+                    <ol class="list-decimal space-y-2.5 pl-6 text-gray-700 dark:text-gray-300">
+                        <li class="pl-1">Finance klik <strong>"Buat Payment Request"</strong> pada ER yang terverifikasi</li>
+                        <li class="pl-1">Sistem kunci baris ER (lock row)</li>
+                        <li class="pl-1">Cek belum ada PR aktif dari ER ini</li>
+                        <li class="pl-1">Salin data default: jumlah, payee, bank</li>
+                        <li class="pl-1">Finance bisa adjust jumlah (perlu justifikasi jika berbeda)</li>
+                        <li class="pl-1">Buat PR dalam transaksi DB</li>
+                        <li class="pl-1">Ubah status ER → **PR Created (PR Dibuat)** (kode: <code class="text-xs">pr_created</code>)</li>
+                        <li class="pl-1">Catat di audit log</li>
                     </ol>
                 </div>
             </div>
@@ -563,20 +575,21 @@
                         <thead class="bg-gray-50 dark:bg-white/5">
                             <tr>
                                 <th class="px-4 py-2 text-left font-semibold">Status</th>
+                                <th class="px-4 py-2 text-left font-semibold">Kode Sistem (Tech)</th>
                                 <th class="px-4 py-2 text-left font-semibold">Penjelasan</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-white/5">
-                            <tr><td class="px-4 py-2"><x-filament::badge color="gray">draft</x-filament::badge></td><td class="px-4 py-2">Finance menyusun bundle</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="info">submitted_for_signature</x-filament::badge></td><td class="px-4 py-2">Disubmit untuk tanda tangan</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">pending_finance_signature_1</x-filament::badge></td><td class="px-4 py-2">Menunggu tanda tangan Finance 1</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">pending_finance_signature_2</x-filament::badge></td><td class="px-4 py-2">Menunggu tanda tangan Finance 2</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">pending_executive_signature</x-filament::badge></td><td class="px-4 py-2">Menunggu tanda tangan Executive</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="success">authorized_for_payment</x-filament::badge></td><td class="px-4 py-2">✅ Siap dibayarkan</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="info">payment_recording</x-filament::badge></td><td class="px-4 py-2">Sedang proses pembayaran</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="success">paid</x-filament::badge></td><td class="px-4 py-2">✅ Selesai</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="danger">payment_proof_rejected</x-filament::badge></td><td class="px-4 py-2">Bukti pembayaran ditolak</td></tr>
-                            <tr><td class="px-4 py-2"><x-filament::badge color="gray">rejected / voided / cancelled</x-filament::badge></td><td class="px-4 py-2">Bundle dibatalkan/di-void/ditolak</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="gray">Draft</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">draft</code></td><td class="px-4 py-2">Finance sedang menyusun item dalam bundle</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="info">Submitted for Signature (Diajukan Tanda Tangan)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">submitted_for_signature</code></td><td class="px-4 py-2">Disubmit untuk memulai alur tanda tangan</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">Pending Finance Signature 1 (Menunggu Finance 1)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">pending_finance_signature_1</code></td><td class="px-4 py-2">Menunggu tanda tangan digital dari Finance Signer 1</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">Pending Finance Signature 2 (Menunggu Finance 2)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">pending_finance_signature_2</code></td><td class="px-4 py-2">Menunggu tanda tangan digital dari Finance Signer 2</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="warning">Pending Executive Signature (Menunggu Executive)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">pending_executive_signature</code></td><td class="px-4 py-2">Menunggu tanda tangan digital dari Executive Signer (CEO/CFO)</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="success">Authorized for Payment (Siap Dibayarkan)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">authorized_for_payment</code></td><td class="px-4 py-2">Tanda tangan lengkap, siap dibayarkan secara manual</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="info">Payment Recording (Proses Pencatatan)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">payment_recording</code></td><td class="px-4 py-2">Sedang dalam proses pencatatan bukti pembayaran</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="success">Paid (Selesai Dibayar)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">paid</code></td><td class="px-4 py-2">Selesai dibayar dan bukti pembayaran sudah diverifikasi</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="danger">Payment Proof Rejected (Bukti Pembayaran Ditolak)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">payment_proof_rejected</code></td><td class="px-4 py-2">Bukti pembayaran yang di-upload ditolak oleh reviewer</td></tr>
+                            <tr><td class="px-4 py-2"><x-filament::badge color="gray">Rejected / Voided / Cancelled (Batal/Void)</x-filament::badge></td><td class="px-4 py-2"><code class="text-xs">rejected</code> / <code class="text-xs">voided</code> / <code class="text-xs">cancelled</code></td><td class="px-4 py-2">Bundle dibatalkan, ditolak, atau di-void</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -604,7 +617,7 @@
                 <h4 class="mb-2 font-semibold text-gray-900 dark:text-white">6.5 Snapshot Dibekukan</h4>
                 <div class="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/50">
                     <p class="mb-2 font-medium text-blue-800 dark:text-blue-300">PaymentBundleItem.source_snapshot_json</p>
-                    <ul class="ml-4 list-disc space-y-1 text-blue-700 dark:text-blue-400">
+                    <ul class="list-disc space-y-2 pl-6 text-blue-700 dark:text-blue-400">
                         <li>Data PR yang dibekukan saat masuk bundle</li>
                         <li>Digunakan untuk render PDF</li>
                         <li>Digunakan untuk eksekusi pembayaran</li>
@@ -680,15 +693,15 @@
             <div>
                 <h4 class="mb-2 font-semibold text-gray-900 dark:text-white">7.3 Proses Tanda Tangan</h4>
                 <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                    <ol class="ml-4 list-decimal space-y-2 text-gray-700 dark:text-gray-300">
-                        <li>Finance submit bundle untuk tanda tangan</li>
-                        <li>Sistem generate link tanda tangan (signed URL) untuk Finance Signer 1</li>
-                        <li>Finance Signer 1 menerima notifikasi</li>
-                        <li>Buka link → Preview PDF + Canonical Hash → Tanda tangan di canvas</li>
-                        <li>Setelah Finance Signer 1 selesai → Link untuk Finance Signer 2</li>
-                        <li>Setelah Finance Signer 2 selesai → Link untuk Executive Signer</li>
-                        <li>Setelah Executive menandatangani → Bundle berstatus <code class="rounded bg-green-100 px-1 dark:bg-green-900">authorized_for_payment</code></li>
-                        <li>Sistem generate PDF bertanda tangan (signed PDF)</li>
+                    <ol class="list-decimal space-y-2.5 pl-6 text-gray-700 dark:text-gray-300">
+                        <li class="pl-1">Finance submit bundle untuk tanda tangan</li>
+                        <li class="pl-1">Sistem generate link tanda tangan (signed URL) untuk Finance Signer 1</li>
+                        <li class="pl-1">Finance Signer 1 menerima notifikasi</li>
+                        <li class="pl-1">Buka link → Preview PDF + Canonical Hash → Tanda tangan di canvas</li>
+                        <li class="pl-1">Setelah Finance Signer 1 selesai → Link untuk Finance Signer 2</li>
+                        <li class="pl-1">Setelah Finance Signer 2 selesai → Link untuk Executive Signer</li>
+                        <li class="pl-1">Setelah Executive menandatangani → Bundle berstatus **Authorized for Payment (Siap Dibayarkan)** (kode: <code class="text-xs">authorized_for_payment</code>)</li>
+                        <li class="pl-1">Sistem generate PDF bertanda tangan (signed PDF)</li>
                     </ol>
                 </div>
             </div>
@@ -699,7 +712,7 @@
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/5">
                         <h5 class="mb-2 font-medium">Setiap link memiliki:</h5>
-                        <ul class="ml-4 list-disc space-y-1 text-xs text-gray-600 dark:text-gray-400">
+                        <ul class="list-disc space-y-2 pl-6 text-xs text-gray-600 dark:text-gray-400">
                             <li><code>signature_token_hash</code> — Token unik</li>
                             <li><code>token_expires_at</code> — Waktu kedaluwarsa</li>
                             <li><code>token_used_at</code> — Kapan digunakan</li>
@@ -708,7 +721,7 @@
                     </div>
                     <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/5">
                         <h5 class="mb-2 font-medium">Aturan:</h5>
-                        <ul class="ml-4 list-disc space-y-1 text-xs text-gray-600 dark:text-gray-400">
+                        <ul class="list-disc space-y-2 pl-6 text-xs text-gray-600 dark:text-gray-400">
                             <li>Preview PDF <strong>TIDAK</strong> menghabiskan token</li>
                             <li>Submit tanda tangan <strong>MENGHABISKAN</strong> token (sekali pakai)</li>
                             <li>Token kedaluwarsa → ditolak</li>
@@ -724,13 +737,13 @@
                 <h4 class="mb-2 font-semibold text-gray-900 dark:text-white">7.5 Perubahan Setelah Tanda Tangan</h4>
                 <div class="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950/50">
                     <p class="mb-2 font-medium text-red-800 dark:text-red-300">Jika ada perubahan data bundle setelah tanda tangan pertama:</p>
-                    <ol class="ml-4 list-decimal space-y-1 text-red-700 dark:text-red-400">
-                        <li>Semua tanda tangan yang sudah ada → di-void</li>
-                        <li>PDF lama tetap disimpan untuk audit</li>
-                        <li>Bundle kembali ke draft/submitted_for_signature</li>
-                        <li>Hash payload baru digenerate</li>
-                        <li>PDF unsigned baru digenerate</li>
-                        <li>Semua tanda tangan harus dikumpulkan ulang</li>
+                    <ol class="list-decimal space-y-2 pl-6 text-red-700 dark:text-red-400">
+                        <li class="pl-1">Semua tanda tangan yang sudah ada → di-void</li>
+                        <li class="pl-1">PDF lama tetap disimpan untuk audit</li>
+                        <li class="pl-1">Bundle kembali ke draft/submitted_for_signature</li>
+                        <li class="pl-1">Hash payload baru digenerate</li>
+                        <li class="pl-1">PDF unsigned baru digenerate</li>
+                        <li class="pl-1">Semua tanda tangan harus dikumpulkan ulang</li>
                     </ol>
                 </div>
             </div>
@@ -745,13 +758,13 @@
             <div>
                 <h4 class="mb-2 font-semibold text-gray-900 dark:text-white">8.1 Alur Pembayaran</h4>
                 <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                    <ol class="ml-4 list-decimal space-y-2 text-gray-700 dark:text-gray-300">
-                        <li>Bundle berstatus <code class="rounded bg-green-100 px-1 dark:bg-green-900">authorized_for_payment</code></li>
-                        <li>Finance membayar secara <strong>MANUAL</strong> di luar sistem (transfer bank, cash, dll.)</li>
-                        <li>Finance masuk ke sistem → Upload bukti pembayaran (struk transfer, screenshot, dll.)</li>
-                        <li>Isi referensi pembayaran & catatan pembayaran</li>
-                        <li>Bundle berubah ke <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">payment_recording</code> → <code class="rounded bg-green-100 px-1 dark:bg-green-900">paid</code></li>
-                        <li>PR yang terkait berubah ke <code class="rounded bg-green-100 px-1 dark:bg-green-900">paid</code></li>
+                    <ol class="list-decimal space-y-2.5 pl-6 text-gray-700 dark:text-gray-300">
+                        <li class="pl-1">Bundle berstatus **Authorized for Payment (Siap Dibayarkan)** (kode: <code class="text-xs">authorized_for_payment</code>)</li>
+                        <li class="pl-1">Finance membayar secara <strong>MANUAL</strong> di luar sistem (transfer bank, cash, dll.)</li>
+                        <li class="pl-1">Finance masuk ke sistem → Upload bukti pembayaran (struk transfer, screenshot, dll.)</li>
+                        <li class="pl-1">Isi referensi pembayaran & catatan pembayaran</li>
+                        <li class="pl-1">Bundle berubah ke **Payment Recording (Pencatatan Pembayaran)** → **Paid (Selesai Dibayar)**</li>
+                        <li class="pl-1">PR yang terkait berubah ke **Paid (Dibayar)**</li>
                     </ol>
                 </div>
             </div>
@@ -761,8 +774,8 @@
                 <h4 class="mb-2 font-semibold text-gray-900 dark:text-white">8.2 Penolakan Bukti Pembayaran</h4>
                 <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/50">
                     <p class="mb-2 text-amber-800 dark:text-amber-300">Jika bukti pembayaran tidak valid/tidak lengkap:</p>
-                    <ul class="ml-4 list-disc space-y-1 text-amber-700 dark:text-amber-400">
-                        <li>Reviewer menolak bukti → status <code class="rounded bg-amber-100 px-1 dark:bg-amber-900">payment_proof_rejected</code></li>
+                    <ul class="list-disc space-y-2 pl-6 text-amber-700 dark:text-amber-400">
+                        <li>Reviewer menolak bukti → status **Payment Proof Rejected (Bukti Ditolak)** (kode: <code class="text-xs">payment_proof_rejected</code>)</li>
                         <li>Bukti lama tetap disimpan untuk audit</li>
                         <li>Finance harus upload bukti yang benar atau void bundle</li>
                     </ul>
@@ -813,16 +826,17 @@
                     <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-white/10">
                         <thead class="bg-gray-50 dark:bg-white/5">
                             <tr>
-                                <th class="px-4 py-2 text-left font-semibold">Peran</th>
+                                <th class="px-4 py-2 text-left font-semibold">Peran (Role)</th>
+                                <th class="px-4 py-2 text-left font-semibold">Kode Sistem (Tech)</th>
                                 <th class="px-4 py-2 text-left font-semibold">Tanggung Jawab</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-white/5">
-                            <tr><td class="px-4 py-2"><code class="rounded bg-gray-100 px-1 dark:bg-white/10">finance_reviewer</code></td><td class="px-4 py-2">Review dan verifikasi Expense Request</td></tr>
-                            <tr><td class="px-4 py-2"><code class="rounded bg-gray-100 px-1 dark:bg-white/10">finance_creator</code></td><td class="px-4 py-2">Buat Payment Request dari ER yang terverifikasi, buat bundle</td></tr>
-                            <tr><td class="px-4 py-2"><code class="rounded bg-gray-100 px-1 dark:bg-white/10">finance_signer</code></td><td class="px-4 py-2">Tanda tangan pada slot Finance di Payment Bundle</td></tr>
-                            <tr><td class="px-4 py-2"><code class="rounded bg-gray-100 px-1 dark:bg-white/10">finance_executor</code></td><td class="px-4 py-2">Catat bukti pembayaran, tandai bundle sebagai paid</td></tr>
-                            <tr><td class="px-4 py-2"><code class="rounded bg-gray-100 px-1 dark:bg-white/10">executive_signer</code></td><td class="px-4 py-2">Tanda tangan pada slot Executive di Payment Bundle</td></tr>
+                            <tr><td class="px-4 py-2 font-medium">Finance Reviewer (Pemeriksa)</td><td class="px-4 py-2"><code class="text-xs">finance_reviewer</code></td><td class="px-4 py-2">Review dan verifikasi Expense Request (ER)</td></tr>
+                            <tr><td class="px-4 py-2 font-medium">Finance Creator (Pembuat PR/Bundle)</td><td class="px-4 py-2"><code class="text-xs">finance_creator</code></td><td class="px-4 py-2">Buat Payment Request dari ER yang terverifikasi, serta menyusun bundle</td></tr>
+                            <tr><td class="px-4 py-2 font-medium">Finance Signer (Penandatangan Finance)</td><td class="px-4 py-2"><code class="text-xs">finance_signer</code></td><td class="px-4 py-2">Tanda tangan digital pada slot Finance di Payment Bundle</td></tr>
+                            <tr><td class="px-4 py-2 font-medium">Finance Executor (Pelaksana Bayar)</td><td class="px-4 py-2"><code class="text-xs">finance_executor</code></td><td class="px-4 py-2">Mencatat bukti pembayaran manual, menandai bundle selesai dibayar</td></tr>
+                            <tr><td class="px-4 py-2 font-medium">Executive Signer (Penandatangan Direksi)</td><td class="px-4 py-2"><code class="text-xs">executive_signer</code></td><td class="px-4 py-2">Tanda tangan digital pada slot Executive di Payment Bundle (CEO/CFO)</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -925,7 +939,7 @@
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div class="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950/50">
                         <h5 class="mb-2 font-medium text-green-800 dark:text-green-300">✅ Yang boleh:</h5>
-                        <ul class="ml-4 list-disc space-y-1 text-green-700 dark:text-green-400">
+                        <ul class="list-disc space-y-2 pl-6 text-green-700 dark:text-green-400">
                             <li>Simpan 4 digit terakhir rekening dalam clear text</li>
                             <li>Enkripsi nomor rekening lengkap (Laravel encrypted cast)</li>
                             <li>Tampilkan hanya last4 di UI dan PDF</li>
@@ -933,7 +947,7 @@
                     </div>
                     <div class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/50">
                         <h5 class="mb-2 font-medium text-red-800 dark:text-red-300">❌ Yang TIDAK boleh:</h5>
-                        <ul class="ml-4 list-disc space-y-1 text-red-700 dark:text-red-400">
+                        <ul class="list-disc space-y-2 pl-6 text-red-700 dark:text-red-400">
                             <li>Menampilkan nomor rekening lengkap di PDF</li>
                             <li>Log nomor rekening lengkap di audit</li>
                             <li>Expose nomor rekening via API tanpa otorisasi</li>
@@ -948,15 +962,15 @@
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div class="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950/50">
                         <h5 class="mb-2 font-medium text-green-800 dark:text-green-300">✅ Yang boleh:</h5>
-                        <ul class="ml-4 list-disc space-y-1 text-green-700 dark:text-green-400">
-                            <li>Gunakan <code class="rounded bg-green-100 px-1 dark:bg-green-900">decimal(15,2)</code> untuk semua field uang</li>
-                            <li>Gunakan <code class="rounded bg-green-100 px-1 dark:bg-green-900">bccomp</code> untuk perbandingan</li>
+                        <ul class="list-disc space-y-2 pl-6 text-green-700 dark:text-green-400">
+                            <li>Gunakan <code class="rounded bg-green-100 px-1 dark:bg-white/10">decimal(15,2)</code> untuk semua field uang</li>
+                            <li>Gunakan <code class="rounded bg-green-100 px-1 dark:bg-white/10">bccomp</code> untuk perbandingan</li>
                             <li>Return uang sebagai string di API</li>
                         </ul>
                     </div>
                     <div class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/50">
                         <h5 class="mb-2 font-medium text-red-800 dark:text-red-300">❌ Yang TIDAK boleh:</h5>
-                        <ul class="ml-4 list-disc space-y-1 text-red-700 dark:text-red-400">
+                        <ul class="list-disc space-y-2 pl-6 text-red-700 dark:text-red-400">
                             <li>Gunakan float math untuk perhitungan uang</li>
                             <li>Cast uang ke float di API response</li>
                             <li>Bulatkan jumlah tanpa aturan yang jelas</li>
@@ -972,19 +986,19 @@
                     <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
                         <h5 class="mb-2 font-semibold">Bundle Ditolak</h5>
                         <p class="mb-1 text-xs text-gray-500">(sebelum otorisasi)</p>
-                        <ul class="ml-4 list-disc space-y-1 text-xs text-gray-600 dark:text-gray-400">
-                            <li>Bundle → rejected</li>
-                            <li>Items → released</li>
-                            <li>PR → approved_for_bundle</li>
-                            <li>Tanda tangan → revoked</li>
+                        <ul class="list-disc space-y-2 pl-6 text-xs text-gray-600 dark:text-gray-400">
+                            <li>Bundle → Rejected (Ditolak)</li>
+                            <li>Items → Released (Dilepas)</li>
+                            <li>PR → Approved for Bundle (Siap Masuk Bundle)</li>
+                            <li>Tanda tangan → Revoked (Dibatalkan)</li>
                         </ul>
                     </div>
                     <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
                         <h5 class="mb-2 font-semibold">Bundle Di-void</h5>
                         <p class="mb-1 text-xs text-gray-500">(sebelum pembayaran)</p>
-                        <ul class="ml-4 list-disc space-y-1 text-xs text-gray-600 dark:text-gray-400">
-                            <li>Bundle → voided</li>
-                            <li>Items → released</li>
+                        <ul class="list-disc space-y-2 pl-6 text-xs text-gray-600 dark:text-gray-400">
+                            <li>Bundle → Voided (Dibatalkan Permanen)</li>
+                            <li>Items → Released (Dilepas)</li>
                             <li>Sumber bisa diproses ulang</li>
                             <li>PDF tetap disimpan</li>
                         </ul>
@@ -992,9 +1006,9 @@
                     <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
                         <h5 class="mb-2 font-semibold">Bundle Dibatalkan</h5>
                         <p class="mb-1 text-xs text-gray-500">(masih draft)</p>
-                        <ul class="ml-4 list-disc space-y-1 text-xs text-gray-600 dark:text-gray-400">
-                            <li>Bundle → cancelled</li>
-                            <li>Items → released</li>
+                        <ul class="list-disc space-y-2 pl-6 text-xs text-gray-600 dark:text-gray-400">
+                            <li>Bundle → Cancelled (Dibatalkan)</li>
+                            <li>Items → Released (Dilepas)</li>
                             <li>Sumber bisa diproses ulang</li>
                         </ul>
                     </div>
@@ -1005,14 +1019,14 @@
             <div>
                 <h4 class="mb-2 font-semibold text-gray-900 dark:text-white">10.4 Aturan Kunci</h4>
                 <div class="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950/50">
-                    <ol class="ml-4 list-decimal space-y-2 text-blue-800 dark:text-blue-300">
-                        <li>Dokumen yang ditandatangani mengotorisasi <strong>catatan pembayaran internal</strong>, bukan transaksi bank.</li>
-                        <li>Penandatangan menandatangani <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">canonical_payload_hash</code>, bukan file PDF mentah.</li>
-                        <li>PDF menampilkan <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">canonical_payload_hash</code> untuk verifikasi.</li>
-                        <li>Finance membayar <strong>secara manual</strong> di luar sistem.</li>
-                        <li>Finance upload bukti pembayaran ke sistem.</li>
-                        <li>Perubahan data bundle <strong>setelah tanda tangan</strong> menghasilkan hash baru dan membutuhkan tanda tangan ulang.</li>
-                        <li>Pembayaran menggunakan <strong>snapshot yang dibekukan</strong>, bukan data PR yang hidup.</li>
+                    <ol class="list-decimal space-y-2.5 pl-6 text-blue-800 dark:text-blue-300">
+                        <li class="pl-1">Dokumen yang ditandatangani mengotorisasi <strong>catatan pembayaran internal</strong>, bukan transaksi bank.</li>
+                        <li class="pl-1">Penandatangan menandatangani <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">canonical_payload_hash</code>, bukan file PDF mentah.</li>
+                        <li class="pl-1">PDF menampilkan <code class="rounded bg-blue-100 px-1 dark:bg-blue-900">canonical_payload_hash</code> untuk verifikasi.</li>
+                        <li class="pl-1">Finance membayar <strong>secara manual</strong> di luar sistem.</li>
+                        <li class="pl-1">Finance upload bukti pembayaran ke sistem.</li>
+                        <li class="pl-1">Perubahan data bundle <strong>setelah tanda tangan</strong> menghasilkan hash baru dan membutuhkan tanda tangan ulang.</li>
+                        <li class="pl-1">Pembayaran menggunakan <strong>snapshot yang dibekukan</strong>, bukan data PR yang hidup.</li>
                     </ol>
                 </div>
             </div>
@@ -1033,7 +1047,7 @@
                     </div>
                     <div class="rounded-lg border border-gray-200 p-4 dark:border-white/10">
                         <p class="mb-1 font-medium text-gray-900 dark:text-white">Q: Apakah setiap ER otomatis menjadi PR?</p>
-                        <p class="text-gray-600 dark:text-gray-400">Tidak. ER harus diverifikasi Finance dulu, lalu Finance secara manual membuat PR dari ER tersebut. ER dengan mode <code class="rounded bg-gray-100 px-1 dark:bg-white/10">company_paid_record_only</code> tidak pernah menjadi PR.</p>
+                        <p class="text-gray-600 dark:text-gray-400">Tidak. ER harus diverifikasi Finance dulu, lalu Finance secara manual membuat PR dari ER tersebut. ER dengan mode **Catatan Saja (Record Only)** (kode: <code class="text-xs">company_paid_record_only</code>) tidak pernah menjadi PR.</p>
                     </div>
                     <div class="rounded-lg border border-gray-200 p-4 dark:border-white/10">
                         <p class="mb-1 font-medium text-gray-900 dark:text-white">Q: Bisa buat PR tanpa ER?</p>
