@@ -1,5 +1,6 @@
 <?php
 
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\Support\FinanceCenterFlowFactory;
 
@@ -39,6 +40,13 @@ it('finance_signer can payment_bundles.sign.finance but not payment_bundles.sign
 it('userWithRole rejects a fictional role name', function () {
     expect(fn () => FinanceCenterFlowFactory::userWithRole('fictional_role_xyz'))
         ->toThrow(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+});
+
+it('seeders do not silently create fictional permissions', function () {
+    expect(Permission::where('name', 'fictional.permission.xyz')->where('guard_name', 'web')->exists())->toBeFalse();
+
+    $creator = FinanceCenterFlowFactory::financeCreator();
+    expect($creator->can('fictional.permission.xyz'))->toBeFalse();
 });
 
 it('convenience wrappers assign real seeded roles', function () {
