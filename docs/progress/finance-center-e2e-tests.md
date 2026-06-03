@@ -462,4 +462,11 @@ tests/Fixtures/payment_bundle_canonical_payload_v1.sha256
 
 ## Bug log
 
-_(empty — populated during Phase 19)_
+### BUG-1 — ER→PR one-active-per-source enforced at app layer only (no DB unique index)
+
+**Detected in:** Phase 1 (`FinanceIdempotencyConstraintTest`, Area 2)  
+**Table:** `payment_requests`  
+**Gap:** No unique or partial unique index on `(source_type, source_id)`. The "one active PR per ER" rule is enforced solely by `PaymentRequestService::createFromExpenseRequest` via a `whereNotIn(status, INACTIVE_STATUSES)->exists()` check under a `lockForUpdate()` transaction.  
+**Race risk:** A concurrent request that reaches the exists-check simultaneously (before either commits) can bypass the guard and double-insert two active PRs for the same ER source. The `lockForUpdate()` mitigates but does not eliminate this on all MySQL isolation levels.  
+**Recommended fix:** Add a partial/conditional unique index on `payment_requests (source_type, source_id)` WHERE status NOT IN (rejected_by_coo, voided, cancelled, reversed) — using a MySQL generated column or a PostgreSQL/SQLite WHERE clause, matching the migration pattern already used in `payment_bundle_items`.  
+**Tests proving the gap:** "two active PRs for the same ER source CAN be inserted at the DB layer (proves gap is app-level only)" — confirms a direct `PaymentRequest::create()` bypass succeeds.
