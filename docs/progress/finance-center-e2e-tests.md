@@ -546,6 +546,16 @@ tests/Fixtures/payment_bundle_canonical_payload_v1.sha256
 **Recommended fix:** Remove the `(float)` cast; Eloquent's `decimal:2` cast already returns the value as a string. **DEFERRED — mobile contract, owner approval (bug-gate).**
 **Tests:** characterization test "Reimbursement API returns amount as string — BUG-8b: currently returns float" in `FinanceMoneyIntegrityTest` asserts the current (broken) behavior. Flip to `->toBeTrue()` + `->toBeString()` when fixed.
 
+### BUG-9 — `revealPaymentInstructions` has no internal permission check (defense-in-depth gap, NOT an active vuln)
+
+**Detected in:** Phase 13 (`FinanceSensitiveDataProtectionTest`)
+**Service:** `app/Services/Hris/PaymentBundlePaymentService::revealPaymentInstructions` returns the FULL decrypted bank account but performs no permission check; its docblock says it is "permission-gated at the caller."
+**Exposure (verified):** The method has exactly ONE caller — `beginPaymentRecording()` (same service) — which is reachable only via the `begin_payment_recording` Filament action in `PaymentBundleResource` (line 288), gated by `visible(status === authorized_for_payment && financeCan('payment_bundles.mark_paid'))`. There is NO HTTP route or ungated action that reaches the reveal. So an unauthorized user CANNOT reach the full-bank reveal through the real UI/API. This is a **defense-in-depth gap**, not an open vulnerability.
+**Secondary note:** the enforced gate is `payment_bundles.mark_paid`, while the intended sensitive-data permission is `finance_center.view_sensitive_payment_data` (docblock intent). `finance_executor` holds both, so it works today, but the permission semantics are inconsistent.
+**Severity:** Low — no current exploit path; risk is a future caller added without a gate.
+**Recommended fix:** add an explicit `abort_unless($actor->can('finance_center.view_sensitive_payment_data'), 403)` (or equivalent) inside `revealPaymentInstructions` for defense-in-depth, and align the action gate to the same permission. **DEFERRED — payment service + permission semantics, owner approval (bug-gate).**
+**Tests:** characterization test in `FinanceSensitiveDataProtectionTest` confirms the service itself does not self-gate; the reveal IS audited (`batch_bank_detail_revealed`) and full bank is absent from audit payloads.
+
 ---
 
 ## Phase 11 — Money integrity test classification
