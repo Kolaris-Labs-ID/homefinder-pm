@@ -1,0 +1,25 @@
+{
+    "bundle_number": "PB-202606-GOLD-0001",
+    "bundle_version": 1,
+    "currency": "IDR",
+    "total_amount": "7500000.00",
+    "required_signature_slots": [
+        "finance_signer_1",
+        "executive_signer"
+    ],
+    "assigned_signer_ids": {
+        "finance_signer_1": 101,
+        "executive_signer": 202
+    },
+    "items": [
+        {
+            "source_type": "payment_request",
+            "source_id": 42,
+            "source_hash": "aabbcc0011223344556677889900aabbcc0011223344556677889900aabbcc00",
+            "payee_name": "CV Mitra Utama",
+            "bank_last4": "5678",
+            "amount": "7500000.00",
+            "currency": "IDR"
+        }
+    ]
+}
