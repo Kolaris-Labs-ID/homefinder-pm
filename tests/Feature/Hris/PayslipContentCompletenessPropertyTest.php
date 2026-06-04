@@ -14,12 +14,18 @@ use App\Models\Hris\SalaryStructure;
 use App\Models\User;
 use App\Services\Hris\PayrollCalculationService;
 use App\Services\Hris\PayslipService;
+use Carbon\Carbon;
 
 beforeEach(function () {
     // Clean up before each test
     PayrunBatch::query()->delete();
     PayrollRecord::query()->delete();
     SalaryStructure::query()->delete();
+    Carbon::setTestNow();
+});
+
+afterEach(function () {
+    Carbon::setTestNow();
 });
 
 /**
@@ -232,7 +238,6 @@ test('Property 18: Payslip content completeness', function () {
     $paidBy->forceDelete();
 })->group('property-test', 'hris-payroll');
 
-
 /**
  * **Feature: hris-phase3-payroll, Property 18 Edge Cases: Payslip content with edge case values**
  *
@@ -336,7 +341,6 @@ test('Property 18 Edge Cases: Payslip content with edge case values', function (
     $paidBy->forceDelete();
 })->group('property-test', 'hris-payroll');
 
-
 /**
  * **Feature: hris-phase3-payroll, Property 18 Additional: Payslip content consistency**
  *
@@ -353,6 +357,8 @@ test('Property 18 Additional: Payslip content consistency', function () {
     $payslipService = app(PayslipService::class);
     $approver = User::factory()->create();
     $paidBy = User::factory()->create();
+
+    Carbon::setTestNow(Carbon::parse('2026-06-04 12:00:00', config('app.timezone')));
 
     // Run 50 iterations
     for ($i = 0; $i < 50; $i++) {

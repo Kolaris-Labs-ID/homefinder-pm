@@ -49,7 +49,7 @@ test('Property 1: Salary structure data persistence round-trip', function () {
             $remainingFixed -= $amount;
             $fixedAllowances[] = [
                 'type' => $allowanceTypes[$j % count($allowanceTypes)],
-                'name' => 'Tunjangan ' . ucfirst($allowanceTypes[$j % count($allowanceTypes)]),
+                'name' => 'Tunjangan '.ucfirst($allowanceTypes[$j % count($allowanceTypes)]),
                 'amount' => $amount,
             ];
         }
@@ -62,7 +62,7 @@ test('Property 1: Salary structure data persistence round-trip', function () {
         for ($j = 0; $j < $numVarAllowances; $j++) {
             $variableAllowances[] = [
                 'type' => $varTypes[$j % count($varTypes)],
-                'name' => 'Tunjangan ' . ucfirst($varTypes[$j % count($varTypes)]),
+                'name' => 'Tunjangan '.ucfirst($varTypes[$j % count($varTypes)]),
                 'amount' => fake()->randomFloat(2, 100000, 3000000),
             ];
         }
@@ -75,7 +75,7 @@ test('Property 1: Salary structure data persistence round-trip', function () {
         for ($j = 0; $j < $numDeductions; $j++) {
             $deductions[] = [
                 'type' => $deductionTypes[$j % count($deductionTypes)],
-                'name' => 'Potongan ' . ucfirst($deductionTypes[$j % count($deductionTypes)]),
+                'name' => 'Potongan '.ucfirst($deductionTypes[$j % count($deductionTypes)]),
                 'amount' => fake()->randomFloat(2, 50000, 1000000),
             ];
         }
@@ -111,7 +111,7 @@ test('Property 1: Salary structure data persistence round-trip', function () {
         expect((float) $salaryStructure->basic_salary)->toEqualWithDelta(
             $basicSalary,
             0.01,
-            "Basic salary was not stored correctly"
+            'Basic salary was not stored correctly'
         );
 
         // Property: fixed allowances must match (Requirement 1.2)
@@ -167,7 +167,6 @@ test('Property 1: Salary structure data persistence round-trip', function () {
     $employee->user->forceDelete();
     $employee->forceDelete();
 })->group('property-test', 'hris-payroll');
-
 
 /**
  * **Feature: hris-phase3-payroll, Property 3: Salary structure 75:25 rule validation**
@@ -230,21 +229,21 @@ test('Property 3: Salary structure 75:25 rule validation', function () {
 
         expect($actualValid)->toBe(
             $expectedValid,
-            "75:25 rule validation failed for basic_salary={$basicSalary}, " .
-            "fixed_allowances={$totalFixedAmount}, ratio=" . number_format($expectedRatio * 100, 2) . "%. " .
-            "Expected: " . ($expectedValid ? 'valid' : 'invalid') . ", " .
-            "Got: " . ($actualValid ? 'valid' : 'invalid')
+            "75:25 rule validation failed for basic_salary={$basicSalary}, ".
+            "fixed_allowances={$totalFixedAmount}, ratio=".number_format($expectedRatio * 100, 2).'%. '.
+            'Expected: '.($expectedValid ? 'valid' : 'invalid').', '.
+            'Got: '.($actualValid ? 'valid' : 'invalid')
         );
 
         // Additional property: total_fixed_allowances attribute must be calculated correctly
         expect($salaryStructure->total_fixed_allowances)->toEqualWithDelta(
             $totalFixedAmount,
             0.01,
-            "Total fixed allowances calculation is incorrect"
+            'Total fixed allowances calculation is incorrect'
         );
 
         // Property: When invalid, the error message should be informative
-        if (!$expectedValid) {
+        if (! $expectedValid) {
             $message = $salaryStructure->get7525RuleMessage();
             expect($message)->toContain('75%');
             expect($message)->toContain('basic salary');
@@ -278,7 +277,7 @@ test('Property 3 Edge Cases: 75:25 rule boundary conditions', function () {
         ]);
 
         expect($salaryStructure->validates7525Rule())->toBeTrue(
-            "Zero fixed allowances should always pass 75:25 rule"
+            'Zero fixed allowances should always pass 75:25 rule'
         );
     }
 
@@ -301,7 +300,7 @@ test('Property 3 Edge Cases: 75:25 rule boundary conditions', function () {
 
         // At exactly 75%, should be valid (>= 0.75)
         expect($salaryStructure->validates7525Rule())->toBeTrue(
-            "Exactly 75% ratio should be valid"
+            'Exactly 75% ratio should be valid'
         );
     }
 
@@ -323,7 +322,7 @@ test('Property 3 Edge Cases: 75:25 rule boundary conditions', function () {
         ]);
 
         expect($salaryStructure->validates7525Rule())->toBeFalse(
-            "Just below 75% ratio should be invalid"
+            'Just below 75% ratio should be invalid'
         );
     }
 
@@ -339,10 +338,9 @@ test('Property 3 Edge Cases: 75:25 rule boundary conditions', function () {
 
     // Should handle division by zero gracefully
     expect($salaryStructure->validates7525Rule())->toBeTrue(
-        "Zero basic + zero fixed should be handled gracefully"
+        'Zero basic + zero fixed should be handled gracefully'
     );
 })->group('property-test', 'hris-payroll');
-
 
 /**
  * **Feature: hris-phase3-payroll, Property 2: Active salary structure selection**
@@ -389,16 +387,14 @@ test('Property 2: Active salary structure selection', function () {
             $effectiveDates[] = $effectiveDate;
         }
 
-        // Find the expected active structure manually
-        // It should be the one with the most recent effective_date <= payrunDate
-        $expectedStructure = null;
-        $mostRecentDate = null;
+        // Find the expected active effective date manually.
+        // Ties on the same effective_date are valid; only recency is defined.
+        $expectedEffectiveDate = null;
 
         foreach ($structures as $structure) {
             if ($structure->effective_date <= $payrunDate) {
-                if ($mostRecentDate === null || $structure->effective_date > $mostRecentDate) {
-                    $expectedStructure = $structure;
-                    $mostRecentDate = $structure->effective_date;
+                if ($expectedEffectiveDate === null || $structure->effective_date > $expectedEffectiveDate) {
+                    $expectedEffectiveDate = $structure->effective_date;
                 }
             }
         }
@@ -411,22 +407,22 @@ test('Property 2: Active salary structure selection', function () {
         );
 
         // Property: If there's a valid structure, it must be the expected one
-        if ($expectedStructure !== null) {
+        if ($expectedEffectiveDate !== null) {
             expect($activeStructure)->not->toBeNull(
                 "Should find an active salary structure for payrun date {$payrunDate->format('Y-m-d')}"
             );
 
-            expect($activeStructure->id)->toBe(
-                $expectedStructure->id,
-                "Active structure should be the most recent one with effective_date <= payrun date. " .
-                "Expected: {$expectedStructure->effective_date->format('Y-m-d')}, " .
+            expect($activeStructure->effective_date->toDateString())->toBe(
+                $expectedEffectiveDate->toDateString(),
+                'Active structure should be the most recent one with effective_date <= payrun date. '.
+                "Expected: {$expectedEffectiveDate->format('Y-m-d')}, ".
                 "Got: {$activeStructure->effective_date->format('Y-m-d')}"
             );
 
             // Property: The active structure's effective_date must not exceed payrun date
             expect($activeStructure->effective_date)->toBeLessThanOrEqual(
                 \Carbon\Carbon::instance($payrunDate),
-                "Active structure effective_date must not exceed payrun date"
+                'Active structure effective_date must not exceed payrun date'
             );
 
             // Property: No other structure with earlier effective_date should be selected
@@ -434,14 +430,14 @@ test('Property 2: Active salary structure selection', function () {
                 if ($structure->id !== $activeStructure->id && $structure->effective_date <= $payrunDate) {
                     expect($structure->effective_date)->toBeLessThanOrEqual(
                         $activeStructure->effective_date,
-                        "Selected structure should have the most recent effective_date"
+                        'Selected structure should have the most recent effective_date'
                     );
                 }
             }
         } else {
             // If no valid structure exists, the method should return null
             expect($activeStructure)->toBeNull(
-                "Should return null when no salary structure has effective_date <= payrun date"
+                'Should return null when no salary structure has effective_date <= payrun date'
             );
         }
 
@@ -453,7 +449,6 @@ test('Property 2: Active salary structure selection', function () {
         $employee->forceDelete();
     }
 })->group('property-test', 'hris-payroll');
-
 
 /**
  * **Feature: hris-phase3-payroll, Property 2 Edge Cases: Active salary structure boundary conditions**
@@ -476,7 +471,7 @@ test('Property 2 Edge Cases: Active salary structure boundary conditions', funct
     $activeStructure = $payrollService->getActiveSalaryStructure($employee, $payrunDate);
 
     expect($activeStructure)->toBeNull(
-        "Should return null when no salary structures exist"
+        'Should return null when no salary structures exist'
     );
 
     // Edge case 2: All structures are in the future
@@ -496,7 +491,7 @@ test('Property 2 Edge Cases: Active salary structure boundary conditions', funct
     $activeStructure = $payrollService->getActiveSalaryStructure($employee, $payrunDate);
 
     expect($activeStructure)->toBeNull(
-        "Should return null when all structures have future effective_dates"
+        'Should return null when all structures have future effective_dates'
     );
 
     // Clean up for next edge case
@@ -521,14 +516,14 @@ test('Property 2 Edge Cases: Active salary structure boundary conditions', funct
     $activeStructure = $payrollService->getActiveSalaryStructure($employee, $payrunDate);
 
     expect($activeStructure)->not->toBeNull(
-        "Should return a structure when all are in the past"
+        'Should return a structure when all are in the past'
     );
 
     // Should be the most recent one
     $mostRecentPast = collect($pastStructures)->sortByDesc('effective_date')->first();
     expect($activeStructure->id)->toBe(
         $mostRecentPast->id,
-        "Should return the most recent past structure"
+        'Should return the most recent past structure'
     );
 
     // Clean up for next edge case
@@ -550,11 +545,11 @@ test('Property 2 Edge Cases: Active salary structure boundary conditions', funct
     $activeStructure = $payrollService->getActiveSalaryStructure($employee, $exactDate);
 
     expect($activeStructure)->not->toBeNull(
-        "Should return structure when effective_date equals payrun date"
+        'Should return structure when effective_date equals payrun date'
     );
     expect($activeStructure->id)->toBe(
         $structure->id,
-        "Should return the structure with matching effective_date"
+        'Should return the structure with matching effective_date'
     );
 
     // Clean up for next edge case
@@ -587,10 +582,10 @@ test('Property 2 Edge Cases: Active salary structure boundary conditions', funct
     $activeStructure = $payrollService->getActiveSalaryStructure($employee, now());
 
     expect($activeStructure)->not->toBeNull(
-        "Should return a structure when multiple exist on same date"
+        'Should return a structure when multiple exist on same date'
     );
     expect(in_array($activeStructure->id, [$structure1->id, $structure2->id]))->toBeTrue(
-        "Should return one of the structures with the same effective_date"
+        'Should return one of the structures with the same effective_date'
     );
 
     // Clean up
