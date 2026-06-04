@@ -2,8 +2,8 @@
 
 namespace App\Policies\Hris;
 
-use App\Models\User;
 use App\Models\Hris\Applicant;
+use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class ApplicantPolicy
@@ -124,6 +124,24 @@ class ApplicantPolicy
     }
 
     /**
+     * Determine whether the user can view (stream/preview) an applicant's résumé.
+     */
+    public function viewResume(User $user, Applicant $applicant): bool
+    {
+        return $user->can('view_resume_applicant')
+            || $user->hasAnyRole(['hr-admin', 'hr-staff']);
+    }
+
+    /**
+     * Determine whether the user can download an applicant's résumé.
+     */
+    public function downloadResume(User $user, Applicant $applicant): bool
+    {
+        return $user->can('download_resume_applicant')
+            || $user->hasAnyRole(['hr-admin', 'hr-staff']);
+    }
+
+    /**
      * Determine whether the user can advance an applicant in the pipeline.
      * Restricted to hr-admin and hr-staff roles.
      */
@@ -138,7 +156,7 @@ class ApplicantPolicy
      */
     public function reject(User $user, Applicant $applicant): bool
     {
-        return $user->hasAnyRole(['hr-admin', 'hr-staff']) && !$applicant->isRejected() && !$applicant->isHired();
+        return $user->hasAnyRole(['hr-admin', 'hr-staff']) && ! $applicant->isRejected() && ! $applicant->isHired();
     }
 
     /**
@@ -147,6 +165,6 @@ class ApplicantPolicy
      */
     public function scheduleInterview(User $user, Applicant $applicant): bool
     {
-        return $user->hasAnyRole(['hr-admin', 'hr-staff']) && !$applicant->isRejected() && !$applicant->isHired();
+        return $user->hasAnyRole(['hr-admin', 'hr-staff']) && ! $applicant->isRejected() && ! $applicant->isHired();
     }
 }

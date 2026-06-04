@@ -63,6 +63,46 @@ class JobPostingResource extends Resource
                             ->columnSpanFull(),
                     ]),
 
+                Forms\Components\Section::make('Public Portal')
+                    ->description('Content and settings for the public job board (jobs.partnershub.co).')
+                    ->columns(2)
+                    ->collapsed()
+                    ->schema([
+                        Forms\Components\Select::make('hiring_company_id')
+                            ->label('Hiring Company')
+                            ->relationship('hiringCompany', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->helperText('Required before publishing to the public portal.'),
+                        Forms\Components\Select::make('work_arrangement')
+                            ->options([
+                                JobPosting::WORK_ARRANGEMENT_ONSITE => 'On-site',
+                                JobPosting::WORK_ARRANGEMENT_HYBRID => 'Hybrid',
+                                JobPosting::WORK_ARRANGEMENT_REMOTE => 'Remote',
+                            ]),
+                        Forms\Components\TextInput::make('public_title')
+                            ->maxLength(255)
+                            ->helperText('Overrides the internal title on the public portal.')
+                            ->columnSpanFull(),
+                        Forms\Components\RichEditor::make('public_description')
+                            ->columnSpanFull(),
+                        Forms\Components\RichEditor::make('public_requirements')
+                            ->columnSpanFull(),
+                        Forms\Components\RichEditor::make('public_benefits')
+                            ->columnSpanFull(),
+                        Forms\Components\TextInput::make('salary_min')
+                            ->numeric()
+                            ->prefix('Rp'),
+                        Forms\Components\TextInput::make('salary_max')
+                            ->numeric()
+                            ->prefix('Rp'),
+                        Forms\Components\Toggle::make('salary_hidden')
+                            ->label('Hide salary on public portal')
+                            ->default(true),
+                        Forms\Components\DatePicker::make('application_deadline')
+                            ->helperText('Job hides from the portal after this date (Asia/Jakarta).'),
+                    ]),
+
                 Forms\Components\Section::make('Status')
                     ->schema([
                         Forms\Components\Select::make('status')
@@ -104,6 +144,14 @@ class JobPostingResource extends Resource
                         'success' => JobPosting::STATUS_PUBLISHED,
                         'danger' => JobPosting::STATUS_CLOSED,
                     ]),
+                Tables\Columns\IconColumn::make('is_public')
+                    ->label('Public')
+                    ->boolean()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('hiringCompany.name')
+                    ->label('Company')
+                    ->toggleable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('applicants_count')
                     ->label('Applicants')
                     ->counts('applicants')
@@ -183,6 +231,32 @@ class JobPostingResource extends Resource
                             ->success()
                             ->send();
                     }),
+                Tables\Actions\Action::make('publishPublic')
+                    ->label('Publish to Portal')
+                    ->icon('heroicon-o-megaphone')
+                    ->color('info')
+                    ->requiresConfirmation()
+                    ->modalHeading('Publish to Public Portal')
+                    ->modalDescription('Make this job visible on jobs.partnershub.co.')
+                    ->visible(fn (JobPosting $record): bool => $record->isPublished() && ! $record->is_public)
+                    ->action(function (JobPosting $record): void {
+                        try {
+                            app(RecruitmentService::class)->publishJobPostingPublicly($record);
+                            Notification::make()->title('Published to public portal')->success()->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()->title('Cannot publish')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
+                Tables\Actions\Action::make('unpublishPublic')
+                    ->label('Remove from Portal')
+                    ->icon('heroicon-o-eye-slash')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->visible(fn (JobPosting $record): bool => (bool) $record->is_public)
+                    ->action(function (JobPosting $record): void {
+                        app(RecruitmentService::class)->unpublishJobPostingPublicly($record);
+                        Notification::make()->title('Removed from public portal')->success()->send();
+                    }),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
             ])
@@ -209,9 +283,10 @@ class JobPostingResource extends Resource
                     ->action(function (array $data) {
                         $start = Carbon::parse($data['start_date']);
                         $end = Carbon::parse($data['end_date']);
+
                         return Excel::download(
                             new RecruitmentReportExport($start, $end),
-                            'recruitment-report-' . now()->format('Y-m-d') . '.xlsx'
+                            'recruitment-report-'.now()->format('Y-m-d').'.xlsx'
                         );
                     }),
             ])

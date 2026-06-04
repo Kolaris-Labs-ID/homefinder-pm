@@ -16,7 +16,9 @@ use Filament\Notifications\Livewire\Notifications;
 use Filament\Notifications\Notification;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\VerticalAlignment;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -49,6 +51,10 @@ class AppServiceProvider extends ServiceProvider
         // Register Payroll audit observers
         $this->registerPayrollAuditObservers();
 
+        // Public job portal rate limits (browse moderate, apply strict)
+        RateLimiter::for('public-jobs', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
+        RateLimiter::for('public-apply', fn (Request $request) => Limit::perMinute(5)->by($request->ip()));
+
         // Configure Filament notifications to be centered
         Notifications::alignment(Alignment::Center);
         Notifications::verticalAlignment(VerticalAlignment::Start);
@@ -64,7 +70,7 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function registerPayrollAuditObservers(): void
     {
-        $observer = new PayrollAuditObserver();
+        $observer = new PayrollAuditObserver;
 
         SalaryStructure::created(fn ($model) => $observer->salaryStructureCreated($model));
         SalaryStructure::updated(fn ($model) => $observer->salaryStructureUpdated($model));

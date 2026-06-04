@@ -31,6 +31,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Behind Cloudflare/Vercel/proxy: trust forwarded headers so request IP
+        // is the real client IP (used for applicant applied_ip + rate limiting).
+        $middleware->trustProxies(at: '*');
+
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
         ]);

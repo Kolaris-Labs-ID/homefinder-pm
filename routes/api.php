@@ -22,6 +22,8 @@ use App\Http\Controllers\Api\Pm\BoardController;
 use App\Http\Controllers\Api\Pm\ProjectController;
 use App\Http\Controllers\Api\Pm\TicketCommentController;
 use App\Http\Controllers\Api\Pm\TicketController;
+use App\Http\Controllers\Api\Public\V1\JobApplicationController;
+use App\Http\Controllers\Api\Public\V1\JobPortalController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -36,6 +38,19 @@ Route::prefix('auth')->group(function () {
 
 // Attendance photo serving (uses token query param for auth, needed by <Image> components)
 Route::get('/hris/attendance/photo', [AttendanceController::class, 'servePhoto']);
+
+/*
+|--------------------------------------------------------------------------
+| Public Job Portal API (v1) — unauthenticated, for jobs.partnershub.co
+|--------------------------------------------------------------------------
+*/
+Route::prefix('public/v1')->group(function () {
+    Route::get('/jobs', [JobPortalController::class, 'index'])->middleware('throttle:public-jobs');
+    Route::get('/jobs/{slug}', [JobPortalController::class, 'show'])->middleware('throttle:public-jobs');
+    Route::get('/companies/{companySlug}', [JobPortalController::class, 'company'])->middleware('throttle:public-jobs');
+    Route::get('/companies/{companySlug}/jobs', [JobPortalController::class, 'companyJobs'])->middleware('throttle:public-jobs');
+    Route::post('/jobs/{slug}/apply', [JobApplicationController::class, 'store'])->middleware('throttle:public-apply');
+});
 
 /*
 |--------------------------------------------------------------------------

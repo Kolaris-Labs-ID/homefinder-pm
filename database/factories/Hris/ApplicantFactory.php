@@ -18,7 +18,7 @@ class ApplicantFactory extends Factory
             'name' => $this->faker->name(),
             'email' => $this->faker->unique()->safeEmail(),
             'phone' => $this->faker->phoneNumber(),
-            'resume_file_path' => 'resumes/' . $this->faker->uuid() . '.pdf',
+            'resume_file_path' => 'resumes/'.$this->faker->uuid().'.pdf',
             'cover_letter' => $this->faker->paragraphs(2, true),
             'status' => Applicant::STATUS_APPLIED,
             'rejection_reason' => null,
@@ -37,12 +37,42 @@ class ApplicantFactory extends Factory
     }
 
     /**
+     * Set status to screening.
+     */
+    public function screening(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => Applicant::STATUS_SCREENING,
+        ]);
+    }
+
+    /**
      * Set status to shortlisted.
      */
     public function shortlisted(): static
     {
         return $this->state(fn (array $attributes) => [
             'status' => Applicant::STATUS_SHORTLISTED,
+        ]);
+    }
+
+    /**
+     * Set status to interview_scheduled.
+     */
+    public function interviewScheduled(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => Applicant::STATUS_INTERVIEW_SCHEDULED,
+        ]);
+    }
+
+    /**
+     * Set status to withdrawn.
+     */
+    public function withdrawn(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => Applicant::STATUS_WITHDRAWN,
         ]);
     }
 
@@ -115,7 +145,9 @@ class ApplicantFactory extends Factory
     {
         $activeStatuses = [
             Applicant::STATUS_APPLIED,
+            Applicant::STATUS_SCREENING,
             Applicant::STATUS_SHORTLISTED,
+            Applicant::STATUS_INTERVIEW_SCHEDULED,
             Applicant::STATUS_INTERVIEWED,
             Applicant::STATUS_OFFERED,
         ];

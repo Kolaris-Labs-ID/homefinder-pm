@@ -78,6 +78,16 @@ Route::middleware(['web', 'auth'])->get(
     [\App\Http\Controllers\PaymentBundlePdfController::class, 'signed']
 )->name('finance.payment-bundles.signed-pdf');
 
+// Recruitment résumé streaming — HR only (ApplicantPolicy), private disk, never a public URL.
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/admin/recruitment/applicants/{applicant}/resume/view',
+        [\App\Http\Controllers\Admin\ResumeController::class, 'view'])
+        ->name('recruitment.resume.view');
+    Route::get('/admin/recruitment/applicants/{applicant}/resume/download',
+        [\App\Http\Controllers\Admin\ResumeController::class, 'download'])
+        ->name('recruitment.resume.download');
+});
+
 // Named `login` target so the `auth` middleware can redirect guests (Laravel falls back to route('login')).
 // Plain redirect (NOT ->guest()) so the intended signed URL stored by `auth` survives to /admin/login.
 Route::get('/login', fn () => redirect('/admin/login'))->name('login');
