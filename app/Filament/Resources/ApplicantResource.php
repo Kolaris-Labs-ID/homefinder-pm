@@ -67,14 +67,7 @@ class ApplicantResource extends Resource
                 Forms\Components\Section::make('Status')
                     ->schema([
                         Forms\Components\Select::make('status')
-                            ->options([
-                                Applicant::STATUS_APPLIED => 'Applied',
-                                Applicant::STATUS_SHORTLISTED => 'Shortlisted',
-                                Applicant::STATUS_INTERVIEWED => 'Interviewed',
-                                Applicant::STATUS_OFFERED => 'Offered',
-                                Applicant::STATUS_HIRED => 'Hired',
-                                Applicant::STATUS_REJECTED => 'Rejected',
-                            ])
+                            ->options(self::statusLabels())
                             ->default(Applicant::STATUS_APPLIED)
                             ->disabled()
                             ->dehydrated(),
@@ -101,14 +94,14 @@ class ApplicantResource extends Resource
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->colors([
-                        'gray' => Applicant::STATUS_APPLIED,
-                        'info' => Applicant::STATUS_SHORTLISTED,
-                        'warning' => Applicant::STATUS_INTERVIEWED,
+                        'gray' => [Applicant::STATUS_APPLIED, Applicant::STATUS_WITHDRAWN],
+                        'info' => [Applicant::STATUS_SCREENING, Applicant::STATUS_SHORTLISTED],
+                        'warning' => [Applicant::STATUS_INTERVIEW_SCHEDULED, Applicant::STATUS_INTERVIEWED],
                         'primary' => Applicant::STATUS_OFFERED,
                         'success' => Applicant::STATUS_HIRED,
                         'danger' => Applicant::STATUS_REJECTED,
                     ])
-                    ->formatStateUsing(fn (string $state): string => ucfirst($state)),
+                    ->formatStateUsing(fn (string $state): string => self::statusLabels()[$state] ?? ucfirst($state)),
                 Tables\Columns\TextColumn::make('email')
                     ->searchable()
                     ->toggleable(),
@@ -124,19 +117,12 @@ class ApplicantResource extends Resource
                     ->label('Job Posting')
                     ->relationship('jobPosting', 'title'),
                 Tables\Filters\SelectFilter::make('status')
-                    ->options([
-                        Applicant::STATUS_APPLIED => 'Applied',
-                        Applicant::STATUS_SHORTLISTED => 'Shortlisted',
-                        Applicant::STATUS_INTERVIEWED => 'Interviewed',
-                        Applicant::STATUS_OFFERED => 'Offered',
-                        Applicant::STATUS_HIRED => 'Hired',
-                        Applicant::STATUS_REJECTED => 'Rejected',
-                    ]),
+                    ->options(self::statusLabels()),
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\Action::make('advance')
-                        ->label(fn (Applicant $record): string => 'Advance to ' . ucfirst($record->getNextStatus() ?? ''))
+                        ->label(fn (Applicant $record): string => 'Advance to '.ucfirst($record->getNextStatus() ?? ''))
                         ->icon('heroicon-o-arrow-right-circle')
                         ->color('success')
                         ->requiresConfirmation()
@@ -147,7 +133,7 @@ class ApplicantResource extends Resource
                             if ($nextStatus) {
                                 $service->advanceApplicant($record, $nextStatus);
                                 Notification::make()
-                                    ->title('Applicant advanced to ' . ucfirst($nextStatus))
+                                    ->title('Applicant advanced to '.ucfirst($nextStatus))
                                     ->success()
                                     ->send();
                             }
@@ -162,12 +148,51 @@ class ApplicantResource extends Resource
                                 ->required()
                                 ->rows(3),
                         ])
-                        ->visible(fn (Applicant $record): bool => $record->canAdvance())
+                        ->visible(fn (Applicant $record): bool => $record->isActive())
                         ->action(function (Applicant $record, array $data): void {
                             $service = app(RecruitmentService::class);
                             $service->rejectApplicant($record, $data['rejection_reason']);
                             Notification::make()
                                 ->title('Applicant rejected')
+                                ->success()
+                                ->send();
+                        }),
+                    Tables\Actions\Action::make('hire')
+                        ->label('Hire')
+                        ->icon('heroicon-o-check-badge')
+                        ->color('success')
+                        ->form([
+                            Forms\Components\Select::make('employee_id')
+                                ->label('Link to Employee')
+                                ->options(fn (): array => Employee::with('user')->get()
+                                    ->mapWithKeys(fn (Employee $e): array => [
+                                        $e->id => ($e->user?->name ?? 'Employee').' (NIK '.($e->nik ?? '—').')',
+                                    ])
+                                    ->all())
+                                ->searchable()
+                                ->required()
+                                ->helperText('An applicant can only become "hired" once linked to an Employee record.'),
+                        ])
+                        ->visible(fn (Applicant $record): bool => $record->isOffered())
+                        ->action(function (Applicant $record, array $data): void {
+                            $service = app(RecruitmentService::class);
+                            $service->hireApplicant($record, Employee::findOrFail($data['employee_id']));
+                            Notification::make()
+                                ->title('Applicant hired and linked to employee')
+                                ->success()
+                                ->send();
+                        }),
+                    Tables\Actions\Action::make('withdraw')
+                        ->label('Withdraw')
+                        ->icon('heroicon-o-arrow-uturn-left')
+                        ->color('gray')
+                        ->requiresConfirmation()
+                        ->visible(fn (Applicant $record): bool => $record->isActive())
+                        ->action(function (Applicant $record): void {
+                            $service = app(RecruitmentService::class);
+                            $service->withdrawApplicant($record);
+                            Notification::make()
+                                ->title('Applicant withdrawn')
                                 ->success()
                                 ->send();
                         }),
@@ -197,7 +222,7 @@ class ApplicantResource extends Resource
                                 ->default(Interview::TYPE_ONSITE)
                                 ->required(),
                         ])
-                        ->visible(fn (Applicant $record): bool => !$record->isHired() && !$record->isRejected())
+                        ->visible(fn (Applicant $record): bool => $record->isActive())
                         ->action(function (Applicant $record, array $data): void {
                             $service = app(RecruitmentService::class);
                             $service->scheduleInterview($record, $data);
@@ -216,6 +241,24 @@ class ApplicantResource extends Resource
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    /**
+     * Human-readable labels for every applicant status.
+     */
+    public static function statusLabels(): array
+    {
+        return [
+            Applicant::STATUS_APPLIED => 'Applied',
+            Applicant::STATUS_SCREENING => 'Screening',
+            Applicant::STATUS_SHORTLISTED => 'Shortlisted',
+            Applicant::STATUS_INTERVIEW_SCHEDULED => 'Interview Scheduled',
+            Applicant::STATUS_INTERVIEWED => 'Interviewed',
+            Applicant::STATUS_OFFERED => 'Offered',
+            Applicant::STATUS_HIRED => 'Hired',
+            Applicant::STATUS_REJECTED => 'Rejected',
+            Applicant::STATUS_WITHDRAWN => 'Withdrawn',
+        ];
     }
 
     public static function getRelations(): array

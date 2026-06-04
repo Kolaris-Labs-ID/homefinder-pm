@@ -23,23 +23,96 @@ class Applicant extends Model
 
     // Status constants for pipeline stages
     const STATUS_APPLIED = 'applied';
+
+    const STATUS_SCREENING = 'screening';
+
     const STATUS_SHORTLISTED = 'shortlisted';
+
+    const STATUS_INTERVIEW_SCHEDULED = 'interview_scheduled';
+
     const STATUS_INTERVIEWED = 'interviewed';
+
     const STATUS_OFFERED = 'offered';
+
     const STATUS_HIRED = 'hired';
+
     const STATUS_REJECTED = 'rejected';
+
+    const STATUS_WITHDRAWN = 'withdrawn';
+
+    // Terminal statuses: an applicant here cannot advance, be rejected, or withdrawn.
+    const TERMINAL_STATUSES = [self::STATUS_HIRED, self::STATUS_REJECTED, self::STATUS_WITHDRAWN];
+
+    // Application source constants
+    const SOURCE_MANUAL_HR = 'manual_hr';
+
+    const SOURCE_JOB_PORTAL = 'job_portal';
 
     protected $fillable = [
         'job_posting_id',
         'name',
         'email',
+        'normalized_email',
         'phone',
         'resume_file_path',
         'cover_letter',
+        'source',
+        'public_application_token',
+        'application_reference_code',
+        'consent_privacy_policy',
+        'consent_data_processing',
+        'consent_policy_version',
+        'consent_accepted_at',
+        'applied_ip',
+        'applied_user_agent',
+        'retention_until',
+        'deletion_requested_at',
+        'anonymized_at',
+        'linkedin_url',
+        'portfolio_url',
+        'expected_salary',
+        'available_start_date',
         'status',
         'rejection_reason',
         'hired_employee_id',
     ];
+
+    protected $casts = [
+        'consent_privacy_policy' => 'boolean',
+        'consent_data_processing' => 'boolean',
+        'consent_accepted_at' => 'datetime',
+        'retention_until' => 'datetime',
+        'deletion_requested_at' => 'datetime',
+        'anonymized_at' => 'datetime',
+        'available_start_date' => 'date',
+        'expected_salary' => 'decimal:2',
+    ];
+
+    protected $attributes = [
+        'source' => self::SOURCE_MANUAL_HR,
+        'consent_privacy_policy' => false,
+        'consent_data_processing' => false,
+    ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (Applicant $applicant) {
+            $applicant->normalized_email = static::normalizeEmail($applicant->email);
+        });
+    }
+
+    /**
+     * Normalize an email for duplicate detection: lowercase + trim only.
+     * Plus-addressing and Gmail dots are intentionally preserved.
+     */
+    public static function normalizeEmail(?string $email): ?string
+    {
+        if ($email === null) {
+            return null;
+        }
+
+        return strtolower(trim($email));
+    }
 
     /**
      * Get all available statuses.
@@ -48,25 +121,30 @@ class Applicant extends Model
     {
         return [
             self::STATUS_APPLIED,
+            self::STATUS_SCREENING,
             self::STATUS_SHORTLISTED,
+            self::STATUS_INTERVIEW_SCHEDULED,
             self::STATUS_INTERVIEWED,
             self::STATUS_OFFERED,
             self::STATUS_HIRED,
             self::STATUS_REJECTED,
+            self::STATUS_WITHDRAWN,
         ];
     }
 
     /**
-     * Get the valid pipeline statuses (excluding rejected).
+     * Single source of truth for HR-driven forward transitions.
+     * `hired` is intentionally absent: it is reachable only via
+     * RecruitmentService::hireApplicant(), which links an Employee.
      */
-    public static function getPipelineStatuses(): array
+    public static function forwardTransitions(): array
     {
         return [
-            self::STATUS_APPLIED,
-            self::STATUS_SHORTLISTED,
-            self::STATUS_INTERVIEWED,
-            self::STATUS_OFFERED,
-            self::STATUS_HIRED,
+            self::STATUS_APPLIED => self::STATUS_SCREENING,
+            self::STATUS_SCREENING => self::STATUS_SHORTLISTED,
+            self::STATUS_SHORTLISTED => self::STATUS_INTERVIEW_SCHEDULED,
+            self::STATUS_INTERVIEW_SCHEDULED => self::STATUS_INTERVIEWED,
+            self::STATUS_INTERVIEWED => self::STATUS_OFFERED,
         ];
     }
 
@@ -159,11 +237,19 @@ class Applicant extends Model
     }
 
     /**
-     * Scope to filter active applicants (not rejected or hired).
+     * Scope to filter active applicants (not in a terminal status).
      */
     public function scopeActive(Builder $query): Builder
     {
-        return $query->whereNotIn('status', [self::STATUS_REJECTED, self::STATUS_HIRED]);
+        return $query->whereNotIn('status', self::TERMINAL_STATUSES);
+    }
+
+    /**
+     * Scope to filter withdrawn applicants.
+     */
+    public function scopeWithdrawn(Builder $query): Builder
+    {
+        return $query->where('status', self::STATUS_WITHDRAWN);
     }
 
     /**
@@ -215,25 +301,50 @@ class Applicant extends Model
     }
 
     /**
-     * Check if the applicant can be advanced to the next status.
+     * Check if the applicant is in the screening stage.
      */
-    public function canAdvance(): bool
+    public function isScreening(): bool
     {
-        return !$this->isHired() && !$this->isRejected();
+        return $this->status === self::STATUS_SCREENING;
     }
 
     /**
-     * Get the next status in the pipeline.
+     * Check if the applicant has an interview scheduled.
+     */
+    public function isInterviewScheduled(): bool
+    {
+        return $this->status === self::STATUS_INTERVIEW_SCHEDULED;
+    }
+
+    /**
+     * Check if the applicant has withdrawn.
+     */
+    public function isWithdrawn(): bool
+    {
+        return $this->status === self::STATUS_WITHDRAWN;
+    }
+
+    /**
+     * Check if the applicant is active (not in a terminal status).
+     */
+    public function isActive(): bool
+    {
+        return ! in_array($this->status, self::TERMINAL_STATUSES, true);
+    }
+
+    /**
+     * Check if the applicant can be advanced to the next pipeline status.
+     */
+    public function canAdvance(): bool
+    {
+        return $this->getNextStatus() !== null;
+    }
+
+    /**
+     * Get the next forward status, or null if none (offered/terminal).
      */
     public function getNextStatus(): ?string
     {
-        $pipeline = self::getPipelineStatuses();
-        $currentIndex = array_search($this->status, $pipeline);
-
-        if ($currentIndex === false || $currentIndex >= count($pipeline) - 1) {
-            return null;
-        }
-
-        return $pipeline[$currentIndex + 1];
+        return self::forwardTransitions()[$this->status] ?? null;
     }
 }

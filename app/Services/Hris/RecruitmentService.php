@@ -6,8 +6,6 @@ use App\Models\Hris\Applicant;
 use App\Models\Hris\Employee;
 use App\Models\Hris\Interview;
 use App\Models\Hris\JobPosting;
-use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
 class RecruitmentService
@@ -43,22 +41,49 @@ class RecruitmentService
     }
 
     /**
+     * Publish a job posting to the public portal.
+     * Requires an internally-published posting linked to a hiring company.
+     */
+    public function publishJobPostingPublicly(JobPosting $posting): void
+    {
+        if ($posting->status !== JobPosting::STATUS_PUBLISHED) {
+            throw new \Exception('Only internally-published job postings can be made public.');
+        }
+
+        if (blank($posting->hiring_company_id)) {
+            throw new \Exception('A hiring company is required before publishing to the public portal.');
+        }
+
+        $posting->update([
+            'is_public' => true,
+            'published_public_at' => $posting->published_public_at ?? now(),
+            'closed_public_at' => null,
+        ]);
+    }
+
+    /**
+     * Remove a job posting from the public portal.
+     */
+    public function unpublishJobPostingPublicly(JobPosting $posting): void
+    {
+        $posting->update([
+            'is_public' => false,
+            'closed_public_at' => now(),
+        ]);
+    }
+
+    /**
      * Advance an applicant to the next stage in the pipeline.
      */
     public function advanceApplicant(Applicant $applicant, string $newStatus): void
     {
-        $validTransitions = [
-            Applicant::STATUS_APPLIED => [Applicant::STATUS_SHORTLISTED],
-            Applicant::STATUS_SHORTLISTED => [Applicant::STATUS_INTERVIEWED],
-            Applicant::STATUS_INTERVIEWED => [Applicant::STATUS_OFFERED],
-            Applicant::STATUS_OFFERED => [Applicant::STATUS_HIRED],
-        ];
+        $expected = $applicant->getNextStatus();
 
-        if (!isset($validTransitions[$applicant->status])) {
+        if ($expected === null) {
             throw new \Exception("Cannot advance applicant from status: {$applicant->status}");
         }
 
-        if (!in_array($newStatus, $validTransitions[$applicant->status])) {
+        if ($newStatus !== $expected) {
             throw new \Exception("Invalid status transition from {$applicant->status} to {$newStatus}");
         }
 
@@ -72,17 +97,27 @@ class RecruitmentService
      */
     public function rejectApplicant(Applicant $applicant, string $reason): void
     {
-        if ($applicant->status === Applicant::STATUS_REJECTED) {
-            throw new \Exception("Applicant is already rejected");
-        }
-
-        if ($applicant->status === Applicant::STATUS_HIRED) {
-            throw new \Exception("Cannot reject a hired applicant");
+        if (in_array($applicant->status, Applicant::TERMINAL_STATUSES, true)) {
+            throw new \Exception("Cannot reject an applicant with status: {$applicant->status}");
         }
 
         $applicant->update([
             'status' => Applicant::STATUS_REJECTED,
             'rejection_reason' => $reason,
+        ]);
+    }
+
+    /**
+     * Withdraw an applicant (candidate-initiated or HR-recorded).
+     */
+    public function withdrawApplicant(Applicant $applicant): void
+    {
+        if (in_array($applicant->status, Applicant::TERMINAL_STATUSES, true)) {
+            throw new \Exception("Cannot withdraw an applicant with status: {$applicant->status}");
+        }
+
+        $applicant->update([
+            'status' => Applicant::STATUS_WITHDRAWN,
         ]);
     }
 
@@ -129,7 +164,7 @@ class RecruitmentService
     {
         $validResults = [Interview::RESULT_PASS, Interview::RESULT_FAIL];
 
-        if (!in_array($result, $validResults)) {
+        if (! in_array($result, $validResults)) {
             throw new \Exception("Invalid interview result: {$result}");
         }
 

@@ -3,6 +3,7 @@
 namespace Database\Factories\Hris;
 
 use App\Models\Hris\Department;
+use App\Models\Hris\HiringCompany;
 use App\Models\Hris\JobPosting;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -69,6 +70,24 @@ class JobPostingFactory extends Factory
             'status' => JobPosting::STATUS_CLOSED,
             'published_at' => now()->subMonth(),
             'closed_at' => now(),
+        ]);
+    }
+
+    /**
+     * Published + flagged public, linked to an active hiring company.
+     */
+    public function publicPortal(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => JobPosting::STATUS_PUBLISHED,
+            'published_at' => now(),
+            'closed_at' => null,
+            'hiring_company_id' => HiringCompany::factory(),
+            'is_public' => true,
+            'published_public_at' => now(),
+            'public_title' => $this->faker->jobTitle(),
+            'public_description' => $this->faker->paragraphs(3, true),
+            'work_arrangement' => $this->faker->randomElement(JobPosting::getWorkArrangements()),
         ]);
     }
 
