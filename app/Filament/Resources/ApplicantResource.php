@@ -60,6 +60,15 @@ class ApplicantResource extends Resource
                             ->visibility('private')
                             ->acceptedFileTypes(['application/pdf'])
                             ->maxSize(1024),
+                        Forms\Components\Placeholder::make('resume_meta')
+                            ->label('Résumé file')
+                            ->visible(fn (?Applicant $record): bool => filled($record?->resume_file_path))
+                            ->content(fn (?Applicant $record): string => trim(sprintf(
+                                '%s · %s · uploaded %s',
+                                $record?->resume_original_filename ?: 'resume.pdf',
+                                $record?->resume_size_bytes ? round($record->resume_size_bytes / 1024).' KB' : '—',
+                                optional($record?->resume_uploaded_at)->format('d M Y H:i') ?: '—',
+                            ), ' ·')),
                         Forms\Components\Textarea::make('cover_letter')
                             ->rows(5)
                             ->columnSpanFull(),
