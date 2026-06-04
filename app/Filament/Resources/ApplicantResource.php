@@ -54,11 +54,12 @@ class ApplicantResource extends Resource
                 Forms\Components\Section::make('Application Documents')
                     ->schema([
                         Forms\Components\FileUpload::make('resume_file_path')
-                            ->label('Resume')
+                            ->label('Resume (PDF only, max 1 MB)')
+                            ->disk('private')
                             ->directory('applicants/resumes')
                             ->visibility('private')
-                            ->acceptedFileTypes(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
-                            ->maxSize(5120),
+                            ->acceptedFileTypes(['application/pdf'])
+                            ->maxSize(1024),
                         Forms\Components\Textarea::make('cover_letter')
                             ->rows(5)
                             ->columnSpanFull(),

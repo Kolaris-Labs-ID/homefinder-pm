@@ -24,10 +24,14 @@ return [
         'http://127.0.0.1:8081',
         'http://localhost:19006',
         'http://127.0.0.1:19006',
+        'http://localhost:3000',   // Next.js job portal (dev)
+        'http://127.0.0.1:3000',
+        'https://jobs.partnershub.co', // public job portal (prod)
         'https://expo.dev',
         'https://snack.expo.dev',
         'https://*.vercel.app',
         env('FRONTEND_URL', 'https://phi-connect.vercel.app'),
+        env('JOBS_PORTAL_URL', 'https://jobs.partnershub.co'),
     ],
 
     'allowed_origins_patterns' => [

@@ -55,6 +55,12 @@ class Applicant extends Model
         'normalized_email',
         'phone',
         'resume_file_path',
+        'resume_disk',
+        'resume_original_filename',
+        'resume_mime_type',
+        'resume_size_bytes',
+        'resume_file_hash',
+        'resume_uploaded_at',
         'cover_letter',
         'source',
         'public_application_token',
@@ -86,6 +92,8 @@ class Applicant extends Model
         'anonymized_at' => 'datetime',
         'available_start_date' => 'date',
         'expected_salary' => 'decimal:2',
+        'resume_size_bytes' => 'integer',
+        'resume_uploaded_at' => 'datetime',
     ];
 
     protected $attributes = [
