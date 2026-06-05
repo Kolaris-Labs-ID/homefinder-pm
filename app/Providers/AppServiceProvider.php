@@ -28,7 +28,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(
+            \App\Services\Hris\Screening\Contracts\ResumeTextExtractor::class,
+            \App\Services\Hris\Screening\Extractors\PopplerResumeTextExtractor::class,
+        );
     }
 
     /**
