@@ -16,6 +16,7 @@ class HrisSeeder extends Seeder
         $this->seedLeaveTypes();
         $this->call(FinanceRolePermissionSeeder::class);
         $this->call(PaymentBundleRolePermissionSeeder::class);
+        $this->call(RecruitmentScreeningPermissionSeeder::class);
     }
 
     protected function seedDepartments(): void
@@ -121,4 +122,3 @@ class HrisSeeder extends Seeder
         }
     }
 }
-

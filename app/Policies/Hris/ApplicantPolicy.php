@@ -167,4 +167,28 @@ class ApplicantPolicy
     {
         return $user->hasAnyRole(['hr-admin', 'hr-staff']) && ! $applicant->isRejected() && ! $applicant->isHired();
     }
+
+    /**
+     * Screening abilities check the explicit recruitment.* permission ONLY — no role
+     * fallback — so applicant view/manage access never implies screening access.
+     */
+    public function viewScreening(User $user, ?Applicant $applicant = null): bool
+    {
+        return $user->can('recruitment.view_screening');
+    }
+
+    public function runScreening(User $user, ?Applicant $applicant = null): bool
+    {
+        return $user->can('recruitment.run_screening');
+    }
+
+    public function overrideScreening(User $user, ?Applicant $applicant = null): bool
+    {
+        return $user->can('recruitment.override_screening');
+    }
+
+    public function clearScreeningOverride(User $user, ?Applicant $applicant = null): bool
+    {
+        return $user->can('recruitment.clear_screening_override');
+    }
 }
