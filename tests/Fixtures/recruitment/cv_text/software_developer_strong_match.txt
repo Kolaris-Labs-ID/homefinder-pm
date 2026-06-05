@@ -1,0 +1,7 @@
+Synthetic CV fixture only.
+
+Target role: Software developer.
+Skills: PHP, Laravel, React, Next.js, API development, server-side integration.
+Experience: built backend services, frontend screens, automated tests, and deployment pipelines.
+Location: Jakarta.
+

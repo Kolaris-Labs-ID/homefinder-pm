@@ -1,0 +1,9 @@
+Synthetic CV fixture only.
+
+Target role: Accounting assistant.
+Education: D3/S1 Accounting.
+Skills: accounting and tax reporting.
+Experience: invoice filing and spreadsheet administration.
+Location: Bandung.
+Availability: one month notice.
+

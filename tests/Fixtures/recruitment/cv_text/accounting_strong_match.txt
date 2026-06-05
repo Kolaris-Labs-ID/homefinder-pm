@@ -1,0 +1,9 @@
+Synthetic CV fixture only.
+
+Target role: Accounting staff.
+Education: D3/S1 Accounting.
+Skills: accounting, akuntansi, tax, pajak, frontend-not-relevant.
+Experience: vendor invoice review, monthly bookkeeping, payment reconciliation.
+Location: Jakarta.
+Availability: immediately available.
+Additional neutral summary: handled reporting calendars, team coordination, document control, audit schedules, month end checklists, stakeholder follow up, data preparation, archive maintenance, process notes, system updates, reconciliation support, routine administration, filing standards, meeting notes, spreadsheet cleanup, document numbering, handover notes, vendor communication, branch coordination, dashboard refreshes, internal requests, policy reading, operational checklists, calendar reminders, data entry, data validation, file naming, archive review, report drafts, follow up notes, approval tracking, mailbox triage, shared drive maintenance, and team updates.

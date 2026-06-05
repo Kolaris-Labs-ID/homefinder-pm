@@ -1,0 +1,7 @@
+Synthetic CV fixture only.
+
+Gender: female.
+Education: D3/S1 Accounting.
+Skills: accounting and tax.
+Experience: monthly reconciliation.
+

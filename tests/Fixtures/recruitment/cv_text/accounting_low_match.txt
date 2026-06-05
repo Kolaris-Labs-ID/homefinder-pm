@@ -1,0 +1,7 @@
+Synthetic CV fixture only.
+
+Target role: Customer support.
+Skills: phone support, ticket follow up, scheduling, office administration.
+Experience: handled customer questions and appointment coordination.
+Location: Surabaya.
+

@@ -1,0 +1,7 @@
+Synthetic CV fixture only.
+
+accounting accounting accounting accounting accounting accounting accounting accounting accounting accounting
+accounting accounting accounting accounting accounting accounting accounting accounting accounting accounting
+tax tax tax tax tax tax tax tax tax tax tax tax tax tax tax tax tax tax tax tax
+Normal prose: this fixture intentionally repeats job keywords to exercise abnormal keyword density detection.
+
