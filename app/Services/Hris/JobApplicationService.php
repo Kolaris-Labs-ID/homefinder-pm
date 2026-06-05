@@ -3,6 +3,7 @@
 namespace App\Services\Hris;
 
 use App\Exceptions\DuplicateApplicationException;
+use App\Jobs\Hris\ScreenApplicantJob;
 use App\Models\Hris\Applicant;
 use App\Models\Hris\JobPosting;
 use App\Models\User;
@@ -76,6 +77,10 @@ class JobApplicationService
             $this->resumeStorage->delete($meta['resume_disk'] ?? null, $meta['resume_file_path'] ?? null);
             throw $e;
         }
+
+        // Screening is dispatched only after the applicant + resume metadata are
+        // committed, and never inside the apply request (PDF parsing runs on the queue).
+        ScreenApplicantJob::dispatch($applicant->id, $job->id, (string) Str::ulid());
 
         $this->notifyRecruiters($applicant);
 
