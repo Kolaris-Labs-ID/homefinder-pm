@@ -201,6 +201,14 @@ class JobPosting extends Model
     }
 
     /**
+     * Structured ATS screening criteria for this posting.
+     */
+    public function screeningCriteria(): HasMany
+    {
+        return $this->hasMany(ApplicantScreeningCriteria::class);
+    }
+
+    /**
      * Scope to filter by status.
      */
     public function scopeStatus(Builder $query, string $status): Builder

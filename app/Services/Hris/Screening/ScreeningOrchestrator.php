@@ -3,6 +3,7 @@
 namespace App\Services\Hris\Screening;
 
 use App\Exceptions\ResumeParseException;
+use App\Jobs\Hris\ScreenApplicantJob;
 use App\Models\Hris\Applicant;
 use App\Models\Hris\ApplicantScreeningLatestResult;
 use App\Models\Hris\ApplicantScreeningOverride;
@@ -16,6 +17,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * Orchestrates one screening run. Parsing and matching happen OUTSIDE any DB
@@ -41,6 +43,52 @@ class ScreeningOrchestrator
         ApplicantScreeningLatestResult::where('applicant_id', $applicant->id)->delete();
         ApplicantScreeningOverride::where('applicant_id', $applicant->id)->delete();
         ApplicantScreeningResult::where('applicant_id', $applicant->id)->delete();
+    }
+
+    /** Dispatch a (re-)screen from HR. A new run id => a new version. */
+    public function runScreening(Applicant $applicant, ?User $by = null, bool $manual = true): void
+    {
+        ScreenApplicantJob::dispatch($applicant->id, $applicant->job_posting_id, (string) Str::ulid(), $by?->id, $manual);
+    }
+
+    /**
+     * HR override on the (applicant, job) pair. Supersedes any active override (kept as a
+     * cleared audit row) and never touches the immutable result or its raw score.
+     */
+    public function override(Applicant $applicant, string $recommendation, string $note, User $by): ApplicantScreeningOverride
+    {
+        return DB::transaction(function () use ($applicant, $recommendation, $note, $by) {
+            $this->deactivateActiveOverride($applicant, $by, 'Superseded by a new override.');
+
+            return ApplicantScreeningOverride::create([
+                'applicant_id' => $applicant->id,
+                'job_posting_id' => $applicant->job_posting_id,
+                'overridden_recommendation' => $recommendation,
+                'override_note' => $note,
+                'created_by' => $by->id,
+            ]);
+        });
+    }
+
+    public function clearOverride(Applicant $applicant, string $note, User $by): void
+    {
+        $this->deactivateActiveOverride($applicant, $by, $note);
+    }
+
+    private function deactivateActiveOverride(Applicant $applicant, User $by, string $note): void
+    {
+        // Mass update bypasses model events, so set active_marker explicitly to free the
+        // one-active slot (NULL is distinct in the unique index).
+        ApplicantScreeningOverride::where('applicant_id', $applicant->id)
+            ->where('job_posting_id', $applicant->job_posting_id)
+            ->where('is_active', true)
+            ->update([
+                'is_active' => false,
+                'active_marker' => null,
+                'cleared_by' => $by->id,
+                'cleared_at' => now(),
+                'clear_note' => $note,
+            ]);
     }
 
     public function screen(Applicant $applicant, JobPosting $job, string $runId, ?User $by = null, bool $manual = false): ApplicantScreeningResult

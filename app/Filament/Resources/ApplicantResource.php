@@ -7,12 +7,14 @@ use App\Models\Hris\Applicant;
 use App\Models\Hris\Interview;
 use App\Models\User;
 use App\Services\Hris\RecruitmentService;
+use App\Services\Hris\Screening\ScreeningOrchestrator;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Collection;
 
 class ApplicantResource extends Resource
 {
@@ -112,6 +114,27 @@ class ApplicantResource extends Resource
                         'danger' => Applicant::STATUS_REJECTED,
                     ])
                     ->formatStateUsing(fn (string $state): string => self::statusLabels()[$state] ?? ucfirst($state)),
+                Tables\Columns\TextColumn::make('screening_score')
+                    ->label('ATS Score')
+                    ->badge()
+                    ->getStateUsing(fn (Applicant $record): ?string => $record->latestScreeningResult()?->score)
+                    ->color(fn ($state): string => $state === null ? 'gray' : ((float) $state >= 80 ? 'success' : ((float) $state >= 50 ? 'warning' : 'danger')))
+                    ->placeholder('—')
+                    ->visible(fn (): bool => auth()->user()?->can('viewScreening', Applicant::class) ?? false)
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('screening_recommendation')
+                    ->label('ATS Recommendation')
+                    ->badge()
+                    ->getStateUsing(fn (Applicant $record): string => $record->effectiveScreeningRecommendation() ?? 'not_screened')
+                    ->formatStateUsing(fn (string $state): string => ucwords(str_replace('_', ' ', $state)))
+                    ->color(fn (string $state): string => match ($state) {
+                        'strong_match' => 'success',
+                        'review' => 'warning',
+                        'low_match' => 'danger',
+                        default => 'gray',
+                    })
+                    ->visible(fn (): bool => auth()->user()?->can('viewScreening', Applicant::class) ?? false)
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('email')
                     ->searchable()
                     ->toggleable(),
@@ -241,15 +264,69 @@ class ApplicantResource extends Resource
                                 ->success()
                                 ->send();
                         }),
+                    Tables\Actions\Action::make('runScreening')
+                        ->label(fn (Applicant $record): string => $record->latestScreeningResult() ? 'Re-run Screening' : 'Run Screening')
+                        ->icon('heroicon-o-sparkles')
+                        ->color('info')
+                        ->requiresConfirmation()
+                        ->authorize(fn (Applicant $record): bool => auth()->user()?->can('runScreening', $record) ?? false)
+                        ->action(function (Applicant $record): void {
+                            app(ScreeningOrchestrator::class)->runScreening($record, auth()->user(), manual: true);
+                            Notification::make()->title('Screening queued')->success()->send();
+                        }),
+                    Tables\Actions\Action::make('overrideScreening')
+                        ->label('Override Recommendation')
+                        ->icon('heroicon-o-hand-raised')
+                        ->color('warning')
+                        ->authorize(fn (Applicant $record): bool => auth()->user()?->can('overrideScreening', $record) ?? false)
+                        ->form([
+                            Forms\Components\Select::make('recommendation')
+                                ->options([
+                                    'strong_match' => 'Strong match',
+                                    'review' => 'Review',
+                                    'low_match' => 'Low match',
+                                    'needs_manual_review' => 'Needs manual review',
+                                ])
+                                ->required(),
+                            Forms\Components\Textarea::make('note')->label('Reason (required)')->required()->rows(3),
+                        ])
+                        ->action(function (Applicant $record, array $data): void {
+                            app(ScreeningOrchestrator::class)->override($record, $data['recommendation'], $data['note'], auth()->user());
+                            Notification::make()->title('Override applied')->success()->send();
+                        }),
+                    Tables\Actions\Action::make('clearScreeningOverride')
+                        ->label('Clear Override')
+                        ->icon('heroicon-o-x-mark')
+                        ->color('gray')
+                        ->visible(fn (Applicant $record): bool => $record->activeScreeningOverride()->exists())
+                        ->authorize(fn (Applicant $record): bool => auth()->user()?->can('clearScreeningOverride', $record) ?? false)
+                        ->form([
+                            Forms\Components\Textarea::make('note')->label('Clear note (required)')->required()->rows(2),
+                        ])
+                        ->action(function (Applicant $record, array $data): void {
+                            app(ScreeningOrchestrator::class)->clearOverride($record, $data['note'], auth()->user());
+                            Notification::make()->title('Override cleared')->success()->send();
+                        }),
                 ]),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('screenSelected')
+                        ->label('Screen selected')
+                        ->icon('heroicon-o-sparkles')
+                        ->requiresConfirmation()
+                        ->authorize(fn (): bool => auth()->user()?->can('runScreening', Applicant::class) ?? false)
+                        ->action(function (Collection $records): void {
+                            $orchestrator = app(ScreeningOrchestrator::class);
+                            $records->each(fn (Applicant $record) => $orchestrator->runScreening($record, auth()->user(), manual: true));
+                            Notification::make()->title('Screening queued for '.$records->count().' applicants')->success()->send();
+                        }),
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
+            ->modifyQueryUsing(fn ($query) => $query->with(['latestScreening.latestResult', 'activeScreeningOverride']))
             ->defaultSort('created_at', 'desc');
     }
 

@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Exports\RecruitmentReportExport;
 use App\Filament\Resources\JobPostingResource\Pages;
+use App\Filament\Resources\JobPostingResource\RelationManagers;
 use App\Models\Hris\JobPosting;
 use App\Services\Hris\RecruitmentService;
 use Carbon\Carbon;
@@ -296,7 +297,7 @@ class JobPostingResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\ScreeningCriteriaRelationManager::class,
         ];
     }
 

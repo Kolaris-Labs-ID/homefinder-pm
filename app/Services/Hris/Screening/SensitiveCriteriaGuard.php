@@ -41,6 +41,24 @@ class SensitiveCriteriaGuard
         }
     }
 
+    /** Offending sensitive term in a single value, or null. */
+    public function firstHit(?string $value): ?string
+    {
+        return $value === null || $value === '' ? null : $this->firstSensitiveHit($value);
+    }
+
+    /** Offending sensitive term across a list of values, or null. */
+    public function firstHitInList(?array $values): ?string
+    {
+        foreach ($values ?? [] as $value) {
+            if (($hit = $this->firstHit((string) $value)) !== null) {
+                return $hit;
+            }
+        }
+
+        return null;
+    }
+
     private function firstSensitiveHit(string $value): ?string
     {
         $normalized = mb_strtolower($value);

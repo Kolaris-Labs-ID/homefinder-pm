@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Applicant extends Model
 {
@@ -178,6 +179,33 @@ class Applicant extends Model
     public function hiredEmployee(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'hired_employee_id');
+    }
+
+    /**
+     * Latest ATS screening pointer (advisory — independent of `status`).
+     */
+    public function latestScreening(): HasOne
+    {
+        return $this->hasOne(ApplicantScreeningLatestResult::class);
+    }
+
+    public function activeScreeningOverride(): HasOne
+    {
+        return $this->hasOne(ApplicantScreeningOverride::class)->where('is_active', true);
+    }
+
+    public function latestScreeningResult(): ?ApplicantScreeningResult
+    {
+        return $this->latestScreening?->latestResult;
+    }
+
+    /**
+     * Effective recommendation = active override if present, else the latest result.
+     */
+    public function effectiveScreeningRecommendation(): ?string
+    {
+        return $this->activeScreeningOverride?->overridden_recommendation
+            ?? $this->latestScreeningResult()?->recommendation;
     }
 
     /**
