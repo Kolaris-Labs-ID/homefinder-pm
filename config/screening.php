@@ -76,6 +76,9 @@ return [
         'density_critical' => 15.0,
         'single_repeat_warning' => 8,
         'single_repeat_critical' => 15,
+        // Density is meaningless on a tiny document; only judge it once the CV has at
+        // least this many tokens. Single-keyword repeats are judged at any length.
+        'min_tokens_for_density' => 30,
     ],
 
 ];
