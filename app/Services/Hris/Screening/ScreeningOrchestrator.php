@@ -5,6 +5,7 @@ namespace App\Services\Hris\Screening;
 use App\Exceptions\ResumeParseException;
 use App\Models\Hris\Applicant;
 use App\Models\Hris\ApplicantScreeningLatestResult;
+use App\Models\Hris\ApplicantScreeningOverride;
 use App\Models\Hris\ApplicantScreeningResult;
 use App\Models\Hris\JobPosting;
 use App\Models\User;
@@ -28,7 +29,19 @@ class ScreeningOrchestrator
         private ResumeTextExtractor $extractor,
         private RequirementMatcher $matcher,
         private CriteriaSnapshotService $snapshots,
+        private ResumeRedactor $redactor,
     ) {}
+
+    /**
+     * Erasure path for anonymize/forget. Results are immutable, so we DELETE the
+     * screening artifacts (delete bypasses the update guard) rather than mutate them.
+     */
+    public function forgetApplicant(Applicant $applicant): void
+    {
+        ApplicantScreeningLatestResult::where('applicant_id', $applicant->id)->delete();
+        ApplicantScreeningOverride::where('applicant_id', $applicant->id)->delete();
+        ApplicantScreeningResult::where('applicant_id', $applicant->id)->delete();
+    }
 
     public function screen(Applicant $applicant, JobPosting $job, string $runId, ?User $by = null, bool $manual = false): ApplicantScreeningResult
     {
@@ -55,7 +68,7 @@ class ScreeningOrchestrator
                 $this->fitContext($applicant, $job),
             );
 
-            $attributes = $this->successAttributes($match, $snapshot) + $this->baseAttributes($applicant, $job, $runId, $by, $referenceDate, $snapshot);
+            $attributes = $this->successAttributes($match, $this->redactor->redact($text)) + $this->baseAttributes($applicant, $job, $runId, $by, $referenceDate, $snapshot);
         } catch (ResumeParseException $e) {
             $attributes = $this->failureAttributes($e->reason) + $this->baseAttributes($applicant, $job, $runId, $by, $referenceDate, $snapshot);
         }
@@ -105,14 +118,12 @@ class ScreeningOrchestrator
             'screening_version' => (string) config('screening.versions.screening'),
             'synonym_dictionary_version' => $snapshot->synonymDictionaryVersion,
             'screening_reference_date' => $referenceDate->toDateString(),
-            'parsed_summary' => null, // populated (redacted) by the ResumeRedactor task
-            'redacted_fields' => [],
             'screened_by' => $by?->id,
             'screened_at' => now(),
         ];
     }
 
-    private function successAttributes(Dto\MatchResultDto $match, CriteriaSnapshotDto $snapshot): array
+    private function successAttributes(Dto\MatchResultDto $match, array $redaction): array
     {
         return [
             'parser_status' => ApplicantScreeningResult::PARSER_PARSED,
@@ -124,6 +135,8 @@ class ScreeningOrchestrator
             'missing_criteria' => array_map(fn ($m) => $m->toArray(), $match->missing),
             'fit_outcomes' => array_map(fn ($f) => $f->toArray(), $match->fitOutcomes),
             'raw_scoring_breakdown' => $match->breakdown->toArray(),
+            'parsed_summary' => $redaction['summary'],
+            'redacted_fields' => $redaction['redacted'],
         ];
     }
 
@@ -144,6 +157,8 @@ class ScreeningOrchestrator
             'missing_criteria' => [],
             'fit_outcomes' => [],
             'raw_scoring_breakdown' => [],
+            'parsed_summary' => null,
+            'redacted_fields' => [],
         ];
     }
 
