@@ -4,6 +4,7 @@ namespace App\Exports;
 
 use App\Models\Hris\Applicant;
 use App\Models\Hris\JobPosting;
+use App\Support\CsvFormulaGuard;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
@@ -14,9 +15,10 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class RecruitmentReportExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
+class RecruitmentReportExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     protected Carbon $startDate;
+
     protected Carbon $endDate;
 
     /**
@@ -80,9 +82,9 @@ class RecruitmentReportExport implements FromCollection, WithHeadings, WithMappi
 
         return [
             $jobPosting->id,
-            $jobPosting->title,
-            $jobPosting->department?->name ?? '',
-            $jobPosting->location ?? '',
+            CsvFormulaGuard::escape($jobPosting->title),
+            CsvFormulaGuard::escape($jobPosting->department?->name ?? ''),
+            CsvFormulaGuard::escape($jobPosting->location ?? ''),
             ucfirst(str_replace('_', ' ', $jobPosting->employment_type ?? '')),
             ucfirst($jobPosting->status ?? ''),
             $jobPosting->published_at?->format('Y-m-d H:i') ?? '',
