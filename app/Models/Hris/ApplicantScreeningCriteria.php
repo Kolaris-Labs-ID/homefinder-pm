@@ -3,6 +3,7 @@
 namespace App\Models\Hris;
 
 use App\Models\User;
+use App\Services\Hris\Screening\SensitiveCriteriaGuard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -57,6 +58,12 @@ class ApplicantScreeningCriteria extends Model
             if ((int) $criteria->weight < 1) {
                 throw new InvalidArgumentException('Screening criteria weight must be >= 1.');
             }
+
+            app(SensitiveCriteriaGuard::class)->assertClean(
+                $criteria->label,
+                $criteria->keywords,
+                $criteria->synonyms,
+            );
 
             // Keep the NULL-distinct uniqueness key in sync while the row is alive.
             if ($criteria->deleted_at === null) {
