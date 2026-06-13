@@ -14,9 +14,8 @@ class ProjectArchiveService
      *
      * Requirements: 1.1, 1.2
      *
-     * @param Project $project The project to archive
-     * @param User $user The user performing the archive action
-     * @return void
+     * @param  Project  $project  The project to archive
+     * @param  User  $user  The user performing the archive action
      */
     public function archive(Project $project, User $user): void
     {
@@ -33,8 +32,7 @@ class ProjectArchiveService
      *
      * Requirements: 4.1, 4.2
      *
-     * @param Project $project The project to restore
-     * @return void
+     * @param  Project  $project  The project to restore
      */
     public function restore(Project $project): void
     {
@@ -51,9 +49,8 @@ class ProjectArchiveService
      *
      * Requirements: 2.1, 3.1
      *
-     * @param Project $project The project to mark as done
-     * @param bool $isAuto Whether this is an automatic done status (default: false)
-     * @return void
+     * @param  Project  $project  The project to mark as done
+     * @param  bool  $isAuto  Whether this is an automatic done status (default: false)
      */
     public function markAsDone(Project $project, bool $isAuto = false): void
     {
@@ -70,8 +67,7 @@ class ProjectArchiveService
      *
      * Requirements: 2.3
      *
-     * @param Project $project The project to unmark as done
-     * @return void
+     * @param  Project  $project  The project to unmark as done
      */
     public function unmarkDone(Project $project): void
     {
@@ -82,39 +78,13 @@ class ProjectArchiveService
     }
 
     /**
-     * Check and update the done status of a project based on ticket completion.
-     *
-     * - If all tickets are completed, auto-mark as done
-     * - If tickets are incomplete and project was auto-done, remove done status
-     * - Empty projects (no tickets) do not auto-complete
-     *
-     * Requirements: 3.1, 3.2, 3.3, 3.4
-     *
-     * @param Project $project The project to check
-     * @return void
-     */
-    public function checkAndUpdateDoneStatus(Project $project): void
-    {
-        // Refresh the project to get latest data
-        $project->refresh();
-
-        $allCompleted = $project->allTicketsCompleted();
-
-        if ($allCompleted && !$project->is_done) {
-            $this->markAsDone($project, true);
-        } elseif (!$allCompleted && $project->is_done && $project->is_auto_done) {
-            $this->unmarkDone($project);
-        }
-    }
-
-    /**
      * Archive all tickets in a project.
      *
      * Called when a project is archived or marked as done.
      * Only archives tickets that are not already archived.
      *
-     * @param Project $project The project whose tickets should be archived
-     * @param User|null $user The user performing the action (optional, uses project's archived_by or auth user)
+     * @param  Project  $project  The project whose tickets should be archived
+     * @param  User|null  $user  The user performing the action (optional, uses project's archived_by or auth user)
      * @return int Number of tickets archived
      */
     public function archiveProjectTickets(Project $project, ?User $user = null): int
@@ -134,7 +104,7 @@ class ProjectArchiveService
      *
      * Called when a project is restored from archived/done status.
      *
-     * @param Project $project The project whose tickets should be restored
+     * @param  Project  $project  The project whose tickets should be restored
      * @return int Number of tickets restored
      */
     public function restoreProjectTickets(Project $project): int
@@ -153,20 +123,19 @@ class ProjectArchiveService
      * Archives tickets when project is archived or done.
      * Restores tickets when project is restored from archived/done.
      *
-     * @param Project $project The project that changed status
-     * @param bool $wasArchived Previous archived status
-     * @param bool $wasDone Previous done status
-     * @return void
+     * @param  Project  $project  The project that changed status
+     * @param  bool  $wasArchived  Previous archived status
+     * @param  bool  $wasDone  Previous done status
      */
     public function handleProjectStatusChange(Project $project, bool $wasArchived, bool $wasDone): void
     {
         $isNowArchivedOrDone = $project->is_archived || $project->is_done;
         $wasArchivedOrDone = $wasArchived || $wasDone;
 
-        if ($isNowArchivedOrDone && !$wasArchivedOrDone) {
+        if ($isNowArchivedOrDone && ! $wasArchivedOrDone) {
             // Project just became archived or done - archive all tickets
             $this->archiveProjectTickets($project);
-        } elseif (!$isNowArchivedOrDone && $wasArchivedOrDone) {
+        } elseif (! $isNowArchivedOrDone && $wasArchivedOrDone) {
             // Project just became active again - restore all tickets
             $this->restoreProjectTickets($project);
         }

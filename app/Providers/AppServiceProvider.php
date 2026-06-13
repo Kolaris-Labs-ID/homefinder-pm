@@ -7,11 +7,9 @@ use App\Models\Hris\PayrunBatch;
 use App\Models\Hris\Reimbursement;
 use App\Models\Hris\SalaryStructure;
 use App\Models\Project;
-use App\Models\Ticket;
 use App\Observers\Hris\ClientVisitObserver;
 use App\Observers\Hris\PayrollAuditObserver;
 use App\Observers\ProjectObserver;
-use App\Observers\TicketObserver;
 use Filament\Notifications\Livewire\Notifications;
 use Filament\Notifications\Notification;
 use Filament\Support\Enums\Alignment;
@@ -39,10 +37,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-
-        // Register TicketObserver for auto-done detection
-        // Requirements: 3.1
-        Ticket::observe(TicketObserver::class);
 
         // Register ProjectObserver for auto-archiving tickets when project is done/archived
         Project::observe(ProjectObserver::class);

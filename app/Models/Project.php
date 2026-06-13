@@ -103,24 +103,6 @@ class Project extends Model
         return $query->whereNotNull('archived_at');
     }
 
-    // Check if all tickets in the project are completed
-    public function allTicketsCompleted(): bool
-    {
-        $totalTickets = $this->tickets()->count();
-
-        if ($totalTickets === 0) {
-            return false; // Empty projects don't auto-complete
-        }
-
-        $incompleteTickets = $this->tickets()
-            ->whereHas('status', function ($query) {
-                $query->where('is_completed', false);
-            })
-            ->count();
-
-        return $incompleteTickets === 0;
-    }
-
     // Check if project has active epics (epics with incomplete tickets)
     public function hasActiveEpics(): bool
     {

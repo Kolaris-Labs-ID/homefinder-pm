@@ -7,11 +7,11 @@
  * using property-based testing approach with random data generation.
  */
 
+use App\Models\Epic;
 use App\Models\Project;
-use App\Models\User;
 use App\Models\Ticket;
 use App\Models\TicketStatus;
-use App\Models\Epic;
+use App\Models\User;
 use App\Services\ProjectArchiveService;
 
 beforeEach(function () {
@@ -55,7 +55,7 @@ test('Property 2: Active scope excludes archived projects', function () {
         // Property: All returned projects must have archived_at = null
         foreach ($result as $project) {
             expect($project->archived_at)->toBeNull(
-                "Active scope returned a project with archived_at set"
+                'Active scope returned a project with archived_at set'
             );
         }
 
@@ -104,7 +104,7 @@ test('Property 3: Archived scope includes only archived projects', function () {
         // Property: All returned projects must have archived_at NOT null
         foreach ($result as $project) {
             expect($project->archived_at)->not->toBeNull(
-                "Archived scope returned a project without archived_at set"
+                'Archived scope returned a project without archived_at set'
             );
         }
 
@@ -117,7 +117,6 @@ test('Property 3: Archived scope includes only archived projects', function () {
     }
 })->group('property-test', 'project-archive');
 
-
 /**
  * **Feature: project-archive, Property 1: Archive sets state and metadata correctly**
  *
@@ -128,7 +127,7 @@ test('Property 3: Archived scope includes only archived projects', function () {
  * **Validates: Requirements 1.1, 1.2**
  */
 test('Property 1: Archive sets state and metadata correctly', function () {
-    $service = new ProjectArchiveService();
+    $service = new ProjectArchiveService;
 
     // Run 100 iterations with random configurations
     for ($i = 0; $i < 100; $i++) {
@@ -149,22 +148,22 @@ test('Property 1: Archive sets state and metadata correctly', function () {
 
         // Property: archived_at must be set (not null)
         expect($project->archived_at)->not->toBeNull(
-            "Archive action did not set archived_at"
+            'Archive action did not set archived_at'
         );
 
         // Property: archived_at must be a recent timestamp (within last minute)
         expect($project->archived_at->diffInSeconds(now()))->toBeLessThan(60,
-            "archived_at timestamp is not recent"
+            'archived_at timestamp is not recent'
         );
 
         // Property: archived_by must reference the user who performed the action
         expect($project->archived_by)->toBe($user->id,
-            "archived_by does not reference the correct user"
+            'archived_by does not reference the correct user'
         );
 
         // Property: is_archived accessor should return true
         expect($project->is_archived)->toBeTrue(
-            "is_archived accessor should return true after archiving"
+            'is_archived accessor should return true after archiving'
         );
 
         // Clean up for next iteration
@@ -182,7 +181,7 @@ test('Property 1: Archive sets state and metadata correctly', function () {
  * **Validates: Requirements 2.1**
  */
 test('Property 4: Mark as done sets completion timestamp', function () {
-    $service = new ProjectArchiveService();
+    $service = new ProjectArchiveService;
 
     // Run 100 iterations with random configurations
     for ($i = 0; $i < 100; $i++) {
@@ -203,22 +202,22 @@ test('Property 4: Mark as done sets completion timestamp', function () {
 
         // Property: done_at must be set (not null)
         expect($project->done_at)->not->toBeNull(
-            "markAsDone action did not set done_at"
+            'markAsDone action did not set done_at'
         );
 
         // Property: done_at must be a recent timestamp (within last minute)
         expect($project->done_at->diffInSeconds(now()))->toBeLessThan(60,
-            "done_at timestamp is not recent"
+            'done_at timestamp is not recent'
         );
 
         // Property: is_auto_done should match the isAuto parameter
         expect($project->is_auto_done)->toBe($isAuto,
-            "is_auto_done does not match the isAuto parameter"
+            'is_auto_done does not match the isAuto parameter'
         );
 
         // Property: is_done accessor should return true
         expect($project->is_done)->toBeTrue(
-            "is_done accessor should return true after marking as done"
+            'is_done accessor should return true after marking as done'
         );
 
         // Clean up for next iteration
@@ -235,7 +234,7 @@ test('Property 4: Mark as done sets completion timestamp', function () {
  * **Validates: Requirements 2.3**
  */
 test('Property 5: Unmark done clears completion state', function () {
-    $service = new ProjectArchiveService();
+    $service = new ProjectArchiveService;
 
     // Run 100 iterations with random configurations
     for ($i = 0; $i < 100; $i++) {
@@ -248,7 +247,7 @@ test('Property 5: Unmark done clears completion state', function () {
 
         // Verify project is done before unmark
         expect($project->is_done)->toBeTrue(
-            "Project should be done before unmarkDone"
+            'Project should be done before unmarkDone'
         );
 
         // Perform unmark done action
@@ -259,17 +258,17 @@ test('Property 5: Unmark done clears completion state', function () {
 
         // Property: done_at must be null after unmarkDone
         expect($project->done_at)->toBeNull(
-            "unmarkDone action did not clear done_at"
+            'unmarkDone action did not clear done_at'
         );
 
         // Property: is_auto_done must be false after unmarkDone
         expect($project->is_auto_done)->toBeFalse(
-            "unmarkDone action did not clear is_auto_done"
+            'unmarkDone action did not clear is_auto_done'
         );
 
         // Property: is_done accessor should return false
         expect($project->is_done)->toBeFalse(
-            "is_done accessor should return false after unmarking as done"
+            'is_done accessor should return false after unmarking as done'
         );
 
         // Clean up for next iteration
@@ -286,7 +285,7 @@ test('Property 5: Unmark done clears completion state', function () {
  * **Validates: Requirements 4.1, 4.2**
  */
 test('Property 10: Restore clears archive state', function () {
-    $service = new ProjectArchiveService();
+    $service = new ProjectArchiveService;
 
     // Run 100 iterations with random configurations
     for ($i = 0; $i < 100; $i++) {
@@ -301,7 +300,7 @@ test('Property 10: Restore clears archive state', function () {
 
         // Verify project is archived before restore
         expect($project->is_archived)->toBeTrue(
-            "Project should be archived before restore"
+            'Project should be archived before restore'
         );
 
         // Perform restore action
@@ -312,17 +311,17 @@ test('Property 10: Restore clears archive state', function () {
 
         // Property: archived_at must be null after restore
         expect($project->archived_at)->toBeNull(
-            "restore action did not clear archived_at"
+            'restore action did not clear archived_at'
         );
 
         // Property: archived_by must be null after restore
         expect($project->archived_by)->toBeNull(
-            "restore action did not clear archived_by"
+            'restore action did not clear archived_by'
         );
 
         // Property: is_archived accessor should return false
         expect($project->is_archived)->toBeFalse(
-            "is_archived accessor should return false after restoring"
+            'is_archived accessor should return false after restoring'
         );
 
         // Clean up for next iteration
@@ -341,7 +340,7 @@ test('Property 10: Restore clears archive state', function () {
  * **Validates: Requirements 4.3**
  */
 test('Property 11: Restore preserves related data', function () {
-    $service = new ProjectArchiveService();
+    $service = new ProjectArchiveService;
 
     // Run 100 iterations with random configurations
     for ($i = 0; $i < 100; $i++) {
@@ -398,17 +397,17 @@ test('Property 11: Restore preserves related data', function () {
 
         // Property: ticket count must remain unchanged
         expect($project->tickets()->count())->toBe($ticketCountBefore,
-            "Restore action changed ticket count"
+            'Restore action changed ticket count'
         );
 
         // Property: epic count must remain unchanged
         expect($project->epics()->count())->toBe($epicCountBefore,
-            "Restore action changed epic count"
+            'Restore action changed epic count'
         );
 
         // Property: member count must remain unchanged
         expect($project->members()->count())->toBe($memberCountBefore,
-            "Restore action changed member count"
+            'Restore action changed member count'
         );
 
         // Clean up for next iteration
@@ -424,310 +423,6 @@ test('Property 11: Restore preserves related data', function () {
     }
 })->group('property-test', 'project-archive');
 
-
-/**
- * **Feature: project-archive, Property 6: Auto-done triggers when all tickets completed**
- *
- * For any project with at least one ticket, when all tickets have a completed status
- * (via is_completed on TicketStatus), the project SHALL be automatically marked as done
- * with is_auto_done set to true.
- *
- * **Validates: Requirements 3.1**
- */
-test('Property 6: Auto-done triggers when all tickets completed', function () {
-    // Authenticate a user for ticket history creation
-    $authUser = User::factory()->create();
-    $this->actingAs($authUser);
-
-    // Create a shared priority to avoid unique constraint exhaustion
-    $priority = \App\Models\TicketPriority::factory()->create();
-
-    // Run 100 iterations with random configurations
-    for ($i = 0; $i < 100; $i++) {
-        // Create a project (not done)
-        $project = Project::factory()->create([
-            'done_at' => null,
-            'is_auto_done' => false,
-        ]);
-
-        // Create a completed status for the project
-        $completedStatus = TicketStatus::factory()->completed()->create([
-            'project_id' => $project->id,
-        ]);
-
-        // Create random number of tickets (at least 1)
-        $ticketCount = rand(1, 3);
-
-        // Create tickets with incomplete status first
-        $incompleteStatus = TicketStatus::factory()->create([
-            'project_id' => $project->id,
-            'is_completed' => false,
-        ]);
-
-        $tickets = Ticket::factory()->count($ticketCount)->create([
-            'project_id' => $project->id,
-            'ticket_status_id' => $incompleteStatus->id,
-            'priority_id' => $priority->id,
-            'created_by' => $authUser->id,
-        ]);
-
-        // Verify project is not done initially
-        $project->refresh();
-        expect($project->is_done)->toBeFalse(
-            "Project should not be done with incomplete tickets"
-        );
-
-        // Now change all tickets to completed status (this triggers the observer)
-        foreach ($tickets as $ticket) {
-            $ticket->update(['ticket_status_id' => $completedStatus->id]);
-        }
-
-        // Refresh project from database
-        $project->refresh();
-
-        // Property: Project should be marked as done
-        expect($project->is_done)->toBeTrue(
-            "Project should be auto-marked as done when all tickets are completed"
-        );
-
-        // Property: is_auto_done should be true
-        expect($project->is_auto_done)->toBeTrue(
-            "is_auto_done should be true for auto-completed projects"
-        );
-
-        // Clean up for next iteration
-        $project->tickets()->delete();
-        TicketStatus::where('project_id', $project->id)->delete();
-        $project->forceDelete();
-    }
-
-    $priority->forceDelete();
-    $authUser->forceDelete();
-})->group('property-test', 'project-archive');
-
-
-/**
- * **Feature: project-archive, Property 7: Adding ticket removes auto-done status**
- *
- * For any project that is marked as done with is_auto_done = true,
- * when a new non-completed ticket is added, the project's done status
- * SHALL be removed (done_at = null).
- *
- * **Validates: Requirements 3.2**
- */
-test('Property 7: Adding ticket removes auto-done status', function () {
-    // Authenticate a user for ticket history creation
-    $authUser = User::factory()->create();
-    $this->actingAs($authUser);
-
-    // Create a shared priority to avoid unique constraint exhaustion
-    $priority = \App\Models\TicketPriority::factory()->create();
-
-    // Run 100 iterations with random configurations
-    for ($i = 0; $i < 100; $i++) {
-        // Create a project that is auto-done
-        $project = Project::factory()->create([
-            'done_at' => now()->subDays(rand(1, 30)),
-            'is_auto_done' => true,
-        ]);
-
-        // Create statuses for the project
-        $completedStatus = TicketStatus::factory()->completed()->create([
-            'project_id' => $project->id,
-        ]);
-
-        $incompleteStatus = TicketStatus::factory()->create([
-            'project_id' => $project->id,
-            'is_completed' => false,
-        ]);
-
-        // Create some completed tickets (to simulate the auto-done state)
-        $existingTicketCount = rand(1, 3);
-        Ticket::factory()->count($existingTicketCount)->create([
-            'project_id' => $project->id,
-            'ticket_status_id' => $completedStatus->id,
-            'priority_id' => $priority->id,
-            'created_by' => $authUser->id,
-        ]);
-
-        // Verify project is done before adding new ticket
-        $project->refresh();
-        expect($project->is_done)->toBeTrue(
-            "Project should be done before adding new ticket"
-        );
-        expect($project->is_auto_done)->toBeTrue(
-            "Project should be auto-done before adding new ticket"
-        );
-
-        // Add a new non-completed ticket (this triggers the observer)
-        Ticket::factory()->create([
-            'project_id' => $project->id,
-            'ticket_status_id' => $incompleteStatus->id,
-            'priority_id' => $priority->id,
-            'created_by' => $authUser->id,
-        ]);
-
-        // Refresh project from database
-        $project->refresh();
-
-        // Property: Project should no longer be done
-        expect($project->is_done)->toBeFalse(
-            "Project should not be done after adding incomplete ticket"
-        );
-
-        // Property: done_at should be null
-        expect($project->done_at)->toBeNull(
-            "done_at should be null after adding incomplete ticket"
-        );
-
-        // Clean up for next iteration
-        $project->tickets()->delete();
-        TicketStatus::where('project_id', $project->id)->delete();
-        $project->forceDelete();
-    }
-
-    $priority->forceDelete();
-    $authUser->forceDelete();
-})->group('property-test', 'project-archive');
-
-
-/**
- * **Feature: project-archive, Property 8: Reopening ticket removes auto-done status**
- *
- * For any project that is marked as done with is_auto_done = true,
- * when an existing ticket's status changes from completed to non-completed,
- * the project's done status SHALL be removed.
- *
- * **Validates: Requirements 3.3**
- */
-test('Property 8: Reopening ticket removes auto-done status', function () {
-    // Authenticate a user for ticket history creation
-    $authUser = User::factory()->create();
-    $this->actingAs($authUser);
-
-    // Create a shared priority to avoid unique constraint exhaustion
-    $priority = \App\Models\TicketPriority::factory()->create();
-
-    // Run 100 iterations with random configurations
-    for ($i = 0; $i < 100; $i++) {
-        // Create a project that is auto-done
-        $project = Project::factory()->create([
-            'done_at' => now()->subDays(rand(1, 30)),
-            'is_auto_done' => true,
-        ]);
-
-        // Create statuses for the project
-        $completedStatus = TicketStatus::factory()->completed()->create([
-            'project_id' => $project->id,
-        ]);
-
-        $incompleteStatus = TicketStatus::factory()->create([
-            'project_id' => $project->id,
-            'is_completed' => false,
-        ]);
-
-        // Create completed tickets (to simulate the auto-done state)
-        $ticketCount = rand(1, 3);
-        $tickets = Ticket::factory()->count($ticketCount)->create([
-            'project_id' => $project->id,
-            'ticket_status_id' => $completedStatus->id,
-            'priority_id' => $priority->id,
-            'created_by' => $authUser->id,
-        ]);
-
-        // Verify project is done before reopening ticket
-        $project->refresh();
-        expect($project->is_done)->toBeTrue(
-            "Project should be done before reopening ticket"
-        );
-        expect($project->is_auto_done)->toBeTrue(
-            "Project should be auto-done before reopening ticket"
-        );
-
-        // Reopen one random ticket (change from completed to incomplete)
-        $ticketToReopen = $tickets->random();
-        $ticketToReopen->update(['ticket_status_id' => $incompleteStatus->id]);
-
-        // Refresh project from database
-        $project->refresh();
-
-        // Property: Project should no longer be done
-        expect($project->is_done)->toBeFalse(
-            "Project should not be done after reopening a ticket"
-        );
-
-        // Property: done_at should be null
-        expect($project->done_at)->toBeNull(
-            "done_at should be null after reopening a ticket"
-        );
-
-        // Clean up for next iteration
-        $project->tickets()->delete();
-        TicketStatus::where('project_id', $project->id)->delete();
-        $project->forceDelete();
-    }
-
-    $priority->forceDelete();
-    $authUser->forceDelete();
-})->group('property-test', 'project-archive');
-
-
-/**
- * **Feature: project-archive, Property 9: Empty projects do not auto-complete**
- *
- * For any project with zero tickets and zero epics,
- * the auto-done check SHALL NOT mark the project as done.
- *
- * **Validates: Requirements 3.4**
- */
-test('Property 9: Empty projects do not auto-complete', function () {
-    $service = new ProjectArchiveService();
-
-    // Run 100 iterations with random configurations
-    for ($i = 0; $i < 100; $i++) {
-        // Create a project (not done, no tickets, no epics)
-        $project = Project::factory()->create([
-            'done_at' => null,
-            'is_auto_done' => false,
-        ]);
-
-        // Verify project has no tickets
-        expect($project->tickets()->count())->toBe(0,
-            "Project should have no tickets"
-        );
-
-        // Verify project has no epics
-        expect($project->epics()->count())->toBe(0,
-            "Project should have no epics"
-        );
-
-        // Trigger the auto-done check
-        $service->checkAndUpdateDoneStatus($project);
-
-        // Refresh project from database
-        $project->refresh();
-
-        // Property: Empty project should NOT be auto-marked as done
-        expect($project->is_done)->toBeFalse(
-            "Empty project should not be auto-marked as done"
-        );
-
-        // Property: done_at should remain null
-        expect($project->done_at)->toBeNull(
-            "done_at should remain null for empty projects"
-        );
-
-        // Property: is_auto_done should remain false
-        expect($project->is_auto_done)->toBeFalse(
-            "is_auto_done should remain false for empty projects"
-        );
-
-        // Clean up for next iteration
-        $project->forceDelete();
-    }
-})->group('property-test', 'project-archive');
-
-
 /**
  * **Feature: project-archive, Property 13: Permission enforcement for archive/restore**
  *
@@ -738,7 +433,7 @@ test('Property 9: Empty projects do not auto-complete', function () {
  * **Validates: Requirements 6.1, 6.2**
  */
 test('Property 13: Permission enforcement for archive/restore', function () {
-    $policy = new \App\Policies\ProjectPolicy();
+    $policy = new \App\Policies\ProjectPolicy;
 
     // Run 100 iterations with random configurations
     for ($i = 0; $i < 100; $i++) {
@@ -756,7 +451,7 @@ test('Property 13: Permission enforcement for archive/restore', function () {
             'guard_name' => 'web',
         ]);
         $archiveRole = \Spatie\Permission\Models\Role::firstOrCreate([
-            'name' => 'archive_role_' . $i,
+            'name' => 'archive_role_'.$i,
             'guard_name' => 'web',
         ]);
         $archiveRole->givePermissionTo($archivePermission);
@@ -769,7 +464,7 @@ test('Property 13: Permission enforcement for archive/restore', function () {
             'guard_name' => 'web',
         ]);
         $restoreRole = \Spatie\Permission\Models\Role::firstOrCreate([
-            'name' => 'restore_role_' . $i,
+            'name' => 'restore_role_'.$i,
             'guard_name' => 'web',
         ]);
         $restoreRole->givePermissionTo($restorePermission);
@@ -777,22 +472,22 @@ test('Property 13: Permission enforcement for archive/restore', function () {
 
         // Property: User without archive_project permission cannot archive
         expect($policy->archive($userWithoutPermissions, $project))->toBeFalse(
-            "User without archive_project permission should not be able to archive"
+            'User without archive_project permission should not be able to archive'
         );
 
         // Property: User with archive_project permission can archive
         expect($policy->archive($userWithArchivePermission, $project))->toBeTrue(
-            "User with archive_project permission should be able to archive"
+            'User with archive_project permission should be able to archive'
         );
 
         // Property: User without restore_archived_project permission cannot restore
         expect($policy->restoreArchived($userWithoutPermissions, $project))->toBeFalse(
-            "User without restore_archived_project permission should not be able to restore"
+            'User without restore_archived_project permission should not be able to restore'
         );
 
         // Property: User with restore_archived_project permission can restore
         expect($policy->restoreArchived($userWithRestorePermission, $project))->toBeTrue(
-            "User with restore_archived_project permission should be able to restore"
+            'User with restore_archived_project permission should be able to restore'
         );
 
         // Clean up for next iteration
@@ -804,7 +499,6 @@ test('Property 13: Permission enforcement for archive/restore', function () {
         $project->forceDelete();
     }
 })->group('property-test', 'project-archive');
-
 
 /**
  * **Feature: project-archive, Property 12: Active project count excludes archived**
@@ -847,22 +541,22 @@ test('Property 12: Active project count excludes archived', function () {
 
         // Property: Active count should equal total minus archived
         expect($activeProjectCount)->toBe($totalCount - $archivedProjectCount,
-            "Active project count should equal total count minus archived count"
+            'Active project count should equal total count minus archived count'
         );
 
         // Property: Active count should match the expected active count
         expect($activeProjectCount)->toBe($activeCount,
-            "Active project count should match the number of non-archived projects created"
+            'Active project count should match the number of non-archived projects created'
         );
 
         // Property: Archived count should match the expected archived count
         expect($archivedProjectCount)->toBe($archivedCount,
-            "Archived project count should match the number of archived projects created"
+            'Archived project count should match the number of archived projects created'
         );
 
         // Property: Sum of active and archived should equal total
         expect($activeProjectCount + $archivedProjectCount)->toBe($totalCount,
-            "Sum of active and archived counts should equal total count"
+            'Sum of active and archived counts should equal total count'
         );
 
         // Clean up for next iteration
