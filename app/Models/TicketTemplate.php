@@ -89,7 +89,10 @@ class TicketTemplate extends Model
     }
 
     /**
-     * Check if a ticket should be generated today.
+     * Check if a ticket is due to be generated for the upcoming target.
+     *
+     * Due when today has reached (or passed) target_date - lead_time_days.
+     * Period idempotency is enforced separately by hasGeneratedForPeriod().
      */
     public function shouldGenerateToday(?Carbon $today = null): bool
     {
@@ -97,7 +100,7 @@ class TicketTemplate extends Model
         $targetDate = $this->getNextTargetDate($today);
         $generationDate = $targetDate->copy()->subDays($this->lead_time_days);
 
-        return $today->isSameDay($generationDate);
+        return $today->copy()->startOfDay()->greaterThanOrEqualTo($generationDate->copy()->startOfDay());
     }
 
     /**

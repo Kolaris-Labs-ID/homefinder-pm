@@ -18,9 +18,9 @@ class RecurringTicketService
      *
      * Requirements: 3.1, 3.2, 3.3, 4.1, 4.2, 4.3
      *
-     * @param string|TicketFrequency $frequency The frequency type (weekly or monthly)
-     * @param int $dayValue The day value (1-7 for weekly, 1-31 for monthly)
-     * @param Carbon|null $fromDate The reference date (defaults to today)
+     * @param  string|TicketFrequency  $frequency  The frequency type (weekly or monthly)
+     * @param  int  $dayValue  The day value (1-7 for weekly, 1-31 for monthly)
+     * @param  Carbon|null  $fromDate  The reference date (defaults to today)
      * @return Carbon The calculated target date
      */
     public function calculateNextTargetDate(
@@ -50,8 +50,8 @@ class RecurringTicketService
      *
      * Requirements: 3.1, 3.2, 3.3
      *
-     * @param int $dayOfWeek The target day of week (1=Monday, 7=Sunday)
-     * @param Carbon|null $fromDate The reference date (defaults to today)
+     * @param  int  $dayOfWeek  The target day of week (1=Monday, 7=Sunday)
+     * @param  Carbon|null  $fromDate  The reference date (defaults to today)
      * @return Carbon The next occurrence of the specified day
      */
     public function calculateWeeklyTargetDate(
@@ -84,8 +84,8 @@ class RecurringTicketService
      *
      * Requirements: 4.1, 4.2, 4.3
      *
-     * @param int $dayOfMonth The target day of month (1-31)
-     * @param Carbon|null $fromDate The reference date (defaults to today)
+     * @param  int  $dayOfMonth  The target day of month (1-31)
+     * @param  Carbon|null  $fromDate  The reference date (defaults to today)
      * @return Carbon The next occurrence of the specified day
      */
     public function calculateMonthlyTargetDate(
@@ -112,18 +112,20 @@ class RecurringTicketService
         return $nextMonth->day($effectiveDay);
     }
 
-
     /**
-     * Check if a template should generate a ticket today.
+     * Check if a template is due to generate a ticket for its upcoming target.
      *
-     * A ticket should be generated when: today + lead_time_days == target_date
-     * This ensures tickets are created with enough lead time before their due date.
+     * Due when today has reached (or passed) the generation date
+     * (target_date - lead_time_days). Using ">=" rather than an exact-day match
+     * means a lead time longer than the recurrence gap still generates, and a
+     * missed daily run is caught up on the next run. Idempotency for the period
+     * is enforced separately by hasGeneratedForPeriod().
      *
      * Requirements: 2.2
      *
-     * @param TicketTemplate $template The template to check
-     * @param Carbon|null $today The reference date (defaults to today)
-     * @return bool True if a ticket should be generated today
+     * @param  TicketTemplate  $template  The template to check
+     * @param  Carbon|null  $today  The reference date (defaults to today)
+     * @return bool True if a ticket is due to be generated
      */
     public function shouldGenerateToday(TicketTemplate $template, ?Carbon $today = null): bool
     {
@@ -137,7 +139,7 @@ class RecurringTicketService
 
         $generationDate = $targetDate->copy()->subDays($template->lead_time_days);
 
-        return $today->isSameDay($generationDate);
+        return $today->copy()->startOfDay()->greaterThanOrEqualTo($generationDate->copy()->startOfDay());
     }
 
     /**
@@ -153,8 +155,8 @@ class RecurringTicketService
      *
      * Requirements: 2.3, 2.4, 2.5, 2.6, 5.2, 6.3, 7.2
      *
-     * @param TicketTemplate $template The template to generate from
-     * @param Carbon|null $today The reference date for target calculation
+     * @param  TicketTemplate  $template  The template to generate from
+     * @param  Carbon|null  $today  The reference date for target calculation
      * @return Ticket The generated ticket
      */
     public function generateTicket(TicketTemplate $template, ?Carbon $today = null): Ticket
@@ -185,7 +187,7 @@ class RecurringTicketService
 
             // Assign valid project members
             $validAssigneeIds = $this->getValidAssigneeIds($template);
-            if (!empty($validAssigneeIds)) {
+            if (! empty($validAssigneeIds)) {
                 $ticket->assignees()->attach($validAssigneeIds);
             }
 
@@ -215,7 +217,7 @@ class RecurringTicketService
      *
      * Requirements: 6.3, 6.4
      *
-     * @param TicketTemplate $template The template
+     * @param  TicketTemplate  $template  The template
      * @return int The status ID to use
      */
     protected function resolveStatusId(TicketTemplate $template): int
@@ -255,7 +257,7 @@ class RecurringTicketService
      *
      * Requirements: 5.2, 5.4
      *
-     * @param TicketTemplate $template The template
+     * @param  TicketTemplate  $template  The template
      * @return array Array of valid user IDs
      */
     protected function getValidAssigneeIds(TicketTemplate $template): array
@@ -281,7 +283,7 @@ class RecurringTicketService
      *
      * Requirements: 2.1, 2.8
      *
-     * @param Carbon|null $today The reference date (defaults to today)
+     * @param  Carbon|null  $today  The reference date (defaults to today)
      * @return array Summary of processing results
      */
     public function processAllTemplates(?Carbon $today = null): array
@@ -305,13 +307,14 @@ class RecurringTicketService
 
             try {
                 // Check if should generate today
-                if (!$this->shouldGenerateToday($template, $today)) {
+                if (! $this->shouldGenerateToday($template, $today)) {
                     $summary['skipped']++;
                     $summary['details'][] = [
                         'template_id' => $template->id,
                         'status' => 'skipped',
                         'reason' => 'not_due_today',
                     ];
+
                     continue;
                 }
 
