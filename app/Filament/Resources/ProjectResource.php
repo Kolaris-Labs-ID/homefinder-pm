@@ -2,30 +2,28 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Actions\ImportTicketsAction;
 use App\Filament\Resources\ProjectResource\Pages;
 use App\Filament\Resources\ProjectResource\RelationManagers;
+use App\Helpers\RoleHelper;
 use App\Models\Project;
 use App\Models\User;
-use App\Helpers\RoleHelper;
 use App\Services\ProjectArchiveService;
+use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Actions\Action as NotificationAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Actions\Action;
-use Filament\Notifications\Notification;
-use Filament\Notifications\Actions\Action as NotificationAction;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ProjectResource extends Resource
 {
     protected static ?string $model = Project::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+
     protected static ?int $navigationSort = 1;
 
     public static function getNavigationGroup(): ?string
@@ -88,9 +86,11 @@ class ProjectResource extends Resource
                                 if (auth()->check()) {
                                     return RoleHelper::scopeAllowedAssignees($query);
                                 }
+
                                 return $query;
                             } catch (\Exception $e) {
-                                \Log::error('Error in members modifyQueryUsing: ' . $e->getMessage());
+                                \Log::error('Error in members modifyQueryUsing: '.$e->getMessage());
+
                                 return $query;
                             }
                         }
@@ -99,9 +99,9 @@ class ProjectResource extends Resource
                     ->preload()
                     ->getOptionLabelFromRecordUsing(fn (User $record): string => "{$record->name} ({$record->email})")
                     ->visible(fn ($livewire) => $livewire instanceof Pages\CreateProject)
-                    ->hidden(fn ($livewire) => !($livewire instanceof Pages\CreateProject))
+                    ->hidden(fn ($livewire) => ! ($livewire instanceof Pages\CreateProject))
                     ->dehydrated(fn ($livewire) => $livewire instanceof Pages\CreateProject)
-                    ->disabled(fn ($livewire) => !($livewire instanceof Pages\CreateProject)),
+                    ->disabled(fn ($livewire) => ! ($livewire instanceof Pages\CreateProject)),
 
                 Forms\Components\Toggle::make('is_pinned')
                     ->label('Pin Project')
@@ -116,7 +116,7 @@ class ProjectResource extends Resource
                     })
                     ->dehydrated(false)
                     ->afterStateHydrated(function ($component, $state, $get) {
-                        $component->state(!is_null($get('pinned_date')));
+                        $component->state(! is_null($get('pinned_date')));
                     }),
                 Forms\Components\DateTimePicker::make('pinned_date')
                     ->label('Pinned Date')
@@ -133,8 +133,7 @@ class ProjectResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
-                    ->description(fn (Project $record): ?string =>
-                        $record->is_done
+                    ->description(fn (Project $record): ?string => $record->is_done
                             ? ($record->is_auto_done ? '✓ Auto-completed' : '✓ Manually completed')
                             : null
                     ),
@@ -159,6 +158,7 @@ class ProjectResource extends Resource
                         } else {
                             $record->unpin();
                         }
+
                         return $state;
                     }),
                 Tables\Columns\TextColumn::make('members_count')
@@ -202,9 +202,9 @@ class ProjectResource extends Resource
                     ->modalHeading('Archive Project')
                     ->modalDescription('Are you sure you want to archive this project? It will be moved to the Archived tab.')
                     ->modalSubmitActionLabel('Yes, archive it')
-                    ->visible(fn (Project $record): bool => !$record->is_archived && auth()->user()->can('archive', $record))
+                    ->visible(fn (Project $record): bool => ! $record->is_archived && auth()->user()->can('archive', $record))
                     ->action(function (Project $record): void {
-                        $service = new ProjectArchiveService();
+                        $service = new ProjectArchiveService;
                         $service->archive($record, auth()->user());
 
                         Notification::make()
@@ -239,7 +239,7 @@ class ProjectResource extends Resource
                     ->modalSubmitActionLabel('Yes, restore it')
                     ->visible(fn (Project $record): bool => $record->is_archived && auth()->user()->can('restoreArchived', $record))
                     ->action(function (Project $record): void {
-                        $service = new ProjectArchiveService();
+                        $service = new ProjectArchiveService;
                         $service->restore($record);
 
                         Notification::make()
@@ -263,9 +263,9 @@ class ProjectResource extends Resource
                     ->label(fn (Project $record): string => $record->is_done ? 'Unmark Done' : 'Mark as Done')
                     ->icon(fn (Project $record): string => $record->is_done ? 'heroicon-o-x-circle' : 'heroicon-o-check-circle')
                     ->color(fn (Project $record): string => $record->is_done ? 'gray' : 'success')
-                    ->visible(fn (Project $record): bool => !$record->is_archived)
+                    ->visible(fn (Project $record): bool => ! $record->is_archived)
                     ->action(function (Project $record): void {
-                        $service = new ProjectArchiveService();
+                        $service = new ProjectArchiveService;
 
                         if ($record->is_done) {
                             $service->unmarkDone($record);
@@ -299,6 +299,7 @@ class ProjectResource extends Resource
             RelationManagers\EpicsRelationManager::class,
             RelationManagers\TicketsRelationManager::class,
             RelationManagers\NotesRelationManager::class,
+            RelationManagers\DocumentsRelationManager::class,
         ];
     }
 
@@ -318,7 +319,7 @@ class ProjectResource extends Resource
         $query = parent::getEloquentQuery();
 
         $user = auth()->user();
-        if (!$user) {
+        if (! $user) {
             return $query;
         }
 

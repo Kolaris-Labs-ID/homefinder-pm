@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 class Project extends Model
@@ -53,19 +53,19 @@ class Project extends Model
     // Helper method to check if project is pinned
     public function getIsPinnedAttribute(): bool
     {
-        return !is_null($this->pinned_date);
+        return ! is_null($this->pinned_date);
     }
 
     // Helper method to check if project is archived
     public function getIsArchivedAttribute(): bool
     {
-        return !is_null($this->archived_at);
+        return ! is_null($this->archived_at);
     }
 
     // Helper method to check if project is done
     public function getIsDoneAttribute(): bool
     {
-        return !is_null($this->done_at);
+        return ! is_null($this->done_at);
     }
 
     // Relationship to the user who archived the project
@@ -166,9 +166,14 @@ class Project extends Model
         return $this->hasMany(ProjectNote::class);
     }
 
+    public function documents(): HasMany
+    {
+        return $this->hasMany(ProjectDocument::class);
+    }
+
     public function getRemainingDaysAttribute()
     {
-        if (!$this->end_date) {
+        if (! $this->end_date) {
             return null;
         }
 

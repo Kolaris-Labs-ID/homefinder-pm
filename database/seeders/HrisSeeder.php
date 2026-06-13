@@ -17,6 +17,7 @@ class HrisSeeder extends Seeder
         $this->call(FinanceRolePermissionSeeder::class);
         $this->call(PaymentBundleRolePermissionSeeder::class);
         $this->call(RecruitmentScreeningPermissionSeeder::class);
+        $this->call(ProjectDocumentPermissionSeeder::class);
     }
 
     protected function seedDepartments(): void

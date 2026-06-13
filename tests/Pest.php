@@ -34,3 +34,13 @@ expect()->extend('toBeOne', function () {
     return $this->toBe(1);
 });
 
+function projectMemberWith(\App\Models\Project $project, array $permissions = []): \App\Models\User
+{
+    $user = \App\Models\User::factory()->create();
+    $project->members()->attach($user->id);
+    foreach ($permissions as $permission) {
+        $user->givePermissionTo($permission);
+    }
+
+    return $user;
+}

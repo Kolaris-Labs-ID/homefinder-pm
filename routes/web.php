@@ -88,6 +88,16 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->name('recruitment.resume.download');
 });
 
+// Internal project documents — private disk, policy-gated, never reachable by external dashboard sessions.
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::get('/admin/projects/{project}/documents/{document}/view',
+        [\App\Http\Controllers\ProjectDocumentController::class, 'view'])
+        ->name('projects.documents.view');
+    Route::get('/admin/projects/{project}/documents/{document}/download',
+        [\App\Http\Controllers\ProjectDocumentController::class, 'download'])
+        ->name('projects.documents.download');
+});
+
 // Named `login` target so the `auth` middleware can redirect guests (Laravel falls back to route('login')).
 // Plain redirect (NOT ->guest()) so the intended signed URL stored by `auth` survives to /admin/login.
 Route::get('/login', fn () => redirect('/admin/login'))->name('login');

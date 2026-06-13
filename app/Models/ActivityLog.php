@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
+use App\Events\ActivityLogCreated;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Model as EloquentModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use App\Events\ActivityLogCreated;
 
 class ActivityLog extends Model
 {
@@ -50,16 +50,17 @@ class ActivityLog extends Model
         $projectId = match (true) {
             $subject instanceof Project => $subject->id,
             $subject instanceof Ticket => $subject->project_id,
+            $subject instanceof ProjectDocument => $subject->project_id,
             default => null,
         };
 
         $record = static::create([
             'subject_type' => $subject::class,
-            'subject_id'   => $subject->getKey(),
-            'project_id'   => $projectId,
-            'user_id'      => $user?->id,
-            'event_type'   => $eventType,
-            'meta'         => $meta,
+            'subject_id' => $subject->getKey(),
+            'project_id' => $projectId,
+            'user_id' => $user?->id,
+            'event_type' => $eventType,
+            'meta' => $meta,
         ]);
 
         // Dispatch event so listeners can push-notify relevant users
@@ -108,7 +109,7 @@ class ActivityLog extends Model
             'name' => $comment->ticket->name,
             'uuid' => $comment->ticket->uuid,
             'comment_id' => $comment->id,
-            'comment_preview' => mb_substr($comment->comment, 0, 50) . (mb_strlen($comment->comment) > 50 ? '...' : ''),
+            'comment_preview' => mb_substr($comment->comment, 0, 50).(mb_strlen($comment->comment) > 50 ? '...' : ''),
         ]);
     }
 
