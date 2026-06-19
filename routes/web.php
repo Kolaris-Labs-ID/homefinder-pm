@@ -88,6 +88,12 @@ Route::middleware(['web', 'auth'])->group(function () {
         ->name('recruitment.resume.download');
 });
 
+// Leave attachment (sick-leave doctor letter) — private disk, policy-gated, streamed inline for approvers.
+Route::middleware(['web', 'auth'])->get(
+    '/admin/leave-requests/{leaveRequest}/attachment',
+    [\App\Http\Controllers\LeaveAttachmentController::class, 'view']
+)->name('leave-requests.attachment.view');
+
 // Internal project documents — private disk, policy-gated, never reachable by external dashboard sessions.
 Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/admin/projects/{project}/documents/{document}/view',
