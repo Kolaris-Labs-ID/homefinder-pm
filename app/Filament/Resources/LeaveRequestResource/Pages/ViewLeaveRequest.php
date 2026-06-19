@@ -4,12 +4,12 @@ namespace App\Filament\Resources\LeaveRequestResource\Pages;
 
 use App\Filament\Resources\LeaveRequestResource;
 use App\Models\Hris\LeaveRequest;
-use App\Models\User;
 use App\Services\Hris\ApprovalWorkflowService;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Infolists\Components\Livewire;
 use Filament\Infolists\Components\Section;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
@@ -19,36 +19,34 @@ class ViewLeaveRequest extends ViewRecord
 {
     protected static string $resource = LeaveRequestResource::class;
 
-    public function mount(int|string $record): void
-    {
-        parent::mount($record);
-
-        $leaveRequest = $this->record->loadMissing('employee.user');
-        $employeeUserId = $leaveRequest->employee?->user_id;
-        $collisionUserId = User::query()->whereKey($leaveRequest->employee_id)->value('id');
-        $authUser = request()->user();
-
-        // #region agent log
-        $this->debugLog('H3', 'view mount resolved leave request', [
-            'record_id' => $leaveRequest->id,
-            'route_record' => $record,
-            'record_employee_id' => $leaveRequest->employee_id,
-            'record_employee_user_id' => $employeeUserId,
-            'auth_user_id' => $authUser?->id,
-            'auth_employee_id' => data_get($authUser, 'employee.id'),
-            'user_exists_with_employee_id' => (bool) $collisionUserId,
-        ]);
-        // #endregion
-    }
-
     /**
-     * Get the infolist schema for the view page.
-     * Includes the ApprovalHistory component when the record has approval workflow.
+     * Get the infolist schema for the view page: leave details (incl. the doctor letter
+     * attachment) plus the ApprovalHistory component when the record has an approval workflow.
      */
     public function infolist(Infolist $infolist): Infolist
     {
         return $infolist
             ->schema([
+                Section::make('Leave Details')
+                    ->schema([
+                        TextEntry::make('employee.user.name')->label('Employee'),
+                        TextEntry::make('leaveType.name')->label('Leave Type'),
+                        TextEntry::make('start_date')->date(),
+                        TextEntry::make('end_date')->date(),
+                        TextEntry::make('total_days')->suffix(' days'),
+                        TextEntry::make('status')->badge(),
+                        TextEntry::make('reason')->columnSpanFull()->placeholder('—'),
+                        TextEntry::make('attachment_path')
+                            ->label("Doctor's letter / attachment")
+                            ->state('View attachment')
+                            ->badge()
+                            ->icon('heroicon-o-paper-clip')
+                            ->url(fn (LeaveRequest $record): string => route('leave-requests.attachment.view', $record), shouldOpenInNewTab: true)
+                            ->visible(fn (LeaveRequest $record): bool => filled($record->attachment_path))
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
+
                 // Approval History Section - only shown when record has approval workflow
                 Section::make('Approval History')
                     ->schema([
@@ -141,12 +139,12 @@ class ViewLeaveRequest extends ViewRecord
         $record = $this->record;
 
         // Only show workflow actions for pending records with approval workflow
-        if (!$record->isPending() || !$record->hasApprovalWorkflow()) {
+        if (! $record->isPending() || ! $record->hasApprovalWorkflow()) {
             return false;
         }
 
         $user = auth()->user();
-        if (!$user) {
+        if (! $user) {
             return false;
         }
 
@@ -161,12 +159,15 @@ class ViewLeaveRequest extends ViewRecord
         $record = $this->record;
 
         // Only show legacy actions for pending records without approval workflow
-        if (!$record->isPending() || $record->hasApprovalWorkflow()) {
+        if (! $record->isPending() || $record->hasApprovalWorkflow()) {
             return false;
         }
 
         return Gate::allows('approve', $record);
     }
+
+    // TODO: workflow_approve/workflow_reject actions and handleWorkflowApprove/handleWorkflowReject
+    // are near-identical twins — collapse into one handleWorkflowDecision(string $action, array $data) helper.
 
     /**
      * Handle workflow-based approval.
@@ -176,12 +177,13 @@ class ViewLeaveRequest extends ViewRecord
         $user = auth()->user();
         $step = $this->record->pendingStepFor($user);
 
-        if (!$step) {
+        if (! $step) {
             Notification::make()
                 ->title(__('Error'))
                 ->body(__('No pending approval step found for your account.'))
                 ->danger()
                 ->send();
+
             return;
         }
 
@@ -213,12 +215,13 @@ class ViewLeaveRequest extends ViewRecord
         $user = auth()->user();
         $step = $this->record->pendingStepFor($user);
 
-        if (!$step) {
+        if (! $step) {
             Notification::make()
                 ->title(__('Error'))
                 ->body(__('No pending approval step found for your account.'))
                 ->danger()
                 ->send();
+
             return;
         }
 
@@ -240,22 +243,5 @@ class ViewLeaveRequest extends ViewRecord
                 ->danger()
                 ->send();
         }
-    }
-
-    private function debugLog(string $hypothesisId, string $message, array $data): void
-    {
-        @file_put_contents(
-            '/Users/arirudiana/Devs/hris-phi/.cursor/debug-21491e.log',
-            json_encode([
-                'sessionId' => '21491e',
-                'runId' => 'initial',
-                'hypothesisId' => $hypothesisId,
-                'location' => 'ViewLeaveRequest.php',
-                'message' => $message,
-                'data' => $data,
-                'timestamp' => round(microtime(true) * 1000),
-            ], JSON_UNESCAPED_SLASHES) . PHP_EOL,
-            FILE_APPEND
-        );
     }
 }

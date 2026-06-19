@@ -2,12 +2,8 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Actions\ApproveAction;
-use App\Filament\Actions\RejectAction;
 use App\Filament\Resources\LeaveRequestResource\Pages;
-use App\Models\Hris\Employee;
 use App\Models\Hris\LeaveRequest;
-use App\Models\User;
 use App\Services\Hris\ApprovalWorkflowService;
 use Carbon\Carbon;
 use Filament\Forms;
@@ -41,34 +37,6 @@ class LeaveRequestResource extends Resource
                             ->searchable()
                             ->preload()
                             ->required()
-                            ->afterStateHydrated(function (?LeaveRequest $record, $state): void {
-                                $employee = filled($state) ? Employee::query()->with('user')->find($state) : null;
-                                $user = filled($state) ? User::query()->find($state) : null;
-
-                                // #region agent log
-                                @file_put_contents(
-                                    '/Users/arirudiana/Devs/hris-phi/.cursor/debug-21491e.log',
-                                    json_encode([
-                                        'sessionId' => '21491e',
-                                        'runId' => 'initial',
-                                        'hypothesisId' => 'H5',
-                                        'location' => 'LeaveRequestResource.php',
-                                        'message' => 'employee select hydrated',
-                                        'data' => [
-                                            'record_id' => data_get($record, 'id'),
-                                            'state' => $state,
-                                            'record_employee_id' => data_get($record, 'employee_id'),
-                                            'employee_name_for_state' => $employee?->user?->name,
-                                            'employee_user_id_for_state' => $employee?->user_id,
-                                            'user_name_for_same_state' => $user?->name,
-                                            'state_matches_record_employee_id' => $state === data_get($record, 'employee_id'),
-                                        ],
-                                        'timestamp' => round(microtime(true) * 1000),
-                                    ], JSON_UNESCAPED_SLASHES) . PHP_EOL,
-                                    FILE_APPEND
-                                );
-                                // #endregion
-                            })
                             ->disabled(fn (?LeaveRequest $record) => filled($record)),
                         Forms\Components\Select::make('leave_type_id')
                             ->relationship('leaveType', 'name')
@@ -176,7 +144,7 @@ class LeaveRequestResource extends Resource
                                 $stepQuery->where('status', 'pending')
                                     ->where(function ($sq) use ($user, $userRoles) {
                                         $sq->where('approver_id', $user?->id);
-                                        if (!empty($userRoles)) {
+                                        if (! empty($userRoles)) {
                                             $sq->orWhere(function ($rq) use ($userRoles) {
                                                 $rq->whereIn('approver_role', $userRoles)
                                                     ->whereNull('approver_id');
@@ -300,7 +268,7 @@ class LeaveRequestResource extends Resource
                     ->where(function ($q) use ($user) {
                         $q->where('approver_id', $user->id);
                         $userRoles = $user->roles->pluck('name')->toArray();
-                        if (!empty($userRoles)) {
+                        if (! empty($userRoles)) {
                             $q->orWhereIn('approver_role', $userRoles);
                         }
                     });
@@ -335,12 +303,12 @@ class LeaveRequestResource extends Resource
     protected static function canApproveWithWorkflow(LeaveRequest $record): bool
     {
         // Only show workflow actions for pending records with approval workflow
-        if (!$record->isPending() || !$record->hasApprovalWorkflow()) {
+        if (! $record->isPending() || ! $record->hasApprovalWorkflow()) {
             return false;
         }
 
         $user = auth()->user();
-        if (!$user) {
+        if (! $user) {
             return false;
         }
 
@@ -353,7 +321,7 @@ class LeaveRequestResource extends Resource
     protected static function canApproveLegacy(LeaveRequest $record): bool
     {
         // Only show legacy actions for pending records without approval workflow
-        if (!$record->isPending() || $record->hasApprovalWorkflow()) {
+        if (! $record->isPending() || $record->hasApprovalWorkflow()) {
             return false;
         }
 
@@ -368,12 +336,13 @@ class LeaveRequestResource extends Resource
         $user = auth()->user();
         $step = $record->pendingStepFor($user);
 
-        if (!$step) {
+        if (! $step) {
             Notification::make()
                 ->title(__('Error'))
                 ->body(__('No pending approval step found for your account.'))
                 ->danger()
                 ->send();
+
             return;
         }
 
@@ -403,12 +372,13 @@ class LeaveRequestResource extends Resource
         $user = auth()->user();
         $step = $record->pendingStepFor($user);
 
-        if (!$step) {
+        if (! $step) {
             Notification::make()
                 ->title(__('Error'))
                 ->body(__('No pending approval step found for your account.'))
                 ->danger()
                 ->send();
+
             return;
         }
 
@@ -430,4 +400,3 @@ class LeaveRequestResource extends Resource
         }
     }
 }
-
