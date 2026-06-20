@@ -41,6 +41,7 @@ class ApprovalWorkflowResource extends Resource
                                 ApprovalWorkflow::MODULE_LEAVE => 'Leave Request',
                                 ApprovalWorkflow::MODULE_REIMBURSEMENT => 'Reimbursement',
                                 ApprovalWorkflow::MODULE_PAYROLL_ADJUSTMENT => 'Payroll Adjustment',
+                                ApprovalWorkflow::MODULE_TRAINING => 'Training Records',
                             ])
                             ->required()
                             ->native(false),
@@ -119,16 +120,18 @@ class ApprovalWorkflowResource extends Resource
                         'primary' => ApprovalWorkflow::MODULE_LEAVE,
                         'success' => ApprovalWorkflow::MODULE_REIMBURSEMENT,
                         'warning' => ApprovalWorkflow::MODULE_PAYROLL_ADJUSTMENT,
+                        'info' => ApprovalWorkflow::MODULE_TRAINING,
                     ])
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         ApprovalWorkflow::MODULE_LEAVE => 'Leave Request',
                         ApprovalWorkflow::MODULE_REIMBURSEMENT => 'Reimbursement',
                         ApprovalWorkflow::MODULE_PAYROLL_ADJUSTMENT => 'Payroll Adjustment',
+                        ApprovalWorkflow::MODULE_TRAINING => 'Training Records',
                         default => $state,
                     }),
                 Tables\Columns\TextColumn::make('steps')
                     ->label('Steps')
-                    ->formatStateUsing(fn (?array $state): string => $state ? count($state) . ' step(s)' : '0 steps')
+                    ->formatStateUsing(fn (?array $state): string => $state ? count($state).' step(s)' : '0 steps')
                     ->badge()
                     ->color('gray'),
                 Tables\Columns\IconColumn::make('is_active')
@@ -151,6 +154,7 @@ class ApprovalWorkflowResource extends Resource
                         ApprovalWorkflow::MODULE_LEAVE => 'Leave Request',
                         ApprovalWorkflow::MODULE_REIMBURSEMENT => 'Reimbursement',
                         ApprovalWorkflow::MODULE_PAYROLL_ADJUSTMENT => 'Payroll Adjustment',
+                        ApprovalWorkflow::MODULE_TRAINING => 'Training Records',
                     ]),
                 Tables\Filters\Filter::make('active_only')
                     ->label('Active Only')

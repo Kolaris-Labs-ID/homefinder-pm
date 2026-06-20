@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class TrainingRecord extends Model
 {
@@ -70,6 +71,11 @@ class TrainingRecord extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function approvalSteps(): MorphMany
+    {
+        return $this->morphMany(ApprovalStep::class, 'approvable');
     }
 
     /**
