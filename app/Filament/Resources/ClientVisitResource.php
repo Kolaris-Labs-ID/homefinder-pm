@@ -30,7 +30,9 @@ class ClientVisitResource extends Resource
                     ->columns(2)
                     ->schema([
                         Forms\Components\Select::make('employee_id')
-                            ->relationship('employee.user', 'name')
+                            ->relationship('employee', 'id', fn ($query) => $query->with('user'))
+                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->user?->name)
+                            ->getSearchResultsUsing(fn (string $search) => \App\Models\Hris\Employee::whereHas('user', fn ($q) => $q->where('name', 'like', "%{$search}%"))->with('user')->limit(50)->get()->mapWithKeys(fn ($e) => [$e->id => $e->user?->name]))
                             ->label('Employee')
                             ->searchable()
                             ->preload()

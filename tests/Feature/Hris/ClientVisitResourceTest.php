@@ -88,6 +88,59 @@ test('ClientVisitResource table contains required columns', function () {
     }
 })->group('sudden-client-visit-logic');
 
+test('employee select options are keyed by employee id, not user id', function () {
+    $admin = User::factory()->create();
+    if (class_exists(\Spatie\Permission\Models\Role::class)) {
+        $admin->assignRole(\Spatie\Permission\Models\Role::firstOrCreate(['name' => 'super_admin']));
+    }
+
+    // Force employee.id != user.id so a user-id-keyed option is detectable.
+    User::factory()->count(5)->create();
+    $user = User::factory()->create(['name' => 'Visit Owner']);
+    $employee = Employee::factory()->create(['user_id' => $user->id, 'is_active' => true]);
+    expect($employee->id)->not->toBe($user->id);
+
+    $select = Livewire\Livewire::actingAs($admin)
+        ->test(ClientVisitResource\Pages\CreateClientVisit::class)
+        ->instance()
+        ->getForm('form')
+        ->getFlatFields()['employee_id'];
+
+    $options = $select->getOptions();
+
+    expect($options)->toHaveKey($employee->id)
+        ->and($options[$employee->id])->toBe('Visit Owner')
+        ->and($options)->not->toHaveKey($user->id);
+})->group('sudden-client-visit-logic');
+
+test('admin create form stores the employee id (not user id) in employee_id', function () {
+    $admin = User::factory()->create();
+    if (class_exists(\Spatie\Permission\Models\Role::class)) {
+        $admin->assignRole(\Spatie\Permission\Models\Role::firstOrCreate(['name' => 'super_admin']));
+    }
+
+    User::factory()->count(5)->create();
+    $user = User::factory()->create(['name' => 'Visit Owner']);
+    $employee = Employee::factory()->create(['user_id' => $user->id, 'is_active' => true]);
+
+    Livewire\Livewire::actingAs($admin)
+        ->test(ClientVisitResource\Pages\CreateClientVisit::class)
+        ->fillForm([
+            'employee_id' => $employee->id,
+            'visit_date' => today()->toDateString(),
+            'client_name' => 'Acme',
+            'client_address' => '1 Main St',
+            'purpose' => ClientVisit::PURPOSE_AUDIT,
+            'status' => ClientVisit::STATUS_PLANNED,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $visit = ClientVisit::firstWhere('client_name', 'Acme');
+    expect($visit->employee_id)->toBe($employee->id)
+        ->and($visit->employee->user->name)->toBe('Visit Owner');
+})->group('sudden-client-visit-logic');
+
 test('creating a visit with today date sets visit_type to sudden', function () {
     $employee = Employee::factory()->create();
 
