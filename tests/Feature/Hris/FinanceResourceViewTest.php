@@ -93,6 +93,61 @@ it('ViewExpenseRequest page includes an evidence photo preview URL', function ()
         ->assertSee("/admin/finance-attachments/{$attachment->id}/view", false);
 });
 
+it('opens Expense Request evidence in a modal instead of direct links', function () {
+    Storage::fake('private');
+    $employee = Employee::factory()->create();
+    $er = ExpenseRequest::create([
+        'request_number' => 'ER-VIEW-'.uniqid(),
+        'employee_id' => $employee->id,
+        'category' => 'travel',
+        'title' => 'Taxi to client',
+        'amount' => 120000,
+        'currency' => 'IDR',
+        'expense_date' => '2026-05-01',
+        'payment_mode' => ExpenseRequest::MODE_EMPLOYEE_REIMBURSEMENT,
+        'status' => ExpenseRequest::STATUS_SUBMITTED,
+    ]);
+    $attachment = app(FinanceAttachmentService::class)->store(
+        $er,
+        UploadedFile::fake()->create('receipt.jpg', 4, 'image/jpeg'),
+        FinanceAttachment::ROLE_EXPENSE_EVIDENCE,
+        $employee->user,
+    );
+
+    $infolist = ExpenseRequestResource::infolist(
+        Infolist::make()
+            ->name('infolist')
+            ->record($er->fresh()->load('financeAttachments'))
+    );
+    $repeatableEntry = $infolist->getComponent('financeAttachments');
+    $attachmentContainer = collect($repeatableEntry->getChildComponentContainers())->first();
+    $photoEntry = $attachmentContainer->getComponent(
+        fn ($component): bool => method_exists($component, 'getName') && $component->getName() === 'file_path',
+    );
+    $fileEntry = $attachmentContainer->getComponent(
+        fn ($component): bool => method_exists($component, 'getName') && $component->getName() === 'original_filename',
+    );
+    $photoAction = $photoEntry->getAction('viewEvidencePhoto');
+    $fileAction = $fileEntry->getAction('viewEvidenceFile');
+
+    expect($photoEntry->getUrl())
+        ->toBeNull()
+        ->and($fileEntry->getUrl())
+        ->toBeNull()
+        ->and($photoAction)
+        ->not->toBeNull()
+        ->and($fileAction)
+        ->not->toBeNull();
+
+    $modalContent = $photoAction
+        ->getModalContent()
+        ->render();
+
+    expect($modalContent)
+        ->toContain('max-h-[75vh]')
+        ->toContain("/admin/finance-attachments/{$attachment->id}/view");
+});
+
 it('ViewPaymentRequest page renders for a PR without snapshot', function () {
     $pr = PaymentRequest::create([
         'payment_request_number' => 'PR-VIEW-'.uniqid(),
