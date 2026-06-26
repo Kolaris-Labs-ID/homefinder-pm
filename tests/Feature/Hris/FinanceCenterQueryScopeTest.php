@@ -59,7 +59,10 @@ it('renders the ER evidence photo preview in the expense review inbox', function
 
     Livewire::actingAs($reviewer)
         ->test(FinanceCenter::class)
-        ->assertSee("/admin/finance-attachments/{$attachment->id}/view", false);
+        ->assertSee("/admin/finance-attachments/{$attachment->id}/view", false)
+        ->assertSee('openEvidence', false)
+        ->assertDontSee("href=\"http://localhost/admin/finance-attachments/{$attachment->id}/view\"", false)
+        ->assertDontSee("href=\"/admin/finance-attachments/{$attachment->id}/view\"", false);
 });
 
 it('scopes the paid-pending-reconciliation queue', function () {

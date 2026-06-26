@@ -9,6 +9,7 @@ use App\Services\Hris\ExpenseRequestService;
 use App\Services\Hris\PaymentRequestService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists\Components\Actions\Action as InfolistAction;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section;
@@ -85,17 +86,16 @@ class ExpenseRequestResource extends Resource
                         ->label('Photo preview')
                         ->height(220)
                         ->extraImgAttributes([
-                            'class' => 'rounded-lg shadow-lg border',
+                            'class' => 'cursor-zoom-in rounded-lg shadow-lg border',
                             'loading' => 'lazy',
                         ])
-                        ->openUrlInNewTab()
-                        ->url(fn ($record): ?string => static::attachmentViewUrl($record))
+                        ->action(static::financeAttachmentPreviewAction('viewEvidencePhoto'))
                         ->getStateUsing(fn ($record): ?string => static::attachmentViewUrl($record))
                         ->visible(fn ($record): bool => static::isImageAttachment($record)),
                     TextEntry::make('original_filename')
                         ->label('File')
-                        ->url(fn ($record): ?string => static::attachmentViewUrl($record), shouldOpenInNewTab: true)
-                        ->icon('heroicon-o-arrow-top-right-on-square'),
+                        ->action(static::financeAttachmentPreviewAction('viewEvidenceFile'))
+                        ->icon('heroicon-o-eye'),
                     TextEntry::make('attachment_role')->badge(),
                     TextEntry::make('mime_type')->label('MIME type')->placeholder('—'),
                     TextEntry::make('file_hash')->label('SHA-256')->limit(16),
@@ -191,6 +191,20 @@ class ExpenseRequestResource extends Resource
         }
 
         return route('finance.attachments.view', $record);
+    }
+
+    public static function financeAttachmentPreviewAction(string $name): InfolistAction
+    {
+        return InfolistAction::make($name)
+            ->modalHeading(fn (FinanceAttachment $record): string => $record->original_filename ?: 'Expense evidence')
+            ->modalWidth('5xl')
+            ->modalContent(fn (FinanceAttachment $record) => view('filament.modals.finance-attachment-preview', [
+                'url' => static::attachmentViewUrl($record),
+                'filename' => $record->original_filename ?: 'Expense evidence',
+                'mimeType' => $record->mime_type,
+            ]))
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Close');
     }
 
     protected static function isImageAttachment($record): bool
