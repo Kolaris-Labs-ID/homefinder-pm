@@ -104,7 +104,7 @@ class ExpenseRequestController extends Controller
 
     public function cancel(Request $request, ExpenseRequest $expenseRequest): JsonResponse
     {
-        $this->authorize('update', $expenseRequest);
+        $this->authorize('cancel', $expenseRequest);
 
         $this->service->cancel($expenseRequest);
 

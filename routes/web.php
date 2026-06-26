@@ -94,6 +94,12 @@ Route::middleware(['web', 'auth'])->get(
     [\App\Http\Controllers\LeaveAttachmentController::class, 'view']
 )->name('leave-requests.attachment.view');
 
+// Finance attachment preview/download for authenticated admin users.
+Route::middleware(['web', 'auth'])->get(
+    '/admin/finance-attachments/{financeAttachment}/view',
+    [\App\Http\Controllers\FinanceAttachmentViewController::class, 'view']
+)->name('finance.attachments.view');
+
 // Internal project documents — private disk, policy-gated, never reachable by external dashboard sessions.
 Route::middleware(['web', 'auth'])->group(function () {
     Route::get('/admin/projects/{project}/documents/{document}/view',

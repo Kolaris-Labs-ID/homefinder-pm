@@ -2,9 +2,14 @@
 
 use App\Filament\Pages\FinanceCenter;
 use App\Models\Hris\ExpenseRequest;
+use App\Models\Hris\FinanceAttachment;
 use App\Models\Hris\PaymentRequest;
 use App\Models\User;
+use App\Services\Hris\FinanceAttachmentService;
 use Database\Seeders\FinanceRolePermissionSeeder;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 use Spatie\Permission\PermissionRegistrar;
 
 use function Pest\Laravel\actingAs;
@@ -38,6 +43,23 @@ it('scopes the expense-review queue to ERs awaiting finance action', function ()
     financeCenterEr(ExpenseRequest::STATUS_FINANCE_VERIFIED); // not in queue
 
     expect((new FinanceCenter)->expenseReviewQueue()->count())->toBe(2);
+});
+
+it('renders the ER evidence photo preview in the expense review inbox', function () {
+    Storage::fake('private');
+    $reviewer = User::factory()->create();
+    $reviewer->assignRole('finance_reviewer');
+    $er = financeCenterEr(ExpenseRequest::STATUS_SUBMITTED);
+    $attachment = app(FinanceAttachmentService::class)->store(
+        $er,
+        UploadedFile::fake()->create('receipt.jpg', 4, 'image/jpeg'),
+        FinanceAttachment::ROLE_EXPENSE_EVIDENCE,
+        $er->employee->user,
+    );
+
+    Livewire::actingAs($reviewer)
+        ->test(FinanceCenter::class)
+        ->assertSee("/admin/finance-attachments/{$attachment->id}/view", false);
 });
 
 it('scopes the paid-pending-reconciliation queue', function () {

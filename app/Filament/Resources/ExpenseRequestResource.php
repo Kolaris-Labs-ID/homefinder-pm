@@ -4,10 +4,12 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ExpenseRequestResource\Pages;
 use App\Models\Hris\ExpenseRequest;
+use App\Models\Hris\FinanceAttachment;
 use App\Services\Hris\ExpenseRequestService;
 use App\Services\Hris\PaymentRequestService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
@@ -79,8 +81,23 @@ class ExpenseRequestResource extends Resource
 
             Section::make('Evidence')->schema([
                 RepeatableEntry::make('financeAttachments')->schema([
-                    TextEntry::make('original_filename'),
+                    ImageEntry::make('file_path')
+                        ->label('Photo preview')
+                        ->height(220)
+                        ->extraImgAttributes([
+                            'class' => 'rounded-lg shadow-lg border',
+                            'loading' => 'lazy',
+                        ])
+                        ->openUrlInNewTab()
+                        ->url(fn ($record): ?string => static::attachmentViewUrl($record))
+                        ->getStateUsing(fn ($record): ?string => static::attachmentViewUrl($record))
+                        ->visible(fn ($record): bool => static::isImageAttachment($record)),
+                    TextEntry::make('original_filename')
+                        ->label('File')
+                        ->url(fn ($record): ?string => static::attachmentViewUrl($record), shouldOpenInNewTab: true)
+                        ->icon('heroicon-o-arrow-top-right-on-square'),
                     TextEntry::make('attachment_role')->badge(),
+                    TextEntry::make('mime_type')->label('MIME type')->placeholder('—'),
                     TextEntry::make('file_hash')->label('SHA-256')->limit(16),
                 ])->columns(3),
             ])->visible(fn ($record) => $record?->financeAttachments()->exists()),
@@ -165,6 +182,21 @@ class ExpenseRequestResource extends Resource
             ExpenseRequest::STATUS_SUBMITTED,
             ExpenseRequest::STATUS_UNDER_FINANCE_REVIEW,
         ], true);
+    }
+
+    protected static function attachmentViewUrl($record): ?string
+    {
+        if (! $record instanceof FinanceAttachment) {
+            return null;
+        }
+
+        return route('finance.attachments.view', $record);
+    }
+
+    protected static function isImageAttachment($record): bool
+    {
+        return $record instanceof FinanceAttachment
+            && str_starts_with((string) $record->mime_type, 'image/');
     }
 
     protected static function financeCan(string $permission): bool
