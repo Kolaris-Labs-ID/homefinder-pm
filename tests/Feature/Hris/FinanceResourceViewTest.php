@@ -6,9 +6,13 @@ use App\Filament\Resources\PaymentRequestResource;
 use App\Filament\Resources\PaymentRequestResource\Pages\ViewPaymentRequest;
 use App\Models\Hris\Employee;
 use App\Models\Hris\ExpenseRequest;
+use App\Models\Hris\FinanceAttachment;
 use App\Models\Hris\PaymentRequest;
 use App\Models\User;
+use App\Services\Hris\FinanceAttachmentService;
 use Filament\Infolists\Infolist;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 /**
@@ -60,6 +64,33 @@ it('ViewExpenseRequest page renders for a basic ER', function () {
     Livewire::actingAs($this->admin)
         ->test(ViewExpenseRequest::class, ['record' => $er->getRouteKey()])
         ->assertOk();
+});
+
+it('ViewExpenseRequest page includes an evidence photo preview URL', function () {
+    Storage::fake('private');
+    $employee = Employee::factory()->create();
+    $er = ExpenseRequest::create([
+        'request_number' => 'ER-VIEW-'.uniqid(),
+        'employee_id' => $employee->id,
+        'category' => 'travel',
+        'title' => 'Taxi to client',
+        'amount' => 120000,
+        'currency' => 'IDR',
+        'expense_date' => '2026-05-01',
+        'payment_mode' => ExpenseRequest::MODE_EMPLOYEE_REIMBURSEMENT,
+        'status' => ExpenseRequest::STATUS_SUBMITTED,
+    ]);
+    $attachment = app(FinanceAttachmentService::class)->store(
+        $er,
+        UploadedFile::fake()->create('receipt.jpg', 4, 'image/jpeg'),
+        FinanceAttachment::ROLE_EXPENSE_EVIDENCE,
+        $employee->user,
+    );
+
+    Livewire::actingAs($this->admin)
+        ->test(ViewExpenseRequest::class, ['record' => $er->getRouteKey()])
+        ->assertOk()
+        ->assertSee("/admin/finance-attachments/{$attachment->id}/view", false);
 });
 
 it('ViewPaymentRequest page renders for a PR without snapshot', function () {

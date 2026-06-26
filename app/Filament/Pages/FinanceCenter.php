@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Models\Hris\ExpenseRequest;
+use App\Models\Hris\FinanceAttachment;
 use App\Models\Hris\FinanceAuditLog;
 use App\Models\Hris\LatePayCompensationBatch;
 use App\Models\Hris\OvertimePayBatch;
@@ -60,10 +61,33 @@ class FinanceCenter extends Page
 
     public function expenseReviewQueue()
     {
-        return ExpenseRequest::whereIn('status', [
+        return ExpenseRequest::with([
+            'financeAttachments' => fn ($query) => $query
+                ->where('attachment_role', FinanceAttachment::ROLE_EXPENSE_EVIDENCE)
+                ->oldest('id'),
+        ])->whereIn('status', [
             ExpenseRequest::STATUS_SUBMITTED,
             ExpenseRequest::STATUS_UNDER_FINANCE_REVIEW,
         ])->latest();
+    }
+
+    public function expenseEvidenceAttachment(ExpenseRequest $expenseRequest): ?FinanceAttachment
+    {
+        return $expenseRequest->financeAttachments->first()
+            ?? $expenseRequest->financeAttachments()
+                ->where('attachment_role', FinanceAttachment::ROLE_EXPENSE_EVIDENCE)
+                ->oldest('id')
+                ->first();
+    }
+
+    public function financeAttachmentViewUrl(FinanceAttachment $attachment): string
+    {
+        return route('finance.attachments.view', $attachment);
+    }
+
+    public function isImageFinanceAttachment(?FinanceAttachment $attachment): bool
+    {
+        return $attachment !== null && str_starts_with((string) $attachment->mime_type, 'image/');
     }
 
     public function paymentRequestQueue()

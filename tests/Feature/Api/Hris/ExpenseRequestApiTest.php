@@ -61,6 +61,20 @@ it('lets an employee upload evidence then submit', function () use ($draftPayloa
     expect(ExpenseRequest::find($id)->status)->toBe(ExpenseRequest::STATUS_SUBMITTED);
 });
 
+it('lets an employee cancel their own submitted ER', function () use ($draftPayload) {
+    Sanctum::actingAs($this->employee->user);
+    $id = postJson('/api/hris/expense-requests', $draftPayload)->json('data.id');
+
+    postJson("/api/hris/expense-requests/{$id}/evidence", [
+        'file' => UploadedFile::fake()->createWithContent('r.pdf', 'receipt-bytes'),
+    ])->assertCreated();
+
+    postJson("/api/hris/expense-requests/{$id}/submit")->assertOk();
+    putJson("/api/hris/expense-requests/{$id}/cancel")->assertOk();
+
+    expect(ExpenseRequest::find($id)->status)->toBe(ExpenseRequest::STATUS_CANCELLED);
+});
+
 it('lists only the authenticated employee own ERs', function () {
     $mine = app(ExpenseRequestService::class)->create($this->employee, [
         'category' => 'a', 'title' => 't', 'amount' => 1000, 'expense_date' => '2026-05-01',

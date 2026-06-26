@@ -23,10 +23,31 @@
         <x-slot name="heading">Expense review inbox</x-slot>
         <div class="divide-y divide-gray-100 dark:divide-white/10">
             @forelse ($this->expenseReviewQueue()->limit(15)->get() as $er)
-                <div class="flex items-center justify-between py-2 text-sm">
-                    <span class="font-medium">{{ $er->request_number }} — {{ $er->title }}</span>
-                    <span class="tabular-nums">{{ $er->currency }} {{ number_format((float) $er->amount, 2) }}</span>
-                    <span class="text-gray-500">{{ str($er->status)->headline() }}</span>
+                @php
+                    $evidence = $this->expenseEvidenceAttachment($er);
+                    $evidenceUrl = $evidence ? $this->financeAttachmentViewUrl($evidence) : null;
+                @endphp
+                <div class="flex items-center justify-between gap-3 py-2 text-sm">
+                    <div class="flex min-w-0 items-center gap-3">
+                        @if ($evidenceUrl && $this->isImageFinanceAttachment($evidence))
+                            <a href="{{ $evidenceUrl }}" target="_blank" rel="noopener noreferrer" class="shrink-0">
+                                <img
+                                    src="{{ $evidenceUrl }}"
+                                    alt="Expense evidence for {{ $er->request_number }}"
+                                    class="h-12 w-12 rounded-lg border object-cover shadow-sm"
+                                    loading="lazy"
+                                />
+                            </a>
+                        @elseif ($evidenceUrl)
+                            <a href="{{ $evidenceUrl }}" target="_blank" rel="noopener noreferrer" class="shrink-0 text-xs font-medium text-primary-600 hover:underline dark:text-primary-400">
+                                View evidence
+                            </a>
+                        @endif
+
+                        <span class="truncate font-medium">{{ $er->request_number }} — {{ $er->title }}</span>
+                    </div>
+                    <span class="shrink-0 tabular-nums">{{ $er->currency }} {{ number_format((float) $er->amount, 2) }}</span>
+                    <span class="shrink-0 text-gray-500">{{ str($er->status)->headline() }}</span>
                 </div>
             @empty
                 <p class="py-2 text-sm text-gray-500">No expense requests awaiting review.</p>

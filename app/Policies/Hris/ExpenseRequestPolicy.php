@@ -27,6 +27,24 @@ class ExpenseRequestPolicy
         return $this->ownerCanEdit($user, $er);
     }
 
+    public function cancel(User $user, ExpenseRequest $er): bool
+    {
+        if ($this->isOwner($user, $er)) {
+            return in_array($er->status, [
+                ExpenseRequest::STATUS_DRAFT,
+                ExpenseRequest::STATUS_SUBMITTED,
+            ], true);
+        }
+
+        return $this->hasPerm($user, 'expense_requests.cancel') && in_array($er->status, [
+            ExpenseRequest::STATUS_DRAFT,
+            ExpenseRequest::STATUS_SUBMITTED,
+            ExpenseRequest::STATUS_UNDER_FINANCE_REVIEW,
+            ExpenseRequest::STATUS_NEEDS_REVISION,
+            ExpenseRequest::STATUS_FINANCE_VERIFIED,
+        ], true);
+    }
+
     public function revise(User $user, ExpenseRequest $er): bool
     {
         return $this->isOwner($user, $er) && $er->status === ExpenseRequest::STATUS_NEEDS_REVISION;
