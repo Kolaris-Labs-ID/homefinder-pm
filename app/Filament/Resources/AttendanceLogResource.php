@@ -4,10 +4,10 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\AttendanceLogResource\Pages;
 use App\Models\Hris\AttendanceLog;
-use App\Models\Hris\Employee;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Infolists;
+use Filament\Infolists\Components\Actions\Action as InfolistAction;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -120,6 +120,32 @@ class AttendanceLogResource extends Resource
             ]);
     }
 
+    public static function resolveAttendancePhotoUrl(?string $path): ?string
+    {
+        if (! $path) {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http')) {
+            return $path;
+        }
+
+        return url('/admin/attendance-photo').'?'.http_build_query(['path' => $path]);
+    }
+
+    public static function attendancePhotoModalAction(string $name, string $heading, string $attribute): InfolistAction
+    {
+        return InfolistAction::make($name)
+            ->modalHeading($heading)
+            ->modalWidth('4xl')
+            ->modalContent(fn (AttendanceLog $record) => view('filament.modals.attendance-photo', [
+                'url' => static::resolveAttendancePhotoUrl($record->{$attribute}),
+                'alt' => $heading,
+            ]))
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Close');
+    }
+
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist
@@ -206,11 +232,11 @@ class AttendanceLogResource extends Resource
                                     if ($record->check_in_latitude && $record->check_in_longitude) {
                                         return "{$record->check_in_latitude}, {$record->check_in_longitude}";
                                     }
+
                                     return null;
                                 })
                                 ->placeholder('No coordinates')
-                                ->url(fn (AttendanceLog $record): ?string =>
-                                    $record->check_in_latitude && $record->check_in_longitude
+                                ->url(fn (AttendanceLog $record): ?string => $record->check_in_latitude && $record->check_in_longitude
                                         ? "https://www.google.com/maps?q={$record->check_in_latitude},{$record->check_in_longitude}"
                                         : null
                                 )
@@ -219,22 +245,13 @@ class AttendanceLogResource extends Resource
                         Infolists\Components\ImageEntry::make('check_in_photo_path')
                             ->label('Check-In Photo')
                             ->height(200)
-                            ->extraImgAttributes(['class' => 'rounded-lg shadow-md'])
+                            ->extraImgAttributes(['class' => 'cursor-zoom-in rounded-lg shadow-md'])
                             ->placeholder('No photo')
-                            ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string =>
-                                $record->check_in_photo_path
-                                    ? (str_starts_with($record->check_in_photo_path, 'http')
-                                        ? $record->check_in_photo_path
-                                        : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_in_photo_path]))
-                                    : null
-                            )
+                            ->action(static::attendancePhotoModalAction('viewCheckInPhoto', 'Check-In Photo', 'check_in_photo_path'))
                             ->getStateUsing(function (AttendanceLog $record): ?string {
-                                $state = $record->check_in_photo_path;
-                                if (!$state) return null;
-                                if (str_starts_with($state, 'http')) return $state;
-                                return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
-                            }),
+                                return static::resolveAttendancePhotoUrl($record->check_in_photo_path);
+                            })
+                            ->visible(fn (AttendanceLog $record): bool => filled($record->check_in_photo_path)),
                     ]),
 
                 Infolists\Components\Section::make('Check-Out Details')
@@ -254,11 +271,11 @@ class AttendanceLogResource extends Resource
                                     if ($record->check_out_latitude && $record->check_out_longitude) {
                                         return "{$record->check_out_latitude}, {$record->check_out_longitude}";
                                     }
+
                                     return null;
                                 })
                                 ->placeholder('No coordinates')
-                                ->url(fn (AttendanceLog $record): ?string =>
-                                    $record->check_out_latitude && $record->check_out_longitude
+                                ->url(fn (AttendanceLog $record): ?string => $record->check_out_latitude && $record->check_out_longitude
                                         ? "https://www.google.com/maps?q={$record->check_out_latitude},{$record->check_out_longitude}"
                                         : null
                                 )
@@ -266,10 +283,11 @@ class AttendanceLogResource extends Resource
                             Infolists\Components\TextEntry::make('working_hours')
                                 ->label('Working Hours')
                                 ->state(function (AttendanceLog $record): ?string {
-                                    if (!$record->check_in_time || !$record->check_out_time) {
+                                    if (! $record->check_in_time || ! $record->check_out_time) {
                                         return null;
                                     }
                                     $diff = $record->check_in_time->diff($record->check_out_time);
+
                                     return sprintf('%02d:%02d:%02d', $diff->h, $diff->i, $diff->s);
                                 })
                                 ->placeholder('N/A'),
@@ -277,22 +295,13 @@ class AttendanceLogResource extends Resource
                         Infolists\Components\ImageEntry::make('check_out_photo_path')
                             ->label('Check-Out Photo')
                             ->height(200)
-                            ->extraImgAttributes(['class' => 'rounded-lg shadow-md'])
+                            ->extraImgAttributes(['class' => 'cursor-zoom-in rounded-lg shadow-md'])
                             ->placeholder('No photo')
-                            ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string =>
-                                $record->check_out_photo_path
-                                    ? (str_starts_with($record->check_out_photo_path, 'http')
-                                        ? $record->check_out_photo_path
-                                        : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_out_photo_path]))
-                                    : null
-                            )
+                            ->action(static::attendancePhotoModalAction('viewCheckOutPhoto', 'Check-Out Photo', 'check_out_photo_path'))
                             ->getStateUsing(function (AttendanceLog $record): ?string {
-                                $state = $record->check_out_photo_path;
-                                if (!$state) return null;
-                                if (str_starts_with($state, 'http')) return $state;
-                                return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
-                            }),
+                                return static::resolveAttendancePhotoUrl($record->check_out_photo_path);
+                            })
+                            ->visible(fn (AttendanceLog $record): bool => filled($record->check_out_photo_path)),
                     ]),
 
                 Infolists\Components\Section::make('Break Details')
@@ -351,21 +360,16 @@ class AttendanceLogResource extends Resource
                     ->size(40)
                     ->defaultImageUrl(fn () => null)
                     ->getStateUsing(function ($record): ?string {
-                        $state = $record->check_in_photo_path;
-                        if (!$state) return null;
-                        if (str_starts_with($state, 'http')) return $state;
-                        return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
+                        return static::resolveAttendancePhotoUrl($record->check_in_photo_path);
                     }),
                 Tables\Columns\TextColumn::make('check_out_time')
                     ->label('Check-Out')
                     ->dateTime('H:i')
                     ->sortable()
                     ->placeholder('—')
-                    ->description(fn (AttendanceLog $record): ?string =>
-                        $record->missing_checkout ? '⚠ Missing' : null
+                    ->description(fn (AttendanceLog $record): ?string => $record->missing_checkout ? '⚠ Missing' : null
                     )
-                    ->color(fn (AttendanceLog $record): ?string =>
-                        $record->missing_checkout ? 'danger' : null
+                    ->color(fn (AttendanceLog $record): ?string => $record->missing_checkout ? 'danger' : null
                     ),
                 Tables\Columns\ImageColumn::make('check_out_photo_path')
                     ->label('Out Photo')
@@ -373,10 +377,7 @@ class AttendanceLogResource extends Resource
                     ->size(40)
                     ->defaultImageUrl(fn () => null)
                     ->getStateUsing(function ($record): ?string {
-                        $state = $record->check_out_photo_path;
-                        if (!$state) return null;
-                        if (str_starts_with($state, 'http')) return $state;
-                        return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
+                        return static::resolveAttendancePhotoUrl($record->check_out_photo_path);
                     }),
                 Tables\Columns\TextColumn::make('break_start_time')
                     ->label('Break Start')
@@ -484,7 +485,7 @@ class AttendanceLogResource extends Resource
                     ->queries(
                         true: fn (Builder $query) => $query->where(function ($q) {
                             $q->whereNotNull('check_in_photo_path')
-                              ->orWhereNotNull('check_out_photo_path');
+                                ->orWhereNotNull('check_out_photo_path');
                         }),
                         false: fn (Builder $query) => $query->whereNull('check_in_photo_path')
                             ->whereNull('check_out_photo_path'),

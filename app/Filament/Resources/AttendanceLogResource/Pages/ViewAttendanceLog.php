@@ -5,7 +5,6 @@ namespace App\Filament\Resources\AttendanceLogResource\Pages;
 use App\Filament\Resources\AttendanceLogResource;
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\ClientVisit;
-use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\Section;
@@ -81,11 +80,12 @@ class ViewAttendanceLog extends ViewRecord
                         TextEntry::make('working_hours')
                             ->label('Working Hours')
                             ->state(function (AttendanceLog $record): ?string {
-                                if (!$record->check_in_time || !$record->check_out_time) {
+                                if (! $record->check_in_time || ! $record->check_out_time) {
                                     return null;
                                 }
                                 $diff = $record->check_in_time->diff($record->check_out_time);
                                 $hours = ($diff->days * 24) + $diff->h;
+
                                 return sprintf('%02d:%02d:%02d', $hours, $diff->i, $diff->s);
                             })
                             ->placeholder('N/A')
@@ -110,8 +110,7 @@ class ViewAttendanceLog extends ViewRecord
                             ->label('Visit Purpose')
                             ->badge()
                             ->color('primary')
-                            ->formatStateUsing(fn (?string $state): string =>
-                                $state ? (ClientVisit::getPurposeLabels()[$state] ?? $state) : '-'
+                            ->formatStateUsing(fn (?string $state): string => $state ? (ClientVisit::getPurposeLabels()[$state] ?? $state) : '-'
                             ),
                         TextEntry::make('clientVisit.purpose_detail')
                             ->label('Purpose Detail')
@@ -126,8 +125,7 @@ class ViewAttendanceLog extends ViewRecord
                                 'cancelled' => 'danger',
                                 default => 'gray',
                             })
-                            ->formatStateUsing(fn (?string $state): string =>
-                                $state ? (ClientVisit::getStatusLabels()[$state] ?? $state) : '-'
+                            ->formatStateUsing(fn (?string $state): string => $state ? (ClientVisit::getStatusLabels()[$state] ?? $state) : '-'
                             ),
                         TextEntry::make('clientVisit.visit_date')
                             ->label('Visit Date')
@@ -156,14 +154,12 @@ class ViewAttendanceLog extends ViewRecord
                             ->placeholder('No report submitted'),
                         TextEntry::make('visit_check_in_coordinates')
                             ->label('Check-In Location')
-                            ->state(fn (AttendanceLog $record): ?string =>
-                                $record->clientVisit?->check_in_latitude && $record->clientVisit?->check_in_longitude
+                            ->state(fn (AttendanceLog $record): ?string => $record->clientVisit?->check_in_latitude && $record->clientVisit?->check_in_longitude
                                     ? "{$record->clientVisit->check_in_latitude}, {$record->clientVisit->check_in_longitude}"
                                     : null
                             )
                             ->placeholder('No GPS data')
-                            ->url(fn (AttendanceLog $record): ?string =>
-                                $record->clientVisit?->check_in_latitude && $record->clientVisit?->check_in_longitude
+                            ->url(fn (AttendanceLog $record): ?string => $record->clientVisit?->check_in_latitude && $record->clientVisit?->check_in_longitude
                                     ? "https://www.google.com/maps?q={$record->clientVisit->check_in_latitude},{$record->clientVisit->check_in_longitude}"
                                     : null
                             )
@@ -172,14 +168,12 @@ class ViewAttendanceLog extends ViewRecord
                             ->color('primary'),
                         TextEntry::make('visit_check_out_coordinates')
                             ->label('Check-Out Location')
-                            ->state(fn (AttendanceLog $record): ?string =>
-                                $record->clientVisit?->check_out_latitude && $record->clientVisit?->check_out_longitude
+                            ->state(fn (AttendanceLog $record): ?string => $record->clientVisit?->check_out_latitude && $record->clientVisit?->check_out_longitude
                                     ? "{$record->clientVisit->check_out_latitude}, {$record->clientVisit->check_out_longitude}"
                                     : null
                             )
                             ->placeholder('No GPS data')
-                            ->url(fn (AttendanceLog $record): ?string =>
-                                $record->clientVisit?->check_out_latitude && $record->clientVisit?->check_out_longitude
+                            ->url(fn (AttendanceLog $record): ?string => $record->clientVisit?->check_out_latitude && $record->clientVisit?->check_out_longitude
                                     ? "https://www.google.com/maps?q={$record->clientVisit->check_out_latitude},{$record->clientVisit->check_out_longitude}"
                                     : null
                             )
@@ -202,14 +196,12 @@ class ViewAttendanceLog extends ViewRecord
                                 ->icon('heroicon-o-map-pin'),
                             TextEntry::make('check_in_coordinates')
                                 ->label('GPS Coordinates')
-                                ->state(fn (AttendanceLog $record): ?string =>
-                                    $record->check_in_latitude && $record->check_in_longitude
+                                ->state(fn (AttendanceLog $record): ?string => $record->check_in_latitude && $record->check_in_longitude
                                         ? "{$record->check_in_latitude}, {$record->check_in_longitude}"
                                         : null
                                 )
                                 ->placeholder('No GPS data')
-                                ->url(fn (AttendanceLog $record): ?string =>
-                                    $record->check_in_latitude && $record->check_in_longitude
+                                ->url(fn (AttendanceLog $record): ?string => $record->check_in_latitude && $record->check_in_longitude
                                         ? "https://www.google.com/maps?q={$record->check_in_latitude},{$record->check_in_longitude}"
                                         : null
                                 )
@@ -221,23 +213,13 @@ class ViewAttendanceLog extends ViewRecord
                             ->label('Check-In Photo')
                             ->height(250)
                             ->extraImgAttributes([
-                                'class' => 'rounded-lg shadow-lg border',
+                                'class' => 'cursor-zoom-in rounded-lg shadow-lg border',
                                 'loading' => 'lazy',
                             ])
                             ->placeholder('No photo captured')
-                            ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string =>
-                                $record->check_in_photo_path
-                                    ? (str_starts_with($record->check_in_photo_path, 'http')
-                                        ? $record->check_in_photo_path
-                                        : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_in_photo_path]))
-                                    : null
-                            )
+                            ->action(AttendanceLogResource::attendancePhotoModalAction('viewCheckInPhoto', 'Check-In Photo', 'check_in_photo_path'))
                             ->getStateUsing(function (AttendanceLog $record): ?string {
-                                $state = $record->check_in_photo_path;
-                                if (!$state) return null;
-                                if (str_starts_with($state, 'http')) return $state;
-                                return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
+                                return AttendanceLogResource::resolveAttendancePhotoUrl($record->check_in_photo_path);
                             })
                             ->visible(fn (AttendanceLog $record): bool => filled($record->check_in_photo_path)),
                     ]),
@@ -257,14 +239,12 @@ class ViewAttendanceLog extends ViewRecord
                                 ->icon('heroicon-o-map-pin'),
                             TextEntry::make('check_out_coordinates')
                                 ->label('GPS Coordinates')
-                                ->state(fn (AttendanceLog $record): ?string =>
-                                    $record->check_out_latitude && $record->check_out_longitude
+                                ->state(fn (AttendanceLog $record): ?string => $record->check_out_latitude && $record->check_out_longitude
                                         ? "{$record->check_out_latitude}, {$record->check_out_longitude}"
                                         : null
                                 )
                                 ->placeholder('No GPS data')
-                                ->url(fn (AttendanceLog $record): ?string =>
-                                    $record->check_out_latitude && $record->check_out_longitude
+                                ->url(fn (AttendanceLog $record): ?string => $record->check_out_latitude && $record->check_out_longitude
                                         ? "https://www.google.com/maps?q={$record->check_out_latitude},{$record->check_out_longitude}"
                                         : null
                                 )
@@ -276,23 +256,13 @@ class ViewAttendanceLog extends ViewRecord
                             ->label('Check-Out Photo')
                             ->height(250)
                             ->extraImgAttributes([
-                                'class' => 'rounded-lg shadow-lg border',
+                                'class' => 'cursor-zoom-in rounded-lg shadow-lg border',
                                 'loading' => 'lazy',
                             ])
                             ->placeholder('No photo captured')
-                            ->openUrlInNewTab()
-                            ->url(fn (AttendanceLog $record): ?string =>
-                                $record->check_out_photo_path
-                                    ? (str_starts_with($record->check_out_photo_path, 'http')
-                                        ? $record->check_out_photo_path
-                                        : url('/admin/attendance-photo') . '?' . http_build_query(['path' => $record->check_out_photo_path]))
-                                    : null
-                            )
+                            ->action(AttendanceLogResource::attendancePhotoModalAction('viewCheckOutPhoto', 'Check-Out Photo', 'check_out_photo_path'))
                             ->getStateUsing(function (AttendanceLog $record): ?string {
-                                $state = $record->check_out_photo_path;
-                                if (!$state) return null;
-                                if (str_starts_with($state, 'http')) return $state;
-                                return url('/admin/attendance-photo') . '?' . http_build_query(['path' => $state]);
+                                return AttendanceLogResource::resolveAttendancePhotoUrl($record->check_out_photo_path);
                             })
                             ->visible(fn (AttendanceLog $record): bool => filled($record->check_out_photo_path)),
                     ]),
