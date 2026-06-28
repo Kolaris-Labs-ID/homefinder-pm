@@ -61,7 +61,8 @@
                                     <img
                                         src="{{ $evidenceUrl }}"
                                         alt="Expense evidence for {{ $er->request_number }}"
-                                        class="h-12 w-12 rounded-lg border object-cover shadow-sm"
+                                        class="rounded-lg border shadow-sm"
+                                        style="width:3rem;height:3rem;object-fit:cover"
                                         loading="lazy"
                                     />
                                 </button>
@@ -97,7 +98,8 @@
             <div class="fixed inset-0 bg-gray-950/70" @click="closeEvidence()"></div>
 
             <div
-                class="relative z-10 flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-2xl ring-1 ring-gray-950/10 dark:bg-gray-900 dark:ring-white/10"
+                class="relative z-10 flex w-full max-w-5xl flex-col rounded-lg bg-white shadow-2xl ring-1 ring-gray-950/10 dark:bg-gray-900 dark:ring-white/10"
+                style="max-height:90vh"
                 @click.stop
             >
                 <div class="flex items-center justify-between gap-3 border-b border-gray-200 p-4 dark:border-white/10">
@@ -117,7 +119,8 @@
                         <img
                             :src="evidenceUrl"
                             :alt="evidenceName || 'Expense evidence'"
-                            class="max-h-[75vh] w-full rounded-lg border border-gray-200 object-contain shadow-sm dark:border-gray-700"
+                            class="rounded-lg border border-gray-200 shadow-sm dark:border-gray-700"
+                            style="max-height:75vh;width:100%;object-fit:contain"
                         />
                     </template>
 
@@ -125,7 +128,8 @@
                         <iframe
                             :src="evidenceUrl"
                             :title="evidenceName || 'Expense evidence'"
-                            class="h-[75vh] w-full rounded-lg border border-gray-200 shadow-sm dark:border-gray-700"
+                            class="w-full rounded-lg border border-gray-200 shadow-sm dark:border-gray-700"
+                            style="height:75vh"
                         ></iframe>
                     </template>
 
