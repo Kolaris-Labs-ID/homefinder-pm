@@ -93,7 +93,6 @@ test('Property 1: Settings persistence round-trip — random valid settings save
  *
  * **Validates: Requirements 1.2**
  */
-
 test('Property 2: Single-row invariant — calling getSettings() N times always results in exactly one row', function () {
     for ($i = 0; $i < 100; $i++) {
         // Clean slate each iteration
@@ -114,7 +113,6 @@ test('Property 2: Single-row invariant — calling getSettings() N times always 
         );
     }
 })->group('property-test', 'attendance-settings');
-
 
 // Feature: attendance-settings, Property 3: Service uses dynamic settings
 
@@ -159,7 +157,12 @@ test('Property 3: Service uses dynamic settings — computeStatus uses DB work_s
         ]);
 
         $employee = Employee::factory()->create();
+        // Pin to a weekday: computeStatus never marks weekend check-ins late, so a
+        // late-threshold assertion would flake on Sat/Sun runs.
         $today = Carbon::today();
+        if ($today->isWeekend()) {
+            $today = $today->copy()->next(Carbon::MONDAY);
+        }
 
         // Compute the late threshold from DB settings
         $workStart = $today->copy()->setTime($hour, $minute, 0);
@@ -179,7 +182,7 @@ test('Property 3: Service uses dynamic settings — computeStatus uses DB work_s
             'status' => AttendanceLog::STATUS_PRESENT, // will be recomputed
         ]);
 
-        $service = new AttendanceService();
+        $service = new AttendanceService;
         $status = $service->computeStatus($log);
 
         expect($status)->toBe(
@@ -205,7 +208,7 @@ test('Property 3: Service uses dynamic settings — computeStatus uses DB work_s
             'status' => AttendanceLog::STATUS_PRESENT,
         ]);
 
-        $service2 = new AttendanceService();
+        $service2 = new AttendanceService;
         $onTimeStatus = $service2->computeStatus($onTimeLog);
 
         expect($onTimeStatus)->toBe(
@@ -232,7 +235,12 @@ test('Property 3: Service uses dynamic settings — computeStatus uses DB full_d
         ]);
 
         $employee = Employee::factory()->create();
+        // Pin to a weekday: computeStatus never marks weekend work half-day, so a
+        // half-day assertion would flake on Sat/Sun runs.
         $today = Carbon::today();
+        if ($today->isWeekend()) {
+            $today = $today->copy()->next(Carbon::MONDAY);
+        }
 
         // Check in early (within grace) so lateness doesn't interfere
         $checkIn = $today->copy()->setTime(6, 0, 0);
@@ -251,7 +259,7 @@ test('Property 3: Service uses dynamic settings — computeStatus uses DB full_d
             'status' => AttendanceLog::STATUS_PRESENT,
         ]);
 
-        $service = new AttendanceService();
+        $service = new AttendanceService;
         $halfDayStatus = $service->computeStatus($halfDayLog);
 
         expect($halfDayStatus)->toBe(
@@ -273,7 +281,7 @@ test('Property 3: Service uses dynamic settings — computeStatus uses DB full_d
             'status' => AttendanceLog::STATUS_PRESENT,
         ]);
 
-        $service2 = new AttendanceService();
+        $service2 = new AttendanceService;
         $fullDayStatus = $service2->computeStatus($fullDayLog);
 
         expect($fullDayStatus)->toBe(
@@ -301,7 +309,7 @@ test('Property 3: Service uses dynamic settings — getRemainingWfhQuota uses DB
         $today = Carbon::today();
 
         // No WFH logs yet — remaining quota should equal the DB setting
-        $service = new AttendanceService();
+        $service = new AttendanceService;
         $remaining = $service->getRemainingWfhQuota($employee, $today);
 
         expect($remaining)->toBe(
@@ -325,7 +333,7 @@ test('Property 3: Service uses dynamic settings — getRemainingWfhQuota uses DB
             ]);
         }
 
-        $service2 = new AttendanceService();
+        $service2 = new AttendanceService;
         $remainingAfter = $service2->getRemainingWfhQuota($employee, $today);
         $expectedRemaining = max(0, $wfhQuota - $wfhDaysToCreate);
 
@@ -335,7 +343,6 @@ test('Property 3: Service uses dynamic settings — getRemainingWfhQuota uses DB
         );
     }
 })->group('property-test', 'attendance-settings');
-
 
 // Feature: attendance-settings, Property 5: Validation accepts valid and rejects invalid inputs
 
@@ -516,14 +523,13 @@ test('Property 5: Validation accepts valid and rejects invalid inputs — random
 
         expect($validatorPasses)->toBe(
             $allValid,
-            "Iteration {$i}: Validator " . ($validatorPasses ? 'passed' : 'failed')
-            . " but predicate says " . ($allValid ? 'valid' : 'invalid')
-            . ". Input: " . json_encode($input)
-            . ($errorSummary ? " Errors: {$errorSummary}" : '')
+            "Iteration {$i}: Validator ".($validatorPasses ? 'passed' : 'failed')
+            .' but predicate says '.($allValid ? 'valid' : 'invalid')
+            .'. Input: '.json_encode($input)
+            .($errorSummary ? " Errors: {$errorSummary}" : '')
         );
     }
 })->group('property-test', 'attendance-settings');
-
 
 // Feature: attendance-settings, Property 6: Audit log count matches changed fields
 
@@ -539,9 +545,9 @@ test('Property 5: Validation accepts valid and rejects invalid inputs — random
 
 use App\Models\Hris\AttendanceSettingAudit;
 use App\Models\User;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 test('Property 6: Audit log count matches changed fields — random subset of changed fields produces matching audit entries', function () {
     $fields = [
@@ -685,9 +691,9 @@ test('Property 6: Audit log count matches changed fields — random subset of ch
         expect($auditCount)->toBe(
             $expectedCount,
             "Iteration {$i}: Expected {$expectedCount} audit entries, got {$auditCount}. "
-            . "Fields to change: " . json_encode($fieldsToChange)
-            . " Initial: " . json_encode($initial)
-            . " New: " . json_encode($newValues)
+            .'Fields to change: '.json_encode($fieldsToChange)
+            .' Initial: '.json_encode($initial)
+            .' New: '.json_encode($newValues)
         );
 
         // Assert: each audit entry has correct data
@@ -716,7 +722,6 @@ test('Property 6: Audit log count matches changed fields — random subset of ch
     }
 })->group('property-test', 'attendance-settings');
 
-
 // Feature: attendance-settings, Property 7: No audit entries on unchanged save
 
 /**
@@ -728,7 +733,6 @@ test('Property 6: Audit log count matches changed fields — random subset of ch
  *
  * **Validates: Requirements 4.4**
  */
-
 test('Property 7: No audit entries on unchanged save — saving identical values produces zero audit entries', function () {
     for ($i = 0; $i < 100; $i++) {
         // Clean slate
@@ -831,15 +835,14 @@ test('Property 7: No audit entries on unchanged save — saving identical values
         expect($auditCount)->toBe(
             0,
             "Iteration {$i}: Expected 0 audit entries for unchanged save, got {$auditCount}. "
-            . "Settings: work_start_time={$settings->work_start_time}, "
-            . "late_grace_period_minutes={$settings->late_grace_period_minutes}, "
-            . "wfh_quota_per_week={$settings->wfh_quota_per_week}, "
-            . "full_day_hours={$settings->full_day_hours}, "
-            . "half_day_hours={$settings->half_day_hours}"
+            ."Settings: work_start_time={$settings->work_start_time}, "
+            ."late_grace_period_minutes={$settings->late_grace_period_minutes}, "
+            ."wfh_quota_per_week={$settings->wfh_quota_per_week}, "
+            ."full_day_hours={$settings->full_day_hours}, "
+            ."half_day_hours={$settings->half_day_hours}"
         );
     }
 })->group('property-test', 'attendance-settings');
-
 
 // Feature: attendance-settings, Property 8: Request-scoped caching
 
@@ -852,7 +855,6 @@ test('Property 7: No audit entries on unchanged save — saving identical values
  *
  * **Validates: Requirements 5.6**
  */
-
 test('Property 8: Request-scoped caching — multiple getSettings() calls via public methods produce only one attendance_settings query', function () {
     for ($i = 0; $i < 100; $i++) {
         // Clean slate
@@ -896,7 +898,7 @@ test('Property 8: Request-scoped caching — multiple getSettings() calls via pu
         ]);
 
         // Create a single AttendanceService instance
-        $service = new AttendanceService();
+        $service = new AttendanceService;
 
         // Enable query logging AFTER setup queries, right before the calls we want to measure
         DB::flushQueryLog();
@@ -927,7 +929,7 @@ test('Property 8: Request-scoped caching — multiple getSettings() calls via pu
         expect($settingsQueryCount)->toBe(
             1,
             "Iteration {$i}: Expected exactly 1 query to attendance_settings after {$callCount} method calls on same service instance, got {$settingsQueryCount}. "
-            . "Queries: " . json_encode(array_map(fn ($q) => $q['query'], $settingsQueries))
+            .'Queries: '.json_encode(array_map(fn ($q) => $q['query'], $settingsQueries))
         );
     }
 })->group('property-test', 'attendance-settings');

@@ -32,7 +32,7 @@ afterEach(function () {
  * **Validates: Requirements 1.1, 1.10**
  */
 test('Property 1: Check-in creates AttendanceLog with correct data', function () {
-    $service = new AttendanceService();
+    $service = new AttendanceService;
     $employee = Employee::factory()->create();
 
     // Run 5 iterations with random check-in data
@@ -107,7 +107,7 @@ test('Property 1: Check-in creates AttendanceLog with correct data', function ()
  * **Validates: Requirements 1.3**
  */
 test('Property 3: Duplicate check-in rejection', function () {
-    $service = new AttendanceService();
+    $service = new AttendanceService;
     $employee = Employee::factory()->create();
 
     // Run 5 iterations
@@ -178,7 +178,7 @@ test('Property 3: Duplicate check-in rejection', function () {
  * **Validates: Requirements 1.2**
  */
 test('Property 2: Check-out updates existing AttendanceLog', function () {
-    $service = new AttendanceService();
+    $service = new AttendanceService;
     $employee = Employee::factory()->create();
 
     // Run 5 iterations
@@ -255,7 +255,7 @@ test('Property 2: Check-out updates existing AttendanceLog', function () {
  * **Validates: Requirements 1.4**
  */
 test('Property 4: Check-out without check-in rejection', function () {
-    $service = new AttendanceService();
+    $service = new AttendanceService;
     $employee = Employee::factory()->create();
 
     // Run 100 iterations
@@ -294,7 +294,6 @@ test('Property 4: Check-out without check-in rejection', function () {
     $employee->forceDelete();
 })->group('property-test', 'hris-attendance');
 
-
 /**
  * **Feature: hris-phase2-attendance, Property 8: WFH quota validation**
  *
@@ -305,7 +304,7 @@ test('Property 4: Check-out without check-in rejection', function () {
  * **Validates: Requirements 1.11, 1.12**
  */
 test('Property 8: WFH quota validation', function () {
-    $service = new AttendanceService();
+    $service = new AttendanceService;
     $employee = Employee::factory()->create();
 
     // Run 5 iterations
@@ -365,7 +364,6 @@ test('Property 8: WFH quota validation', function () {
     $employee->forceDelete();
 })->group('property-test', 'hris-attendance', 'wfh-quota');
 
-
 /**
  * **Feature: hris-phase2-attendance, Property 9: WFH quota decrement**
  *
@@ -375,7 +373,7 @@ test('Property 8: WFH quota validation', function () {
  * **Validates: Requirements 1.13**
  */
 test('Property 9: WFH quota decrement', function () {
-    $service = new AttendanceService();
+    $service = new AttendanceService;
     $employee = Employee::factory()->create();
 
     // Run 5 iterations
@@ -413,7 +411,6 @@ test('Property 9: WFH quota decrement', function () {
     $employee->forceDelete();
 })->group('property-test', 'hris-attendance', 'wfh-quota');
 
-
 /**
  * **Feature: hris-phase2-attendance, Property 10: WFH quota weekly reset**
  *
@@ -424,7 +421,7 @@ test('Property 9: WFH quota decrement', function () {
  * **Validates: Requirements 1.14**
  */
 test('Property 10: WFH quota weekly reset', function () {
-    $service = new AttendanceService();
+    $service = new AttendanceService;
     $employee = Employee::factory()->create();
 
     // Run 5 iterations
@@ -479,7 +476,6 @@ test('Property 10: WFH quota weekly reset', function () {
     $employee->forceDelete();
 })->group('property-test', 'hris-attendance', 'wfh-quota');
 
-
 /**
  * **Feature: hris-phase2-attendance, Property 11: Attendance history filtering and ordering**
  *
@@ -489,7 +485,7 @@ test('Property 10: WFH quota weekly reset', function () {
  * **Validates: Requirements 2.2**
  */
 test('Property 11: Attendance history filtering and ordering', function () {
-    $service = new AttendanceService();
+    $service = new AttendanceService;
     $employee = Employee::factory()->create();
 
     // Run 5 iterations
@@ -598,7 +594,6 @@ test('Property 11: Attendance history filtering and ordering', function () {
     $employee->forceDelete();
 })->group('property-test', 'hris-attendance', 'attendance-history');
 
-
 /**
  * **Feature: hris-phase2-attendance, Property 12: Attendance status computation**
  *
@@ -608,13 +603,14 @@ test('Property 11: Attendance history filtering and ordering', function () {
  * **Validates: Requirements 2.3**
  */
 test('Property 12: Attendance status computation', function () {
-    $service = new AttendanceService();
+    $service = new AttendanceService;
     $employee = Employee::factory()->create();
 
     // Run 5 iterations
     for ($i = 0; $i < 5; $i++) {
-        // Use unique date for each iteration
-        $testDate = Carbon::today()->subDays($i);
+        // Distinct weekday (Monday) per iteration: the 'late' scenario asserts
+        // STATUS_LATE, which computeStatus never returns for weekend check-ins.
+        $testDate = Carbon::today()->startOfWeek(Carbon::MONDAY)->subWeeks($i);
 
         // Randomly choose a scenario to test
         $scenario = fake()->randomElement(['present', 'late', 'half_day', 'leave', 'absent']);
@@ -740,7 +736,6 @@ test('Property 12: Attendance status computation', function () {
     $employee->forceDelete();
 })->group('property-test', 'hris-attendance', 'status-computation');
 
-
 /**
  * **Feature: hris-phase2-attendance, Property 18: Team attendance scope**
  *
@@ -750,7 +745,7 @@ test('Property 12: Attendance status computation', function () {
  * **Validates: Requirements 6.1**
  */
 test('Property 18: Team attendance scope', function () {
-    $service = new AttendanceService();
+    $service = new AttendanceService;
 
     // Run 5 iterations
     for ($i = 0; $i < 5; $i++) {

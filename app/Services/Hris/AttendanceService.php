@@ -5,7 +5,6 @@ namespace App\Services\Hris;
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\AttendanceSetting;
 use App\Models\Hris\Employee;
-use App\Models\Hris\EmployeePosition;
 use App\Models\Hris\LateNotice;
 use App\Models\Hris\LeaveRequest;
 use Carbon\Carbon;
@@ -34,8 +33,8 @@ class AttendanceService
         ?GeocodingService $geocodingService = null,
         ?PhotoService $photoService = null
     ) {
-        $this->geocodingService = $geocodingService ?? new GeocodingService();
-        $this->photoService = $photoService ?? new PhotoService();
+        $this->geocodingService = $geocodingService ?? new GeocodingService;
+        $this->photoService = $photoService ?? new PhotoService;
     }
 
     /**
@@ -54,10 +53,7 @@ class AttendanceService
     /**
      * Safely reverse geocode coordinates with error handling.
      *
-     * @param float $latitude
-     * @param float $longitude
-     * @param int|null $employeeId For logging purposes
-     * @return string
+     * @param  int|null  $employeeId  For logging purposes
      */
     protected function safeReverseGeocode(float $latitude, float $longitude, ?int $employeeId = null): string
     {
@@ -70,6 +66,7 @@ class AttendanceService
                 'longitude' => $longitude,
                 'error' => $e->getMessage(),
             ]);
+
             // Return fallback address format
             return sprintf('Location (%.6f, %.6f)', $latitude, $longitude);
         }
@@ -81,8 +78,7 @@ class AttendanceService
      * The week is calculated from Monday to Sunday.
      * Quota is 1 day per week and does not carry over.
      *
-     * @param Employee $employee
-     * @param Carbon|null $referenceDate Optional date to calculate week from (defaults to today)
+     * @param  Carbon|null  $referenceDate  Optional date to calculate week from (defaults to today)
      * @return int Remaining WFH days (0 or 1)
      */
     public function getRemainingWfhQuota(Employee $employee, ?Carbon $referenceDate = null): int
@@ -103,12 +99,12 @@ class AttendanceService
         // Return remaining quota (minimum 0)
         return max(0, $this->getSettings()->wfh_quota_per_week - $wfhDaysUsed);
     }
+
     /**
      * Record employee check-in.
      *
-     * @param Employee $employee
-     * @param array $data Contains: source, mode, latitude?, longitude?, photo?
-     * @return AttendanceLog
+     * @param  array  $data  Contains: source, mode, latitude?, longitude?, photo?
+     *
      * @throws \Exception If employee already checked in for the day
      * @throws \Exception If WFH mode selected but quota exhausted
      */
@@ -139,12 +135,12 @@ class AttendanceService
         // Use backend geocoding when possible, fall back to frontend-provided address
         $latitude = $data['latitude'] ?? null;
         $longitude = $data['longitude'] ?? null;
-        $address = !empty($data['address']) ? $data['address'] : null;
+        $address = ! empty($data['address']) ? $data['address'] : null;
 
         if ($latitude !== null && $longitude !== null) {
             $geocodedAddress = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $employee->id);
             // Only use geocoded result if it's a real address (not a coordinate fallback)
-            if (!str_starts_with($geocodedAddress, 'Location (')) {
+            if (! str_starts_with($geocodedAddress, 'Location (')) {
                 $address = $geocodedAddress;
             }
         }
@@ -163,7 +159,7 @@ class AttendanceService
         ]);
 
         if ($photo instanceof UploadedFile && $photoPath === null) {
-            $photoAddress = !empty($address) ? $address : 'Unknown Location';
+            $photoAddress = ! empty($address) ? $address : 'Unknown Location';
             \Log::info('Processing check-in photo', [
                 'employee_id' => $employee->id,
                 'photo_size' => $photo->getSize(),
@@ -212,9 +208,8 @@ class AttendanceService
     /**
      * Record employee check-out.
      *
-     * @param Employee $employee
-     * @param array $data Contains: latitude?, longitude?, photo?
-     * @return AttendanceLog
+     * @param  array  $data  Contains: latitude?, longitude?, photo?
+     *
      * @throws \Exception If employee has not checked in for the day
      */
     public function checkOut(Employee $employee, array $data): AttendanceLog
@@ -227,7 +222,7 @@ class AttendanceService
             ->whereNotNull('check_in_time')
             ->first();
 
-        if (!$attendanceLog) {
+        if (! $attendanceLog) {
             throw new \Exception('Employee has not checked in for today.');
         }
 
@@ -245,12 +240,12 @@ class AttendanceService
         // Use backend geocoding when possible, fall back to frontend-provided address
         $latitude = $data['latitude'] ?? null;
         $longitude = $data['longitude'] ?? null;
-        $address = !empty($data['address']) ? $data['address'] : null;
+        $address = ! empty($data['address']) ? $data['address'] : null;
 
         if ($latitude !== null && $longitude !== null) {
             $geocodedAddress = $this->safeReverseGeocode((float) $latitude, (float) $longitude, $attendanceLog->employee_id);
             // Only use geocoded result if it's a real address (not a coordinate fallback)
-            if (!str_starts_with($geocodedAddress, 'Location (')) {
+            if (! str_starts_with($geocodedAddress, 'Location (')) {
                 $address = $geocodedAddress;
             }
         }
@@ -269,7 +264,7 @@ class AttendanceService
         ]);
 
         if ($photo instanceof UploadedFile && $photoPath === null) {
-            $photoAddress = !empty($address) ? $address : 'Unknown Location';
+            $photoAddress = ! empty($address) ? $address : 'Unknown Location';
             \Log::info('Processing check-out photo', [
                 'employee_id' => $attendanceLog->employee_id,
                 'photo_size' => $photo->getSize(),
@@ -316,8 +311,6 @@ class AttendanceService
     /**
      * Start employee break.
      *
-     * @param Employee $employee
-     * @return AttendanceLog
      * @throws \Exception If employee has not checked in or already on break
      */
     public function startBreak(Employee $employee): AttendanceLog
@@ -330,7 +323,7 @@ class AttendanceService
             ->whereNotNull('check_in_time')
             ->first();
 
-        if (!$attendanceLog) {
+        if (! $attendanceLog) {
             throw new \Exception('Employee has not checked in for today.');
         }
 
@@ -358,8 +351,6 @@ class AttendanceService
     /**
      * End employee break.
      *
-     * @param Employee $employee
-     * @return AttendanceLog
      * @throws \Exception If employee is not on break
      */
     public function endBreak(Employee $employee): AttendanceLog
@@ -372,11 +363,11 @@ class AttendanceService
             ->whereNotNull('check_in_time')
             ->first();
 
-        if (!$attendanceLog) {
+        if (! $attendanceLog) {
             throw new \Exception('Employee has not checked in for today.');
         }
 
-        if (!$attendanceLog->isOnBreak()) {
+        if (! $attendanceLog->isOnBreak()) {
             throw new \Exception('Employee is not currently on break.');
         }
 
@@ -396,9 +387,7 @@ class AttendanceService
     /**
      * Get today's attendance for an employee.
      *
-     * @param Employee $employee
-     * @param Carbon|null $date Optional date (defaults to today)
-     * @return AttendanceLog|null
+     * @param  Carbon|null  $date  Optional date (defaults to today)
      */
     public function getTodayAttendance(Employee $employee, ?Carbon $date = null): ?AttendanceLog
     {
@@ -414,9 +403,8 @@ class AttendanceService
      *
      * Returns all AttendanceLogs within the specified range, ordered by date descending.
      *
-     * @param Employee $employee
-     * @param Carbon $from Start date (inclusive)
-     * @param Carbon $to End date (inclusive)
+     * @param  Carbon  $from  Start date (inclusive)
+     * @param  Carbon  $to  End date (inclusive)
      * @return Collection<AttendanceLog>
      */
     public function getHistory(Employee $employee, Carbon $from, Carbon $to): Collection
@@ -435,7 +423,6 @@ class AttendanceService
      * - Check-out time (half day if worked less than full day hours)
      * - Leave records (if employee has approved leave for the date)
      *
-     * @param AttendanceLog $log
      * @return string One of AttendanceLog::STATUS_* constants
      */
     public function computeStatus(AttendanceLog $log): string
@@ -446,7 +433,7 @@ class AttendanceService
         }
 
         // If no check-in, employee is absent
-        if (!$log->hasCheckedIn()) {
+        if (! $log->hasCheckedIn()) {
             return AttendanceLog::STATUS_ABSENT;
         }
 
@@ -464,8 +451,10 @@ class AttendanceService
         // Check if late (check-in after work start + grace period)
         $isLate = $log->check_in_time->gt($lateThreshold);
 
-        // If checked out, calculate work duration
-        if ($log->hasCheckedOut()) {
+        // Half-day never applies on weekends: any Sat/Sun attendance earns the full
+        // daily allowance via the overtime batch, so weekend work is always PRESENT
+        // regardless of hours worked (and never downgraded to half day).
+        if ($log->hasCheckedOut() && ! $log->date->isWeekend()) {
             $workDurationHours = $log->check_in_time->diffInMinutes($log->check_out_time) / 60;
 
             $fullDayHours = (float) $this->getSettings()->full_day_hours;
@@ -483,8 +472,10 @@ class AttendanceService
             }
         }
 
-        // If late, return late status
-        if ($isLate) {
+        // Late never applies on weekends: Sat/Sun work is compensated via the
+        // overtime batch (full daily rate, no penalty), so a weekend check-in is
+        // always PRESENT regardless of arrival time and never spawns a late notice.
+        if ($isLate && ! $log->date->isWeekend()) {
             return AttendanceLog::STATUS_LATE;
         }
 
@@ -494,10 +485,6 @@ class AttendanceService
 
     /**
      * Check if an employee has approved leave for a specific date.
-     *
-     * @param int $employeeId
-     * @param Carbon $date
-     * @return bool
      */
     protected function hasApprovedLeave(int $employeeId, Carbon $date): bool
     {
@@ -510,10 +497,6 @@ class AttendanceService
 
     /**
      * Check if an employee has an approved late notice for a specific date.
-     *
-     * @param int $employeeId
-     * @param Carbon $date
-     * @return bool
      */
     public function hasApprovedLateNotice(int $employeeId, Carbon $date): bool
     {
@@ -533,7 +516,6 @@ class AttendanceService
      * Otherwise matches check-in time against penalty tiers (sorted ascending by
      * minutes_late) and returns the highest applicable deduction_percent.
      *
-     * @param AttendanceLog $log
      * @return int Deduction percentage (0, 25, 50, or 100)
      */
     public function calculateLatePenalty(AttendanceLog $log): int
@@ -581,7 +563,6 @@ class AttendanceService
      * Returns employees who have the given employee as their manager
      * in their active primary position.
      *
-     * @param Employee $manager
      * @return Collection<Employee>
      */
     public function getDirectReports(Employee $manager): Collection
@@ -599,8 +580,7 @@ class AttendanceService
      * Returns attendance summaries for all direct reports of the manager
      * for the specified date.
      *
-     * @param Employee $manager
-     * @param Carbon|null $date Optional date (defaults to today)
+     * @param  Carbon|null  $date  Optional date (defaults to today)
      * @return Collection Array of attendance summaries with employee info
      */
     public function getTeamAttendance(Employee $manager, ?Carbon $date = null): Collection
@@ -635,9 +615,8 @@ class AttendanceService
      * Returns aggregated statistics including present days, late days, and absent days
      * for all direct reports within the specified period.
      *
-     * @param Employee $manager
-     * @param Carbon $from Start date (inclusive)
-     * @param Carbon $to End date (inclusive)
+     * @param  Carbon  $from  Start date (inclusive)
+     * @param  Carbon  $to  End date (inclusive)
      * @return array{
      *     total_employees: int,
      *     period_days: int,
@@ -735,9 +714,6 @@ class AttendanceService
      * Called automatically after check-in when the employee's status is STATUS_LATE.
      * Skips creation if a notice already exists for that employee+date.
      * HR will fill the reason and decide to pardon or reject via the Filament dashboard.
-     *
-     * @param AttendanceLog $log
-     * @return LateNotice|null
      */
     public function createLateNoticeIfAbsent(AttendanceLog $log): ?LateNotice
     {
@@ -760,12 +736,12 @@ class AttendanceService
         $penaltyPercent = $this->calculateLatePenalty($log);
 
         return LateNotice::create([
-            'employee_id'       => $log->employee_id,
+            'employee_id' => $log->employee_id,
             'attendance_log_id' => $log->id,
-            'date'              => $log->date,
-            'minutes_late'      => $minutesLate,
-            'penalty_percent'   => $penaltyPercent,
-            'status'            => LateNotice::STATUS_PENDING,
+            'date' => $log->date,
+            'minutes_late' => $minutesLate,
+            'penalty_percent' => $penaltyPercent,
+            'status' => LateNotice::STATUS_PENDING,
         ]);
     }
 }

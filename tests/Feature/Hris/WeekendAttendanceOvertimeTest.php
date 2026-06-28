@@ -20,23 +20,23 @@ uses(RefreshDatabase::class);
 // Week under test: Mon 2026-04-06 → Sun 2026-04-12
 // Saturday = 2026-04-11, Sunday = 2026-04-12
 const WEEK_START = '2026-04-06';
-const WEEK_END   = '2026-04-12';
+const WEEK_END = '2026-04-12';
 const PAYMENT_DT = '2026-04-14';
 const DAILY_RATE = 50_000.0;
 
 function makeEmployee(): array
 {
-    $user     = User::factory()->create();
+    $user = User::factory()->create();
     $employee = Employee::factory()->create(['user_id' => $user->id, 'is_active' => true]);
 
     SalaryStructure::create([
-        'employee_id'          => $employee->id,
-        'effective_date'       => '2026-01-01',
-        'basic_salary'         => 5_000_000,
+        'employee_id' => $employee->id,
+        'effective_date' => '2026-01-01',
+        'basic_salary' => 5_000_000,
         'daily_allowance_rate' => DAILY_RATE,
-        'prorate_enabled'      => false,
-        'pph21_method'         => 'gross',
-        'jkk_risk_level'       => 'low',
+        'prorate_enabled' => false,
+        'pph21_method' => 'gross',
+        'jkk_risk_level' => 'low',
     ]);
 
     return [$user, $employee];
@@ -61,15 +61,15 @@ describe('Weekend attendance → OvertimePayment session', function () {
         [, $employee] = makeEmployee();
 
         AttendanceLog::create([
-            'employee_id'   => $employee->id,
-            'date'          => '2026-04-11', // Saturday
-            'status'        => AttendanceLog::STATUS_PRESENT,
-            'mode'          => AttendanceLog::MODE_OFFICE,
-            'source'        => AttendanceLog::SOURCE_WEB,
+            'employee_id' => $employee->id,
+            'date' => '2026-04-11', // Saturday
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
             'check_in_time' => '2026-04-11 08:00:00',
         ]);
 
-        $batch   = generateBatch();
+        $batch = generateBatch();
         $payment = $batch->payments()->where('employee_id', $employee->id)->first();
 
         expect($payment)->not->toBeNull()
@@ -86,15 +86,15 @@ describe('Weekend attendance → OvertimePayment session', function () {
         [, $employee] = makeEmployee();
 
         AttendanceLog::create([
-            'employee_id'   => $employee->id,
-            'date'          => '2026-04-12', // Sunday
-            'status'        => AttendanceLog::STATUS_PRESENT,
-            'mode'          => AttendanceLog::MODE_OFFICE,
-            'source'        => AttendanceLog::SOURCE_WEB,
+            'employee_id' => $employee->id,
+            'date' => '2026-04-12', // Sunday
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
             'check_in_time' => '2026-04-12 09:00:00',
         ]);
 
-        $batch   = generateBatch();
+        $batch = generateBatch();
         $payment = $batch->payments()->where('employee_id', $employee->id)->first();
 
         expect($payment)->not->toBeNull()
@@ -105,37 +105,39 @@ describe('Weekend attendance → OvertimePayment session', function () {
         [, $employee] = makeEmployee();
 
         AttendanceLog::create([
-            'employee_id'   => $employee->id,
-            'date'          => '2026-04-11', // Saturday
-            'status'        => AttendanceLog::STATUS_LATE,
-            'mode'          => AttendanceLog::MODE_OFFICE,
-            'source'        => AttendanceLog::SOURCE_WEB,
+            'employee_id' => $employee->id,
+            'date' => '2026-04-11', // Saturday
+            'status' => AttendanceLog::STATUS_LATE,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
             'check_in_time' => '2026-04-11 09:30:00',
         ]);
 
-        $batch   = generateBatch();
+        $batch = generateBatch();
         $payment = $batch->payments()->where('employee_id', $employee->id)->first();
 
         expect($payment)->not->toBeNull()
             ->and((float) $payment->total_amount)->toBe(DAILY_RATE);
     });
 
-    it('skips half_day weekend logs (no OT session created)', function () {
+    it('pays half_day weekend logs at the full daily rate (any duration earns the day)', function () {
         [, $employee] = makeEmployee();
 
         AttendanceLog::create([
-            'employee_id'   => $employee->id,
-            'date'          => '2026-04-11', // Saturday
-            'status'        => AttendanceLog::STATUS_HALF_DAY,
-            'mode'          => AttendanceLog::MODE_OFFICE,
-            'source'        => AttendanceLog::SOURCE_WEB,
+            'employee_id' => $employee->id,
+            'date' => '2026-04-11', // Saturday
+            'status' => AttendanceLog::STATUS_HALF_DAY,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
             'check_in_time' => '2026-04-11 08:00:00',
         ]);
 
-        $batch   = generateBatch();
+        $batch = generateBatch();
         $payment = $batch->payments()->where('employee_id', $employee->id)->first();
 
-        expect($payment)->toBeNull();
+        expect($payment)->not->toBeNull()
+            ->and((float) $payment->total_amount)->toBe(DAILY_RATE)
+            ->and($payment->sessions_breakdown[0]['session_type'])->toBe('weekend_attendance');
     });
 
     it('accumulates two weekend days into a single payment', function () {
@@ -143,16 +145,16 @@ describe('Weekend attendance → OvertimePayment session', function () {
 
         foreach (['2026-04-11', '2026-04-12'] as $date) {
             AttendanceLog::create([
-                'employee_id'   => $employee->id,
-                'date'          => $date,
-                'status'        => AttendanceLog::STATUS_PRESENT,
-                'mode'          => AttendanceLog::MODE_OFFICE,
-                'source'        => AttendanceLog::SOURCE_WEB,
-                'check_in_time' => $date . ' 08:00:00',
+                'employee_id' => $employee->id,
+                'date' => $date,
+                'status' => AttendanceLog::STATUS_PRESENT,
+                'mode' => AttendanceLog::MODE_OFFICE,
+                'source' => AttendanceLog::SOURCE_WEB,
+                'check_in_time' => $date.' 08:00:00',
             ]);
         }
 
-        $batch   = generateBatch();
+        $batch = generateBatch();
         $payment = $batch->payments()->where('employee_id', $employee->id)->first();
 
         expect($payment)->not->toBeNull()
@@ -172,15 +174,15 @@ describe('Weekday holiday attendance → OvertimePayment session', function () {
         [, $employee] = makeEmployee();
 
         AttendanceLog::create([
-            'employee_id'   => $employee->id,
-            'date'          => '2026-04-07', // Tuesday — weekday
-            'status'        => AttendanceLog::STATUS_HOLIDAY,
-            'mode'          => AttendanceLog::MODE_OFFICE,
-            'source'        => AttendanceLog::SOURCE_WEB,
+            'employee_id' => $employee->id,
+            'date' => '2026-04-07', // Tuesday — weekday
+            'status' => AttendanceLog::STATUS_HOLIDAY,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
             'check_in_time' => '2026-04-07 08:00:00',
         ]);
 
-        $batch   = generateBatch();
+        $batch = generateBatch();
         $payment = $batch->payments()->where('employee_id', $employee->id)->first();
 
         expect($payment)->not->toBeNull()
@@ -194,15 +196,15 @@ describe('Weekday holiday attendance → OvertimePayment session', function () {
         [, $employee] = makeEmployee();
 
         AttendanceLog::create([
-            'employee_id'   => $employee->id,
-            'date'          => '2026-04-07',
-            'status'        => AttendanceLog::STATUS_HOLIDAY,
-            'mode'          => AttendanceLog::MODE_OFFICE,
-            'source'        => AttendanceLog::SOURCE_WEB,
+            'employee_id' => $employee->id,
+            'date' => '2026-04-07',
+            'status' => AttendanceLog::STATUS_HOLIDAY,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
             // check_in_time intentionally omitted
         ]);
 
-        $batch   = generateBatch();
+        $batch = generateBatch();
         $payment = $batch->payments()->where('employee_id', $employee->id)->first();
 
         expect($payment)->toBeNull();
@@ -223,27 +225,27 @@ describe('Weekend attendance merged with regular OvertimeLog sessions', function
 
         // Regular OvertimeLog on a weekday
         OvertimeLog::create([
-            'user_id'          => $user->id,
-            'manager_id'       => $manager->id,
-            'task_name'        => 'Weekday task',
-            'start_time'       => Carbon::parse('2026-04-07 18:00'),
-            'end_time'         => Carbon::parse('2026-04-07 20:00'),
+            'user_id' => $user->id,
+            'manager_id' => $manager->id,
+            'task_name' => 'Weekday task',
+            'start_time' => Carbon::parse('2026-04-07 18:00'),
+            'end_time' => Carbon::parse('2026-04-07 20:00'),
             'duration_minutes' => 120,
-            'hourly_rate'      => 30_000,
-            'status'           => OvertimeLog::STATUS_APPROVED,
+            'hourly_rate' => 30_000,
+            'status' => OvertimeLog::STATUS_APPROVED,
         ]);
 
         // Weekend attendance on Saturday
         AttendanceLog::create([
-            'employee_id'   => $employee->id,
-            'date'          => '2026-04-11',
-            'status'        => AttendanceLog::STATUS_PRESENT,
-            'mode'          => AttendanceLog::MODE_OFFICE,
-            'source'        => AttendanceLog::SOURCE_WEB,
+            'employee_id' => $employee->id,
+            'date' => '2026-04-11',
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
             'check_in_time' => '2026-04-11 08:00:00',
         ]);
 
-        $batch    = generateBatch();
+        $batch = generateBatch();
         $payments = $batch->payments()->where('employee_id', $employee->id)->get();
 
         // Must be exactly one payment record (merged)
@@ -253,7 +255,7 @@ describe('Weekend attendance merged with regular OvertimeLog sessions', function
         // 2 sessions: 1 OvertimeLog + 1 weekend attendance
         expect($payment->total_sessions)->toBe(2);
         // OT pay: first hour 1.5× + second hour 2× = (30,000×1.5) + (30,000×2.0) = 105,000
-        $otPay         = 30_000 * 1.5 + 30_000 * 2.0;
+        $otPay = 30_000 * 1.5 + 30_000 * 2.0;
         $expectedTotal = round($otPay + DAILY_RATE, 2);
         expect((float) $payment->total_amount)->toBe($expectedTotal);
     });
@@ -267,11 +269,11 @@ describe('Weekend attendance merged with regular OvertimeLog sessions', function
 describe('Weekend logs excluded from payroll daily allowance', function () {
 
     it('does not include weekend present log in the monthly daily allowance total', function () {
-        $settingService   = new PayrollSettingService();
-        $bpjsService      = new BpjsCalculationService($settingService);
-        $pph21Service     = new Pph21CalculationService($settingService);
+        $settingService = new PayrollSettingService;
+        $bpjsService = new BpjsCalculationService($settingService);
+        $pph21Service = new Pph21CalculationService($settingService);
         $attendanceService = new AttendancePayrollService($settingService);
-        $service          = new PayrollCalculationService(
+        $service = new PayrollCalculationService(
             $bpjsService,
             $pph21Service,
             $attendanceService,
@@ -281,39 +283,39 @@ describe('Weekend logs excluded from payroll daily allowance', function () {
         $employee = Employee::factory()->create();
 
         SalaryStructure::create([
-            'employee_id'          => $employee->id,
-            'effective_date'       => '2026-01-01',
-            'basic_salary'         => 5_000_000,
+            'employee_id' => $employee->id,
+            'effective_date' => '2026-01-01',
+            'basic_salary' => 5_000_000,
             'daily_allowance_rate' => DAILY_RATE,
-            'prorate_enabled'      => false,
-            'pph21_method'         => 'gross',
-            'jkk_risk_level'       => 'low',
+            'prorate_enabled' => false,
+            'pph21_method' => 'gross',
+            'jkk_risk_level' => 'low',
         ]);
 
         // One weekday present log (Mon 2026-04-06)
         AttendanceLog::create([
-            'employee_id'   => $employee->id,
-            'date'          => '2026-04-06', // Monday
-            'status'        => AttendanceLog::STATUS_PRESENT,
-            'mode'          => AttendanceLog::MODE_OFFICE,
-            'source'        => AttendanceLog::SOURCE_WEB,
+            'employee_id' => $employee->id,
+            'date' => '2026-04-06', // Monday
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
             'check_in_time' => '2026-04-06 08:00:00',
         ]);
 
         // One weekend present log (Sat 2026-04-11) — must NOT add to payroll daily allowance
         AttendanceLog::create([
-            'employee_id'   => $employee->id,
-            'date'          => '2026-04-11', // Saturday
-            'status'        => AttendanceLog::STATUS_PRESENT,
-            'mode'          => AttendanceLog::MODE_OFFICE,
-            'source'        => AttendanceLog::SOURCE_WEB,
+            'employee_id' => $employee->id,
+            'date' => '2026-04-11', // Saturday
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
             'check_in_time' => '2026-04-11 08:00:00',
         ]);
 
         $batch = \App\Models\Hris\PayrunBatch::factory()->create([
             'period_start_date' => '2026-04-01',
-            'period_end_date'   => '2026-04-30',
-            'status'            => 'draft',
+            'period_end_date' => '2026-04-30',
+            'status' => 'draft',
         ]);
 
         $record = $service->calculateEmployee($employee, $batch);
@@ -331,27 +333,27 @@ describe('Weekend logs excluded from payroll daily allowance', function () {
 describe('AttendancePayrollService weekend_work_days tracking', function () {
 
     it('counts weekend present days in weekend_work_days summary key', function () {
-        $service  = app(AttendancePayrollService::class);
+        $service = app(AttendancePayrollService::class);
         $employee = Employee::factory()->create();
 
         // 3 weekday logs
         foreach (['2026-04-06', '2026-04-07', '2026-04-08'] as $date) {
             AttendanceLog::create([
                 'employee_id' => $employee->id,
-                'date'        => $date,
-                'status'      => AttendanceLog::STATUS_PRESENT,
-                'mode'        => AttendanceLog::MODE_OFFICE,
-                'source'      => AttendanceLog::SOURCE_WEB,
+                'date' => $date,
+                'status' => AttendanceLog::STATUS_PRESENT,
+                'mode' => AttendanceLog::MODE_OFFICE,
+                'source' => AttendanceLog::SOURCE_WEB,
             ]);
         }
 
         // 1 weekend log
         AttendanceLog::create([
             'employee_id' => $employee->id,
-            'date'        => '2026-04-11', // Saturday
-            'status'      => AttendanceLog::STATUS_PRESENT,
-            'mode'        => AttendanceLog::MODE_OFFICE,
-            'source'      => AttendanceLog::SOURCE_WEB,
+            'date' => '2026-04-11', // Saturday
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
         ]);
 
         $summary = $service->getAttendanceSummary(
@@ -365,23 +367,23 @@ describe('AttendancePayrollService weekend_work_days tracking', function () {
     });
 
     it('excludes weekend_work_days from actual_days_worked to protect prorate accuracy', function () {
-        $service  = app(AttendancePayrollService::class);
+        $service = app(AttendancePayrollService::class);
         $employee = Employee::factory()->create();
 
         // 1 weekday + 1 weekend (same employee)
         AttendanceLog::create([
             'employee_id' => $employee->id,
-            'date'        => '2026-04-06',
-            'status'      => AttendanceLog::STATUS_PRESENT,
-            'mode'        => AttendanceLog::MODE_OFFICE,
-            'source'      => AttendanceLog::SOURCE_WEB,
+            'date' => '2026-04-06',
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
         ]);
         AttendanceLog::create([
             'employee_id' => $employee->id,
-            'date'        => '2026-04-11', // Saturday
-            'status'      => AttendanceLog::STATUS_PRESENT,
-            'mode'        => AttendanceLog::MODE_OFFICE,
-            'source'      => AttendanceLog::SOURCE_WEB,
+            'date' => '2026-04-11', // Saturday
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
         ]);
 
         $summary = $service->getAttendanceSummary(
