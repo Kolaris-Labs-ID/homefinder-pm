@@ -311,7 +311,10 @@ class ApprovalDashboard extends Page implements HasForms, HasTable
         }
 
         $query = ApprovalStep::query()
-            ->where('status', ApprovalStep::STATUS_PENDING);
+            ->where('status', ApprovalStep::STATUS_PENDING)
+            // Hide orphaned steps (approvable deleted) — they render as blank,
+            // unactionable rows. See hris:prune-orphan-approval-steps.
+            ->whereHasMorph('approvable', '*');
 
         // Super admins see all pending approvals
         if (! $user->hasRole('super_admin')) {

@@ -20,6 +20,19 @@ use Illuminate\Support\Collection;
 trait Approvable
 {
     /**
+     * Cascade-delete approval steps when the approvable is deleted.
+     * Polymorphic relations have no DB foreign key, so without this a deleted
+     * approvable leaves orphaned approval_steps (null approvable → blank rows
+     * on the Approval Dashboard that no one can clear).
+     */
+    public static function bootApprovable(): void
+    {
+        static::deleting(function ($model) {
+            $model->approvalSteps()->delete();
+        });
+    }
+
+    /**
      * Get the approval steps for this approvable item.
      * This is a polymorphic relationship to ApprovalStep.
      */
@@ -51,8 +64,8 @@ trait Approvable
             ->where('status', ApprovalStep::STATUS_PENDING)
             ->where(function ($query) use ($user, $userRoles) {
                 $query->where('approver_id', $user->id);
-                if (!empty($userRoles)) {
-                    $query->orWhere(function ($q) use ($user, $userRoles) {
+                if (! empty($userRoles)) {
+                    $query->orWhere(function ($q) use ($userRoles) {
                         $q->whereIn('approver_role', $userRoles)
                             ->whereNull('approver_id');
                     });
