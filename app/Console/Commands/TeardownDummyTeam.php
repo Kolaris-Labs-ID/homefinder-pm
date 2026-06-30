@@ -26,15 +26,18 @@ class TeardownDummyTeam extends Command
             ->merge(User::where('email', 'like', Seed::EMAIL_PREFIX.'%@'.Seed::EMAIL_DOMAIN)->pluck('id'))
             ->unique()
             ->values();
+        $taggedLogs = AttendanceLog::where('metadata->seed_batch', Seed::BATCH)->count();
 
         $this->table(['Resource', 'Count'], [
-            ['Attendance logs', AttendanceLog::whereIn('employee_id', $empIds)->count()],
+            // Tagged attendance covers BOTH modes: dummy-employee logs (seeder) and
+            // real-employee check-ins (dummy:checkin-team) carry the same batch tag.
+            ['Attendance logs', $taggedLogs],
             ['Employee positions', EmployeePosition::whereIn('employee_id', $empIds)->count()],
             ['Employees', $empIds->count()],
             ['Users', $userIds->count()],
         ]);
 
-        if ($empIds->isEmpty() && $userIds->isEmpty()) {
+        if ($empIds->isEmpty() && $userIds->isEmpty() && $taggedLogs === 0) {
             $this->info('Nothing to tear down.');
 
             return self::SUCCESS;
@@ -49,7 +52,9 @@ class TeardownDummyTeam extends Command
         $removedPositions = 0;
 
         DB::transaction(function () use ($empIds, $userIds, &$removedPositions) {
-            AttendanceLog::whereIn('employee_id', $empIds)->delete();
+            // Delete by the attendance tag directly so real-employee check-ins
+            // (dummy:checkin-team) are removed too — their employees are NOT tagged.
+            AttendanceLog::where('metadata->seed_batch', Seed::BATCH)->delete();
             EmployeePosition::whereIn('employee_id', $empIds)->delete();
             Employee::whereIn('id', $empIds)->delete();
             User::whereIn('id', $userIds)->delete();
