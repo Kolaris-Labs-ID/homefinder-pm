@@ -41,6 +41,37 @@ class TeamApiTest extends TestCase
     }
 
     #[Test]
+    public function team_member_includes_work_mode_when_checked_in()
+    {
+        Sanctum::actingAs($this->user);
+
+        \App\Models\Hris\AttendanceLog::factory()->create([
+            'employee_id' => $this->employee->id,
+            'date' => now()->toDateString(),
+            'mode' => \App\Models\Hris\AttendanceLog::MODE_WFH,
+            'check_in_time' => now()->setTime(8, 30),
+            'check_out_time' => null,
+        ]);
+
+        $response = $this->getJson('/api/hris/team');
+
+        $response->assertStatus(200);
+        $member = collect($response->json('data'))->firstWhere('id', $this->employee->id);
+        $this->assertSame('wfh', $member['work_mode']);
+    }
+
+    #[Test]
+    public function team_member_work_mode_is_null_when_not_checked_in()
+    {
+        Sanctum::actingAs($this->user);
+
+        $response = $this->getJson('/api/hris/team');
+
+        $member = collect($response->json('data'))->firstWhere('id', $this->employee->id);
+        $this->assertNull($member['work_mode']);
+    }
+
+    #[Test]
     public function unauthenticated_user_cannot_access_team_endpoint()
     {
         $response = $this->getJson('/api/hris/team');
