@@ -71,6 +71,24 @@ describe('WeeklyAllowanceBatch Workflow Helpers (unified finance approval)', fun
             ->and((new WeeklyAllowanceBatch(['status' => 'paid']))->isLocked())->toBeTrue()
             ->and((new WeeklyAllowanceBatch(['status' => 'draft']))->isLocked())->toBeFalse();
     });
+
+    // Full lifecycle matrix — isLocked() is the single source of truth for
+    // mutability, so every status must be asserted explicitly rather than
+    // leaving new statuses to silently fall through as "not locked".
+    it('covers every status in the isLocked lifecycle matrix', function (string $status, bool $editable, bool $locked) {
+        $batch = new WeeklyAllowanceBatch(['status' => $status]);
+
+        expect($batch->isEditable())->toBe($editable)
+            ->and($batch->isLocked())->toBe($locked);
+    })->with([
+        'draft — editable, not locked' => ['draft', true, false],
+        'calculated — awaiting HR submission, not row-editable but not locked (batch-level recalculation stays available)' => ['calculated', false, false],
+        'rejected — editable, not locked' => ['rejected', true, false],
+        'pending_finance — submitted to finance, locked' => ['pending_finance', false, true],
+        'eligible_for_bundle — queued for payment bundling, locked' => ['eligible_for_bundle', false, true],
+        'in_payment_bundle — inside an active payment bundle, locked' => ['in_payment_bundle', false, true],
+        'paid — locked' => ['paid', false, true],
+    ]);
 });
 
 describe('WeeklyAllowanceBatch Accessors', function () {

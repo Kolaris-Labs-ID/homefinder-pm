@@ -255,6 +255,8 @@ class WeeklyAllowanceBatch extends Model implements PayableBatchSource
         return in_array($this->status, [
             self::STATUS_PENDING_FINANCE,
             self::STATUS_PAID,
+            self::STATUS_ELIGIBLE_FOR_BUNDLE,
+            self::STATUS_IN_PAYMENT_BUNDLE,
         ]);
     }
 
