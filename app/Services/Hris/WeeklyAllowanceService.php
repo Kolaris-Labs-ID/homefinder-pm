@@ -142,13 +142,17 @@ class WeeklyAllowanceService
         // Calculate total applying late penalties per day, using the rate that
         // was actually effective on each day (so a mid-week rate change only
         // applies from its effective_date onward, not retroactively to the whole week).
+        // Anchor to the week's Monday so each breakdown key maps to its true
+        // calendar date even if week_start_date isn't a Monday (getDaysBreakdown
+        // buckets logs by weekday, so the rate lookup must key off the same weekday).
+        $monday = $weekStart->copy()->startOfWeek(Carbon::MONDAY);
         $dayOffsets = ['mon' => 0, 'tue' => 1, 'wed' => 2, 'thu' => 3, 'fri' => 4];
         $totalAmount = 0.0;
         foreach ($daysBreakdown as $key => &$day) {
             if (! $day['present']) {
                 continue;
             }
-            $date = $weekStart->copy()->addDays($dayOffsets[$key]);
+            $date = $monday->copy()->addDays($dayOffsets[$key]);
             $dayStructure = $this->compensationResolver->resolveFrom($salaryStructures, $date);
             // Days before any structure is effective fall back to the week-end rate.
             $day['daily_rate'] = $dayStructure ? (float) $dayStructure->daily_allowance_rate : $dailyRate;
