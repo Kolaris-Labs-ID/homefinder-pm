@@ -351,23 +351,8 @@ class WeeklyAllowanceService
             throw new \RuntimeException("Cannot recalculate a payment in a {$batch->status} batch.");
         }
 
-        $calculated = $this->calculateEmployeePayment(
-            $employee,
-            $batch->week_start_date,
-            $batch->week_end_date
-        );
-
-        if ($calculated) {
-            $payment->update([
-                'daily_rate' => $calculated['daily_rate'],
-                'days_present' => $calculated['days_present'],
-                'days_breakdown' => $calculated['days_breakdown'],
-                'total_amount' => $calculated['total_amount'],
-            ]);
-
-            // Recalculate batch totals
-            $batch->recalculateSummary();
-        }
+        $this->recalculatePaymentValues($payment, $batch, $employee);
+        $batch->recalculateSummary();
 
         return $payment->fresh();
     }
@@ -386,12 +371,37 @@ class WeeklyAllowanceService
 
         return DB::transaction(function () use ($batch) {
             foreach ($batch->payments()->get() as $payment) {
-                $this->recalculatePayment($payment);
+                if ($employee = $payment->employee) {
+                    $this->recalculatePaymentValues($payment, $batch, $employee);
+                }
             }
 
             $batch->recalculateSummary();
 
             return $batch->fresh();
         });
+    }
+
+    /**
+     * Recompute a single payment's stored values without touching the batch
+     * summary — callers recalculate the summary once, after all payments in
+     * scope are updated, instead of once per payment.
+     */
+    private function recalculatePaymentValues(WeeklyAllowancePayment $payment, WeeklyAllowanceBatch $batch, Employee $employee): void
+    {
+        $calculated = $this->calculateEmployeePayment(
+            $employee,
+            $batch->week_start_date,
+            $batch->week_end_date
+        );
+
+        if ($calculated) {
+            $payment->update([
+                'daily_rate' => $calculated['daily_rate'],
+                'days_present' => $calculated['days_present'],
+                'days_breakdown' => $calculated['days_breakdown'],
+                'total_amount' => $calculated['total_amount'],
+            ]);
+        }
     }
 }

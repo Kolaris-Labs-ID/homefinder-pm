@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\Hris\WeeklyAllowanceService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -126,6 +127,28 @@ describe('WeeklyAllowanceService::recalculateBatch', function () {
         $second = (float) $batch->payments()->where('employee_id', $employee->id)->first()->total_amount;
 
         expect($first)->toBe(210_000.0)->and($second)->toBe($first);
+    });
+
+    it('recalculates the batch summary once regardless of payment count (no per-payment N+1)', function () {
+        $employees = collect(range(1, 3))->map(fn () => recalcEmployee(['daily_allowance_rate' => 70_000]));
+        foreach ($employees as $employee) {
+            recalcPresent($employee, '2025-10-06');
+        }
+
+        $batch = recalcGenerate();
+
+        foreach ($employees as $employee) {
+            recalcPresent($employee, '2025-10-07');
+        }
+
+        DB::enableQueryLog();
+        $this->service->recalculateBatch($batch);
+        $summaryQueries = collect(DB::getQueryLog())
+            ->filter(fn ($q) => str_contains($q['query'], 'sum(') && str_contains($q['query'], 'weekly_allowance_payments'))
+            ->count();
+        DB::disableQueryLog();
+
+        expect($summaryQueries)->toBe(1);
     });
 
     it('rejects recalculation of a batch in finance approval', function () {

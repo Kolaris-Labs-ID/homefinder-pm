@@ -19,7 +19,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        $duplicates = (new \App\Services\Hris\DuplicateSalaryStructureFinder)->find();
+        $duplicates = app(\App\Services\Hris\DuplicateSalaryStructureFinder::class)->find();
 
         if ($duplicates->isNotEmpty()) {
             throw new \RuntimeException(
