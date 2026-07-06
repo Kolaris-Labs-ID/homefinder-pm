@@ -4,7 +4,6 @@ namespace App\Services\Hris;
 
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Employee;
-use App\Models\Hris\SalaryStructure;
 use App\Models\Hris\WeeklyAllowanceBatch;
 use App\Models\Hris\WeeklyAllowancePayment;
 use App\Models\User;
@@ -16,18 +15,23 @@ class WeeklyAllowanceService
 {
     protected AttendanceService $attendanceService;
 
-    public function __construct(?AttendanceService $attendanceService = null)
-    {
+    protected CompensationResolver $compensationResolver;
+
+    public function __construct(
+        ?AttendanceService $attendanceService = null,
+        ?CompensationResolver $compensationResolver = null
+    ) {
         $this->attendanceService = $attendanceService ?? app(AttendanceService::class);
+        $this->compensationResolver = $compensationResolver ?? app(CompensationResolver::class);
     }
+
     /**
      * Generate a weekly allowance batch for the given week.
      *
-     * @param Carbon $weekStart Monday of the week
-     * @param Carbon $weekEnd Friday of the week
-     * @param Carbon $paymentDate Payment date (Tuesday)
-     * @param User|null $generatedBy User who generated the batch
-     * @return WeeklyAllowanceBatch
+     * @param  Carbon  $weekStart  Monday of the week
+     * @param  Carbon  $weekEnd  Friday of the week
+     * @param  Carbon  $paymentDate  Payment date (Tuesday)
+     * @param  User|null  $generatedBy  User who generated the batch
      */
     public function generateBatch(
         Carbon $weekStart,
@@ -98,7 +102,6 @@ class WeeklyAllowanceService
     /**
      * Get employees eligible for weekly allowance.
      *
-     * @param Carbon $asOfDate
      * @return \Illuminate\Support\Collection
      */
     public function getEligibleEmployees(Carbon $asOfDate)
@@ -113,33 +116,17 @@ class WeeklyAllowanceService
     }
 
     /**
-     * Get active salary structure for an employee.
-     *
-     * @param Employee $employee
-     * @param Carbon $asOfDate
-     * @return SalaryStructure|null
-     */
-    protected function getActiveSalaryStructure(Employee $employee, Carbon $asOfDate): ?SalaryStructure
-    {
-        return SalaryStructure::forEmployee($employee->id)
-            ->activeForDate($asOfDate)
-            ->first();
-    }
-
-    /**
      * Calculate weekly allowance payment for an employee.
-     *
-     * @param Employee $employee
-     * @param Carbon $weekStart
-     * @param Carbon $weekEnd
-     * @return array|null
      */
     public function calculateEmployeePayment(Employee $employee, Carbon $weekStart, Carbon $weekEnd): ?array
     {
-        // Get salary structure
-        $salaryStructure = $this->getActiveSalaryStructure($employee, $weekEnd);
+        // Load all structures effective on/before week end once, newest first.
+        // Eligibility + the fallback rate use the week-end structure; the per-day
+        // rate is resolved from this same set so a mid-week change isn't retroactive.
+        $salaryStructures = $this->compensationResolver->structuresAsOf($employee, $weekEnd);
+        $salaryStructure = $salaryStructures->first();
 
-        if (!$salaryStructure || !$salaryStructure->weekly_allowance_enabled) {
+        if (! $salaryStructure || ! $salaryStructure->weekly_allowance_enabled) {
             return null;
         }
 
@@ -152,15 +139,23 @@ class WeeklyAllowanceService
         $daysBreakdown = $this->getDaysBreakdown($employee, $weekStart, $weekEnd);
         $daysPresent = $this->countPresentDays($daysBreakdown);
 
-        // Calculate total applying late penalties per day
+        // Calculate total applying late penalties per day, using the rate that
+        // was actually effective on each day (so a mid-week rate change only
+        // applies from its effective_date onward, not retroactively to the whole week).
+        $dayOffsets = ['mon' => 0, 'tue' => 1, 'wed' => 2, 'thu' => 3, 'fri' => 4];
         $totalAmount = 0.0;
-        foreach ($daysBreakdown as $day) {
-            if (!$day['present']) {
+        foreach ($daysBreakdown as $key => &$day) {
+            if (! $day['present']) {
                 continue;
             }
+            $date = $weekStart->copy()->addDays($dayOffsets[$key]);
+            $dayStructure = $this->compensationResolver->resolveFrom($salaryStructures, $date);
+            // Days before any structure is effective fall back to the week-end rate.
+            $day['daily_rate'] = $dayStructure ? (float) $dayStructure->daily_allowance_rate : $dailyRate;
             $penaltyPercent = $day['penalty_percent'] ?? 0;
-            $totalAmount += $dailyRate * (1 - $penaltyPercent / 100);
+            $totalAmount += $day['daily_rate'] * (1 - $penaltyPercent / 100);
         }
+        unset($day);
         $totalAmount = round($totalAmount, 2);
 
         // Check bank info
@@ -183,9 +178,6 @@ class WeeklyAllowanceService
      * Each entry is an array:
      *   ['present' => bool, 'late' => bool, 'has_late_notice' => bool, 'penalty_percent' => int]
      *
-     * @param Employee $employee
-     * @param Carbon $weekStart
-     * @param Carbon $weekEnd
      * @return array<string, array>
      */
     public function getDaysBreakdown(Employee $employee, Carbon $weekStart, Carbon $weekEnd): array
@@ -223,7 +215,13 @@ class WeeklyAllowanceService
                 $log = $logs->get($dateKey);
 
                 if ($log) {
-                    // Count as present if: present, late, or WFH mode
+                    // Count as present if: present, late, or WFH mode.
+                    //
+                    // Business rule:
+                    // HALF_DAY intentionally does NOT receive Daily Allowance.
+                    // This behavior is defined by HR policy, not by a technical limitation.
+                    // If HR policy changes in the future, revisit this calculation together with
+                    // Monthly Payroll and Overtime to keep compensation rules consistent.
                     $isPresent = in_array($log->status, [
                         AttendanceLog::STATUS_PRESENT,
                         AttendanceLog::STATUS_LATE,
@@ -236,8 +234,8 @@ class WeeklyAllowanceService
                         : false;
 
                     $breakdown[$dayMap[$dayOfWeek]] = [
-                        'present'         => $isPresent,
-                        'late'            => $isLate,
+                        'present' => $isPresent,
+                        'late' => $isLate,
                         'has_late_notice' => $hasLateNotice,
                         'penalty_percent' => $penaltyPercent,
                     ];
@@ -254,9 +252,6 @@ class WeeklyAllowanceService
      * Count present days from breakdown.
      *
      * Accepts both legacy bool values and the new rich array format.
-     *
-     * @param array $daysBreakdown
-     * @return int
      */
     public function countPresentDays(array $daysBreakdown): int
     {
@@ -271,11 +266,6 @@ class WeeklyAllowanceService
 
     /**
      * Get total weekly allowance paid for an employee in a month.
-     *
-     * @param Employee $employee
-     * @param Carbon $monthStart
-     * @param Carbon $monthEnd
-     * @return float
      */
     public function getMonthlyPaidTotal(Employee $employee, Carbon $monthStart, Carbon $monthEnd): float
     {
@@ -291,9 +281,6 @@ class WeeklyAllowanceService
     /**
      * Get weekly payments for an employee in a month.
      *
-     * @param Employee $employee
-     * @param Carbon $monthStart
-     * @param Carbon $monthEnd
      * @return \Illuminate\Support\Collection
      */
     public function getMonthlyPayments(Employee $employee, Carbon $monthStart, Carbon $monthEnd)
@@ -313,7 +300,7 @@ class WeeklyAllowanceService
     /**
      * Calculate the previous week's Monday and Friday.
      *
-     * @param Carbon|null $fromDate Calculate from this date (default: now)
+     * @param  Carbon|null  $fromDate  Calculate from this date (default: now)
      * @return array ['start' => Carbon, 'end' => Carbon, 'payment' => Carbon]
      */
     public static function getPreviousWeekDates(?Carbon $fromDate = null): array
@@ -344,16 +331,13 @@ class WeeklyAllowanceService
 
     /**
      * Recalculate a payment record.
-     *
-     * @param WeeklyAllowancePayment $payment
-     * @return WeeklyAllowancePayment
      */
     public function recalculatePayment(WeeklyAllowancePayment $payment): WeeklyAllowancePayment
     {
         $batch = $payment->batch;
         $employee = $payment->employee;
 
-        if (!$batch || !$employee) {
+        if (! $batch || ! $employee) {
             return $payment;
         }
 
