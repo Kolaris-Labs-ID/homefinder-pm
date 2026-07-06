@@ -10,18 +10,20 @@ use App\Models\Hris\SalaryStructure;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use App\Services\Hris\AttendancePayrollService;
-use App\Services\Hris\PayrollSettingService;
-use App\Services\Hris\WeeklyAllowanceService;
-use App\Services\Hris\OvertimePayService;
 
 class PayrollCalculationService
 {
     protected AttendancePayrollService $attendanceService;
+
     protected PayrollSettingService $settingService;
+
     protected WeeklyAllowanceService $weeklyAllowanceService;
+
     protected OvertimePayService $overtimePayService;
+
     protected AttendanceService $attendanceCalculationService;
+
+    protected CompensationResolver $compensationResolver;
 
     public function __construct(
         protected BpjsCalculationService $bpjsService,
@@ -30,13 +32,15 @@ class PayrollCalculationService
         ?PayrollSettingService $settingService = null,
         ?WeeklyAllowanceService $weeklyAllowanceService = null,
         ?OvertimePayService $overtimePayService = null,
-        ?AttendanceService $attendanceCalculationService = null
+        ?AttendanceService $attendanceCalculationService = null,
+        ?CompensationResolver $compensationResolver = null
     ) {
         $this->attendanceService = $attendanceService ?? app(AttendancePayrollService::class);
         $this->settingService = $settingService ?? app(PayrollSettingService::class);
         $this->weeklyAllowanceService = $weeklyAllowanceService ?? app(WeeklyAllowanceService::class);
         $this->overtimePayService = $overtimePayService ?? app(OvertimePayService::class);
         $this->attendanceCalculationService = $attendanceCalculationService ?? app(AttendanceService::class);
+        $this->compensationResolver = $compensationResolver ?? app(CompensationResolver::class);
     }
 
     /**
@@ -45,9 +49,7 @@ class PayrollCalculationService
      */
     public function getActiveSalaryStructure(Employee $employee, Carbon $date): ?SalaryStructure
     {
-        return SalaryStructure::forEmployee($employee->id)
-            ->activeForDate($date)
-            ->first();
+        return $this->compensationResolver->resolve($employee, $date);
     }
 
     /**
@@ -57,7 +59,7 @@ class PayrollCalculationService
     {
         $salaryStructure = $this->getActiveSalaryStructure($employee, $batch->period_end_date);
 
-        if (!$salaryStructure) {
+        if (! $salaryStructure) {
             return null;
         }
 
@@ -94,7 +96,7 @@ class PayrollCalculationService
         $variableAllowancesResult = [];
         $totalVariableAllowances = 0;
 
-        if (!empty($salaryStructure->allowances_variable)) {
+        if (! empty($salaryStructure->allowances_variable)) {
             $variableAllowancesResult = $this->attendanceService->calculateVariableAllowances(
                 $salaryStructure->allowances_variable,
                 $attendanceSummary
@@ -102,17 +104,14 @@ class PayrollCalculationService
             $totalVariableAllowances = $variableAllowancesResult['total'];
         }
 
-        // Calculate daily allowance (Uang Harian) with per-day late penalties applied
-        $dailyAllowanceTotal = 0;
-        if ($salaryStructure->daily_allowance_rate && $salaryStructure->daily_allowance_rate > 0) {
-            $dailyRate = (float) $salaryStructure->daily_allowance_rate;
-            $dailyAllowanceTotal = $this->calculateDailyAllowanceWithPenalties(
-                $employee,
-                $dailyRate,
-                $batch->period_start_date,
-                $batch->period_end_date
-            );
-        }
+        // Calculate daily allowance (Uang Harian) with per-day late penalties applied,
+        // resolving the rate effective on each work date so a mid-period rate change
+        // applies from its effective_date onward, not retroactively to the whole period.
+        $dailyAllowanceTotal = $this->calculateDailyAllowanceWithPenalties(
+            $employee,
+            $batch->period_start_date,
+            $batch->period_end_date
+        );
 
         // Weekly allowance reconciliation
         $weeklyAllowanceEarned = $dailyAllowanceTotal;
@@ -207,8 +206,8 @@ class PayrollCalculationService
             ->where('status', 'paid')
             ->map(fn ($p) => [
                 'week_label' => $p->batch->week_label ?? '-',
-                'sessions'   => $p->total_sessions,
-                'amount'     => (float) $p->total_amount,
+                'sessions' => $p->total_sessions,
+                'amount' => (float) $p->total_amount,
             ])->values()->all();
 
         // Build detailed breakdown
@@ -288,7 +287,7 @@ class PayrollCalculationService
      */
     public function calculatePayrun(PayrunBatch $batch): array
     {
-        if (!$batch->canCalculate()) {
+        if (! $batch->canCalculate()) {
             throw new \Exception("Cannot calculate payrun batch with status: {$batch->status}");
         }
 
@@ -338,7 +337,7 @@ class PayrollCalculationService
      */
     public function approve(PayrunBatch $batch, User $approver): void
     {
-        if (!$batch->canApprove()) {
+        if (! $batch->canApprove()) {
             throw new \Exception("Cannot approve payrun batch with status: {$batch->status}");
         }
 
@@ -356,7 +355,7 @@ class PayrollCalculationService
      */
     public function markAsPaid(PayrunBatch $batch, User $paidBy): void
     {
-        if (!$batch->canMarkAsPaid()) {
+        if (! $batch->canMarkAsPaid()) {
             throw new \Exception("Cannot mark as paid payrun batch with status: {$batch->status}");
         }
 
@@ -392,24 +391,26 @@ class PayrollCalculationService
      * Calculate total daily allowance (Uang Harian) for a period, applying
      * late-attendance deductions per day.
      *
-     * For each working day:
-     * - Present/WFH  → full daily rate
+     * For each working day, the daily rate is resolved from the salary structure
+     * effective on THAT day (via CompensationResolver), so a mid-period rate change
+     * is applied per day rather than to the whole period:
+     * - Present/WFH  → full daily rate (of that day)
      * - Late (no notice) → daily rate × (1 - penalty%)
      * - Late (approved notice) → full daily rate
      * - Absent / Half-day → no daily allowance
-     *
-     * @param Employee $employee
-     * @param float $dailyRate
-     * @param Carbon $periodStart
-     * @param Carbon $periodEnd
-     * @return float
      */
     protected function calculateDailyAllowanceWithPenalties(
         Employee $employee,
-        float $dailyRate,
         Carbon $periodStart,
         Carbon $periodEnd
     ): float {
+        // Load every structure effective on/before period end once, then resolve
+        // the rate per work date in memory (no per-day query).
+        $structures = $this->compensationResolver->structuresAsOf($employee, $periodEnd);
+        if ($structures->isEmpty()) {
+            return 0.0;
+        }
+
         $logs = AttendanceLog::forEmployee($employee->id)
             ->forDateRange($periodStart, $periodEnd)
             ->whereIn('status', [
@@ -423,6 +424,11 @@ class PayrollCalculationService
             // Skip weekend days and public holiday logs — those are paid via overtime pay instead
             $logDate = Carbon::parse($log->date);
             if ($logDate->isWeekend()) {
+                continue;
+            }
+
+            $dailyRate = $this->compensationResolver->dailyRateFrom($structures, $logDate);
+            if ($dailyRate <= 0) {
                 continue;
             }
 

@@ -7,17 +7,15 @@ use App\Models\Hris\PayrunBatch;
 use App\Models\Hris\SalaryStructure;
 use App\Models\Hris\WeeklyAllowanceBatch;
 use App\Models\Hris\WeeklyAllowancePayment;
-use App\Models\User;
 use App\Services\Hris\AttendancePayrollService;
 use App\Services\Hris\BpjsCalculationService;
 use App\Services\Hris\PayrollCalculationService;
 use App\Services\Hris\PayrollSettingService;
 use App\Services\Hris\Pph21CalculationService;
-use App\Services\Hris\WeeklyAllowanceService;
 use Carbon\Carbon;
 
 beforeEach(function () {
-    $this->settingService = new PayrollSettingService();
+    $this->settingService = new PayrollSettingService;
     $this->bpjsService = new BpjsCalculationService($this->settingService);
     $this->pph21Service = new Pph21CalculationService($this->settingService);
     $this->attendanceService = new AttendancePayrollService($this->settingService);
@@ -50,7 +48,7 @@ function createAttendance(Employee $employee, int $days, string $startDate = '20
     $daysCreated = 0;
     $date = Carbon::parse($startDate);
     while ($daysCreated < $days) {
-        if (!$date->isWeekend()) {
+        if (! $date->isWeekend()) {
             AttendanceLog::create([
                 'employee_id' => $employee->id,
                 'date' => $date->copy(),
@@ -344,5 +342,39 @@ describe('PayrollCalculationService getActiveSalaryStructure', function () {
         $structure = $this->service->getActiveSalaryStructure($employee, Carbon::parse('2025-10-31'));
 
         expect((float) $structure->basic_salary)->toBe(4000000.0);
+    });
+});
+
+describe('PayrollCalculationService daily allowance resolves rate per work date', function () {
+    it('applies the old rate to days before a mid-month change and the new rate on/after', function () {
+        $batch = PayrunBatch::factory()->draft()->create([
+            'period_start_date' => '2025-10-01',
+            'period_end_date' => '2025-10-31',
+        ]);
+
+        // Base structure: 50k/day from the start of the year.
+        $employee = createEmployeeWithSalary([
+            'daily_allowance_rate' => 50000,
+        ]);
+
+        // Rate raised to 100k effective Wednesday 2025-10-15, mid-period.
+        SalaryStructure::create([
+            'employee_id' => $employee->id,
+            'effective_date' => '2025-10-15',
+            'basic_salary' => 5000000,
+            'prorate_enabled' => false,
+            'daily_allowance_rate' => 100000,
+            'pph21_method' => 'gross',
+            'jkk_risk_level' => 'low',
+        ]);
+
+        // Present every October weekday (23 total).
+        createAttendance($employee, 23);
+
+        $record = $this->service->calculateEmployee($employee, $batch);
+
+        // 10 weekdays before Oct 15 @ 50k + 13 weekdays on/after Oct 15 @ 100k
+        // = 500,000 + 1,300,000 = 1,800,000 (NOT 23 x 100k = 2,300,000).
+        expect((float) $record->daily_allowance_total)->toBe(1800000.00);
     });
 });
