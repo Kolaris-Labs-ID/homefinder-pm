@@ -2,6 +2,7 @@
 
 namespace App\Services\Hris;
 
+use App\Exceptions\InsufficientLeaveBalanceException;
 use App\Models\Hris\Employee;
 use App\Models\Hris\LeaveBalance;
 use App\Models\Hris\LeaveRequest;
@@ -103,6 +104,18 @@ class LeaveBalanceService
         return $this->annualLeaveRemaining($employee, $year) <= 0;
     }
 
+    /**
+     * Deduct a leave request's days from the employee's balance.
+     *
+     * Must be called from within a transaction owned by the caller (see
+     * ApprovalWorkflowService::approve()/approveParallel()) so the lock taken
+     * here actually serializes concurrent approvals instead of releasing early.
+     *
+     * @throws InsufficientLeaveBalanceException if a quota-tracked type (i.e. not
+     *         UNPAID/SICK, which are intentionally unlimited) would go negative —
+     *         this re-validates at approval time to close the gap left by
+     *         canConsume() only being checked once, at submission time.
+     */
     public function consume(LeaveRequest $leaveRequest): void
     {
         // Ensure we have the relationships loaded
@@ -110,31 +123,40 @@ class LeaveBalanceService
 
         $year = $leaveRequest->start_date->year;
 
-        // Get or create the balance
-        $balance = LeaveBalance::firstOrCreate(
-            [
+        // Lock the balance row so two overlapping requests approved at nearly the
+        // same time can't both read the same remaining_days and jointly overdraw it.
+        $balance = LeaveBalance::where('employee_id', $leaveRequest->employee_id)
+            ->where('leave_type_id', $leaveRequest->leave_type_id)
+            ->where('year', $year)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $balance) {
+            $startingBalance = $this->determineStartingBalance($leaveRequest->employee, $leaveRequest->leaveType, $year);
+
+            $balance = LeaveBalance::create([
                 'employee_id' => $leaveRequest->employee_id,
                 'leave_type_id' => $leaveRequest->leave_type_id,
                 'year' => $year,
-            ],
-            [
-                'starting_balance' => $this->determineStartingBalance(
-                    $leaveRequest->employee,
-                    $leaveRequest->leaveType,
-                    $year
-                ),
+                'starting_balance' => $startingBalance,
                 'used_days' => 0,
-                'remaining_days' => $this->determineStartingBalance(
-                    $leaveRequest->employee,
-                    $leaveRequest->leaveType,
-                    $year
-                ),
-            ]
-        );
+                'remaining_days' => $startingBalance,
+            ]);
+        }
 
-        // Update the balance
-        $balance->used_days = $balance->used_days + $leaveRequest->total_days;
-        $balance->remaining_days = $balance->remaining_days - $leaveRequest->total_days;
+        $newRemaining = $balance->remaining_days - $leaveRequest->total_days;
+
+        $isUnlimitedType = in_array($leaveRequest->leaveType->code, [self::CODE_UNPAID, self::CODE_SICK], true);
+
+        if (! $isUnlimitedType && $newRemaining < 0) {
+            throw new InsufficientLeaveBalanceException(
+                "Cannot approve leave request #{$leaveRequest->id}: insufficient {$leaveRequest->leaveType->name} balance ".
+                "({$balance->remaining_days} remaining, {$leaveRequest->total_days} requested)."
+            );
+        }
+
+        $balance->used_days += $leaveRequest->total_days;
+        $balance->remaining_days = $newRemaining;
         $balance->save();
     }
 

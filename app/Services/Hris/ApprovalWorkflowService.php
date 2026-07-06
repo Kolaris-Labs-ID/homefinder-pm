@@ -7,6 +7,7 @@ use App\Models\Hris\ApprovalWorkflow;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class ApprovalWorkflowService
@@ -143,43 +144,58 @@ class ApprovalWorkflowService
      */
     public function approve(ApprovalStep $step, User $approver, ?string $notes = null): void
     {
-        // Validate the step is pending
-        if ($step->status !== ApprovalStep::STATUS_PENDING) {
-            throw new \Exception('This step has already been processed.');
-        }
-
-        // Validate the approver is authorized
+        // Validate the approver is authorized (cheap check, no need for a lock yet)
         if (! $this->isUserAuthorizedForStep($step, $approver)) {
             throw new \Exception('You are not authorized to approve this step.');
         }
 
-        // Mark current step as approved
-        $step->update([
-            'status' => ApprovalStep::STATUS_APPROVED,
-            'approved_at' => now(),
-            'notes' => $notes,
-            'approver_id' => $approver->id,
-        ]);
+        try {
+            DB::transaction(function () use ($step, $approver, $notes) {
+                // Re-fetch under a row lock so a concurrent approval of the same step
+                // (or a concurrent approval that would overdraw a shared leave balance,
+                // see LeaveBalanceService::consume()) is serialized rather than racing.
+                $lockedStep = ApprovalStep::whereKey($step->id)->lockForUpdate()->firstOrFail();
 
-        // Get the approvable model
-        $approvable = $step->approvable;
+                if ($lockedStep->status !== ApprovalStep::STATUS_PENDING) {
+                    throw new \Exception('This step has already been processed.');
+                }
 
-        // Check if there are more steps
-        $nextStep = $this->getNextStep($step);
+                // Mark current step as approved
+                $lockedStep->update([
+                    'status' => ApprovalStep::STATUS_APPROVED,
+                    'approved_at' => now(),
+                    'notes' => $notes,
+                    'approver_id' => $approver->id,
+                ]);
 
-        if ($nextStep) {
-            // Advance to next step
-            $nextStep->update([
-                'status' => ApprovalStep::STATUS_PENDING,
-            ]);
+                // Get the approvable model
+                $approvable = $lockedStep->approvable;
 
-            // Notify the next approver
-            if ($nextStep->approver_id) {
-                $this->notifyApprover($nextStep);
-            }
-        } else {
-            // Final step approved - mark approvable as approved
-            $this->markApprovableAsApproved($approvable);
+                // Check if there are more steps
+                $nextStep = $this->getNextStep($lockedStep);
+
+                if ($nextStep) {
+                    // Advance to next step
+                    $nextStep->update([
+                        'status' => ApprovalStep::STATUS_PENDING,
+                    ]);
+
+                    // Notify the next approver
+                    if ($nextStep->approver_id) {
+                        $this->notifyApprover($nextStep);
+                    }
+                } else {
+                    // Final step approved - mark approvable as approved.
+                    // This (and any side effect it triggers, e.g. leave balance
+                    // consumption) MUST stay inside this transaction: if it throws,
+                    // the step update above must roll back too, otherwise the step
+                    // ends up "approved" while the parent record stays "pending" forever.
+                    $this->markApprovableAsApproved($approvable);
+                }
+            });
+        } catch (\Throwable $e) {
+            $this->logApprovalFailure('approve', $step, $approver, $e);
+            throw $e;
         }
     }
 
@@ -194,34 +210,43 @@ class ApprovalWorkflowService
      */
     public function approveParallel(ApprovalStep $step, User $approver, ?string $notes = null): void
     {
-        // Validate the step is pending
-        if ($step->status !== ApprovalStep::STATUS_PENDING) {
-            throw new \Exception('This step has already been processed.');
-        }
-
-        // Validate the approver is authorized
+        // Validate the approver is authorized (cheap check, no need for a lock yet)
         if (! $this->isUserAuthorizedForStep($step, $approver)) {
             throw new \Exception('You are not authorized to approve this step.');
         }
 
-        // Mark current step as approved
-        $step->update([
-            'status' => ApprovalStep::STATUS_APPROVED,
-            'approved_at' => now(),
-            'notes' => $notes,
-            'approver_id' => $approver->id,
-        ]);
+        try {
+            DB::transaction(function () use ($step, $approver, $notes) {
+                $lockedStep = ApprovalStep::whereKey($step->id)->lockForUpdate()->firstOrFail();
 
-        $approvable = $step->approvable;
+                if ($lockedStep->status !== ApprovalStep::STATUS_PENDING) {
+                    throw new \Exception('This step has already been processed.');
+                }
 
-        // Skip all remaining pending steps for this approvable
-        ApprovalStep::where('approvable_type', get_class($approvable))
-            ->where('approvable_id', $approvable->id)
-            ->where('status', ApprovalStep::STATUS_PENDING)
-            ->update(['status' => ApprovalStep::STATUS_SKIPPED]);
+                // Mark current step as approved
+                $lockedStep->update([
+                    'status' => ApprovalStep::STATUS_APPROVED,
+                    'approved_at' => now(),
+                    'notes' => $notes,
+                    'approver_id' => $approver->id,
+                ]);
 
-        // Immediately mark the approvable as approved
-        $this->markApprovableAsApproved($approvable);
+                $approvable = $lockedStep->approvable;
+
+                // Skip all remaining pending steps for this approvable
+                ApprovalStep::where('approvable_type', get_class($approvable))
+                    ->where('approvable_id', $approvable->id)
+                    ->where('status', ApprovalStep::STATUS_PENDING)
+                    ->update(['status' => ApprovalStep::STATUS_SKIPPED]);
+
+                // Immediately mark the approvable as approved. Must stay inside this
+                // transaction for the same reason as approve() above.
+                $this->markApprovableAsApproved($approvable);
+            });
+        } catch (\Throwable $e) {
+            $this->logApprovalFailure('approveParallel', $step, $approver, $e);
+            throw $e;
+        }
     }
 
     /**
@@ -287,27 +312,61 @@ class ApprovalWorkflowService
      */
     public function reject(ApprovalStep $step, User $approver, string $reason): void
     {
-        // Validate the step is pending
-        if ($step->status !== ApprovalStep::STATUS_PENDING) {
-            throw new \Exception('This step has already been processed.');
-        }
-
-        // Validate the approver is authorized
+        // Validate the approver is authorized (cheap check, no need for a lock yet)
         if (! $this->isUserAuthorizedForStep($step, $approver)) {
             throw new \Exception('You are not authorized to reject this step.');
         }
 
-        // Mark step as rejected
-        $step->update([
-            'status' => ApprovalStep::STATUS_REJECTED,
-            'approved_at' => now(),
-            'notes' => $reason,
-            'approver_id' => $approver->id,
-        ]);
+        try {
+            DB::transaction(function () use ($step, $approver, $reason) {
+                $lockedStep = ApprovalStep::whereKey($step->id)->lockForUpdate()->firstOrFail();
 
-        // Mark approvable as rejected
+                if ($lockedStep->status !== ApprovalStep::STATUS_PENDING) {
+                    throw new \Exception('This step has already been processed.');
+                }
+
+                // Mark step as rejected
+                $lockedStep->update([
+                    'status' => ApprovalStep::STATUS_REJECTED,
+                    'approved_at' => now(),
+                    'notes' => $reason,
+                    'approver_id' => $approver->id,
+                ]);
+
+                // Mark approvable as rejected. Kept inside the same transaction as the
+                // step update, for the same reason as approve(): a side effect added to
+                // markAsRejected() in the future must not leave the step "rejected" while
+                // the parent record silently stays in its prior state.
+                $this->markApprovableAsRejected($lockedStep->approvable, $reason);
+            });
+        } catch (\Throwable $e) {
+            $this->logApprovalFailure('reject', $step, $approver, $e);
+            throw $e;
+        }
+    }
+
+    /**
+     * Log a failed approval attempt with enough context to diagnose it without
+     * reproducing the issue (approvable id, step id, workflow id, approver, employee).
+     * Callers only see a UI notification with the exception message, so this is the
+     * only durable record of what actually broke and where.
+     */
+    protected function logApprovalFailure(string $operation, ApprovalStep $step, User $approver, \Throwable $e): void
+    {
         $approvable = $step->approvable;
-        $this->markApprovableAsRejected($approvable, $reason);
+
+        Log::error("Approval workflow {$operation}() failed: ".$e->getMessage(), [
+            'operation' => $operation,
+            'approval_step_id' => $step->id,
+            'workflow_id' => $step->workflow_id,
+            'approvable_type' => $step->approvable_type,
+            'approvable_id' => $step->approvable_id,
+            'employee_id' => $approvable?->employee_id,
+            'approver_user_id' => $approver->id,
+            'exception_class' => get_class($e),
+            'exception_message' => $e->getMessage(),
+            'exception_trace' => $e->getTraceAsString(),
+        ]);
     }
 
     /**

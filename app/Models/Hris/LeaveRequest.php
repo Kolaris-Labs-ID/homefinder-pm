@@ -95,6 +95,7 @@ class LeaveRequest extends Model implements ApprovableContract
         $this->update([
             'status' => static::STATUS_APPROVED,
             'approved_at' => now(),
+            'current_approver_id' => null,
         ]);
     }
 }
