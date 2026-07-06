@@ -14,6 +14,25 @@ use function Pest\Laravel\getJson;
 
 uses(RefreshDatabase::class);
 
+// Idempotent salary-structure creation: one row per (employee, effective_date).
+// Multiple batches for the same employee can land in the same month, and the
+// unique (employee_id, effective_date) constraint forbids duplicates — reuse
+// the existing structure instead of colliding.
+function ensureSalaryStructure(array $attrs): SalaryStructure
+{
+    $employeeId = $attrs['employee_id'];
+    $date = \Illuminate\Support\Carbon::parse($attrs['effective_date'])->toDateString();
+
+    $existing = SalaryStructure::where('employee_id', $employeeId)
+        ->whereDate('effective_date', $date)
+        ->first();
+
+    return $existing ?? SalaryStructure::factory()->create(array_merge($attrs, [
+        'employee_id' => $employeeId,
+        'effective_date' => $date,
+    ]));
+}
+
 beforeEach(function () {
     $this->payrollService = app(PayrollCalculationService::class);
     $this->payslipService = app(PayslipService::class);
@@ -28,7 +47,7 @@ describe('Payslip list endpoint', function () {
 
         // Create a paid batch with payslip
         $batch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
         ]);
@@ -74,7 +93,7 @@ describe('Payslip list endpoint', function () {
 
         // Create draft batch (should not appear)
         $draftBatch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $draftBatch->period_start_date,
         ]);
@@ -82,7 +101,7 @@ describe('Payslip list endpoint', function () {
 
         // Create calculated batch (should not appear)
         $calculatedBatch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $calculatedBatch->period_start_date,
         ]);
@@ -90,7 +109,7 @@ describe('Payslip list endpoint', function () {
 
         // Create approved batch (should not appear)
         $approvedBatch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $approvedBatch->period_start_date,
         ]);
@@ -99,7 +118,7 @@ describe('Payslip list endpoint', function () {
 
         // Create paid batch (should appear)
         $paidBatch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $paidBatch->period_start_date,
         ]);
@@ -127,7 +146,7 @@ describe('Payslip list endpoint', function () {
                 'period_end_date' => now()->subMonths(3 - $i)->endOfMonth(),
             ]);
 
-            SalaryStructure::factory()->create([
+            ensureSalaryStructure([
                 'employee_id' => $employee->id,
                 'effective_date' => $batch->period_start_date,
             ]);
@@ -165,11 +184,11 @@ describe('Payslip list endpoint', function () {
         // Create paid batch with payslips for both employees
         $batch = PayrunBatch::factory()->draft()->create();
 
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee1->id,
             'effective_date' => $batch->period_start_date,
         ]);
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee2->id,
             'effective_date' => $batch->period_start_date,
         ]);
@@ -213,7 +232,7 @@ describe('Payslip show endpoint', function () {
 
         // Create a paid batch with payslip
         $batch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
         ]);
@@ -273,11 +292,11 @@ describe('Payslip show endpoint', function () {
         // Create paid batch with payslips for both employees
         $batch = PayrunBatch::factory()->draft()->create();
 
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee1->id,
             'effective_date' => $batch->period_start_date,
         ]);
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee2->id,
             'effective_date' => $batch->period_start_date,
         ]);
@@ -300,7 +319,7 @@ describe('Payslip show endpoint', function () {
 
         // Create draft batch (payslip not available)
         $batch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
         ]);
@@ -321,7 +340,7 @@ describe('Payslip show endpoint', function () {
 
         // Create calculated batch (payslip not available)
         $batch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
         ]);
@@ -342,7 +361,7 @@ describe('Payslip show endpoint', function () {
 
         // Create approved batch (payslip not available)
         $batch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
         ]);
@@ -364,7 +383,7 @@ describe('Payslip show endpoint', function () {
 
         // Create paid batch
         $batch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
         ]);
@@ -418,7 +437,7 @@ describe('Payslip content validation', function () {
 
         // Create salary structure with specific values
         $batch = PayrunBatch::factory()->draft()->create();
-        $salaryStructure = SalaryStructure::factory()->create([
+        $salaryStructure = ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
             // Pin the tax method: netto/gross_up add a tunjangan_pajak to gross_income, which would
@@ -455,7 +474,7 @@ describe('Payslip content validation', function () {
         Sanctum::actingAs($employee->user);
 
         $batch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
             'basic_salary' => 10000000,
@@ -495,7 +514,7 @@ describe('Payslip content validation', function () {
         Sanctum::actingAs($employee->user);
 
         $batch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
             'basic_salary' => 10000000,
@@ -524,7 +543,7 @@ describe('Payslip content validation', function () {
         Sanctum::actingAs($employee->user);
 
         $batch = PayrunBatch::factory()->draft()->create();
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
             'basic_salary' => 10000000,
@@ -564,7 +583,7 @@ describe('Payslip period information', function () {
             'pay_date' => $payDate,
         ]);
 
-        SalaryStructure::factory()->create([
+        ensureSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
         ]);

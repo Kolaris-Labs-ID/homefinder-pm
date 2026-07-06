@@ -15,6 +15,24 @@ use App\Models\User;
 use App\Services\Hris\PayrollCalculationService;
 use App\Services\Hris\PayslipService;
 
+// Idempotent: one salary structure per (employee, effective_date). Multiple
+// batches for one employee can share a month; the unique constraint forbids
+// duplicate (employee_id, effective_date) rows, so reuse the existing one.
+function ensureSalaryStructureForBatch(array $attrs): SalaryStructure
+{
+    $employeeId = $attrs['employee_id'];
+    $date = \Illuminate\Support\Carbon::parse($attrs['effective_date'])->toDateString();
+
+    $existing = SalaryStructure::where('employee_id', $employeeId)
+        ->whereDate('effective_date', $date)
+        ->first();
+
+    return $existing ?? SalaryStructure::factory()->create(array_merge($attrs, [
+        'employee_id' => $employeeId,
+        'effective_date' => $date,
+    ]));
+}
+
 beforeEach(function () {
     // Clean up before each test
     PayrunBatch::query()->delete();
@@ -46,7 +64,7 @@ test('Property 17: Payslip availability after payment', function () {
         $employees = Employee::factory()->count($employeeCount)->create();
 
         foreach ($employees as $employee) {
-            SalaryStructure::factory()->create([
+            ensureSalaryStructureForBatch([
                 'employee_id' => $employee->id,
                 'effective_date' => $batch->period_start_date,
             ]);
@@ -128,7 +146,6 @@ test('Property 17: Payslip availability after payment', function () {
     $paidBy->forceDelete();
 })->group('property-test', 'hris-payroll');
 
-
 /**
  * **Feature: hris-phase3-payroll, Property 17 Edge Cases: Payslip availability boundary conditions**
  *
@@ -154,7 +171,7 @@ test('Property 17 Edge Cases: Payslip availability boundary conditions', functio
 
     // Edge case 1: Draft batch - payslips not available
     $draftBatch = PayrunBatch::factory()->draft()->create();
-    SalaryStructure::factory()->create([
+    ensureSalaryStructureForBatch([
         'employee_id' => $employee->id,
         'effective_date' => $draftBatch->period_start_date,
     ]);
@@ -167,7 +184,7 @@ test('Property 17 Edge Cases: Payslip availability boundary conditions', functio
 
     // Edge case 2: Calculated batch - payslips not available
     $calculatedBatch = PayrunBatch::factory()->draft()->create();
-    SalaryStructure::factory()->create([
+    ensureSalaryStructureForBatch([
         'employee_id' => $employee->id,
         'effective_date' => $calculatedBatch->period_start_date,
     ]);
@@ -180,7 +197,7 @@ test('Property 17 Edge Cases: Payslip availability boundary conditions', functio
 
     // Edge case 3: Approved batch - payslips not available
     $approvedBatch = PayrunBatch::factory()->draft()->create();
-    SalaryStructure::factory()->create([
+    ensureSalaryStructureForBatch([
         'employee_id' => $employee->id,
         'effective_date' => $approvedBatch->period_start_date,
     ]);
@@ -194,7 +211,7 @@ test('Property 17 Edge Cases: Payslip availability boundary conditions', functio
 
     // Edge case 4: Paid batch - payslips ARE available
     $paidBatch = PayrunBatch::factory()->draft()->create();
-    SalaryStructure::factory()->create([
+    ensureSalaryStructureForBatch([
         'employee_id' => $employee->id,
         'effective_date' => $paidBatch->period_start_date,
     ]);
@@ -209,7 +226,7 @@ test('Property 17 Edge Cases: Payslip availability boundary conditions', functio
 
     // Edge case 5: Multiple paid batches - all payslips available
     $paidBatch2 = PayrunBatch::factory()->draft()->create();
-    SalaryStructure::factory()->create([
+    ensureSalaryStructureForBatch([
         'employee_id' => $employee->id,
         'effective_date' => $paidBatch2->period_start_date,
     ]);
@@ -261,7 +278,6 @@ test('Property 17 Edge Cases: Payslip availability boundary conditions', functio
     $paidBy->forceDelete();
 })->group('property-test', 'hris-payroll');
 
-
 /**
  * **Feature: hris-phase3-payroll, Property 17 Additional: Payslip employee scoping**
  *
@@ -289,7 +305,7 @@ test('Property 17 Additional: Payslip employee scoping', function () {
         $batch = PayrunBatch::factory()->draft()->create();
 
         foreach ($employees as $employee) {
-            SalaryStructure::factory()->create([
+            ensureSalaryStructureForBatch([
                 'employee_id' => $employee->id,
                 'effective_date' => $batch->period_start_date,
             ]);
