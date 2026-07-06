@@ -383,8 +383,12 @@ class ApprovalWorkflowService
 
     /**
      * Mark the approvable model as approved.
+     *
+     * Public (like markApprovableAsRejected) so a repair command can re-finalize an
+     * approvable whose steps are all resolved but whose own status is stuck "pending"
+     * (see hris:fix-stuck-leave-approvals) without duplicating this logic.
      */
-    protected function markApprovableAsApproved(Model $approvable): void
+    public function markApprovableAsApproved(Model $approvable): void
     {
         if (method_exists($approvable, 'markAsApproved')) {
             $approvable->markAsApproved();
