@@ -45,6 +45,16 @@ it('scopes the expense-review queue to ERs awaiting finance action', function ()
     expect((new FinanceCenter)->expenseReviewQueue()->count())->toBe(2);
 });
 
+it('excludes draft ERs from the finance center expense-request listing', function () {
+    $submitted = financeCenterEr(ExpenseRequest::STATUS_SUBMITTED);
+    $draft = financeCenterEr(ExpenseRequest::STATUS_DRAFT);
+
+    $ids = \App\Filament\Resources\ExpenseRequestResource::getEloquentQuery()->pluck('id')->all();
+
+    expect($ids)->toContain($submitted->id);
+    expect($ids)->not->toContain($draft->id);
+});
+
 it('renders the ER evidence photo preview in the expense review inbox', function () {
     Storage::fake('private');
     $reviewer = User::factory()->create();

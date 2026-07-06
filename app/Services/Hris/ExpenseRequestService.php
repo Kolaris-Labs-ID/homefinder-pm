@@ -2,6 +2,7 @@
 
 namespace App\Services\Hris;
 
+use App\Exceptions\Hris\ExpenseRequestException;
 use App\Models\Hris\Employee;
 use App\Models\Hris\ExpenseRequest;
 use App\Models\User;
@@ -69,8 +70,17 @@ class ExpenseRequestService
 
     public function submit(ExpenseRequest $er, ?User $actor = null): void
     {
+        // Idempotent: a retry after a lost/timed-out response resolves to a no-op, not a re-stamp.
+        if ($er->status === ExpenseRequest::STATUS_SUBMITTED) {
+            return;
+        }
+
+        if ($er->status !== ExpenseRequest::STATUS_DRAFT) {
+            throw new ExpenseRequestException('Only a draft expense request can be submitted.');
+        }
+
         if (! $er->hasEvidence()) {
-            throw new \RuntimeException('An expense request requires evidence before it can be submitted.');
+            throw new ExpenseRequestException('An expense request requires evidence before it can be submitted.');
         }
 
         DB::transaction(function () use ($er, $actor) {
@@ -85,7 +95,7 @@ class ExpenseRequestService
     public function verify(ExpenseRequest $er, User $financeUser, ?string $notes = null): void
     {
         if (! in_array($er->status, [ExpenseRequest::STATUS_SUBMITTED, ExpenseRequest::STATUS_UNDER_FINANCE_REVIEW], true)) {
-            throw new \RuntimeException('Only a submitted expense request can be verified.');
+            throw new ExpenseRequestException('Only a submitted expense request can be verified.');
         }
 
         DB::transaction(function () use ($er, $financeUser, $notes) {
@@ -102,7 +112,7 @@ class ExpenseRequestService
     public function reject(ExpenseRequest $er, User $financeUser, string $reason): void
     {
         if (! in_array($er->status, [ExpenseRequest::STATUS_SUBMITTED, ExpenseRequest::STATUS_UNDER_FINANCE_REVIEW], true)) {
-            throw new \RuntimeException('Only a submitted expense request can be rejected.');
+            throw new ExpenseRequestException('Only a submitted expense request can be rejected.');
         }
 
         DB::transaction(function () use ($er, $financeUser, $reason) {
@@ -119,7 +129,7 @@ class ExpenseRequestService
     public function requestRevision(ExpenseRequest $er, User $financeUser, string $note): void
     {
         if (! in_array($er->status, [ExpenseRequest::STATUS_SUBMITTED, ExpenseRequest::STATUS_UNDER_FINANCE_REVIEW], true)) {
-            throw new \RuntimeException('Only a submitted expense request can have a revision requested.');
+            throw new ExpenseRequestException('Only a submitted expense request can have a revision requested.');
         }
 
         DB::transaction(function () use ($er, $financeUser, $note) {
@@ -136,7 +146,7 @@ class ExpenseRequestService
     public function revise(ExpenseRequest $er, array $data, ?User $actor = null): void
     {
         if ($er->status !== ExpenseRequest::STATUS_NEEDS_REVISION) {
-            throw new \RuntimeException('An expense request can only be revised after a revision is requested.');
+            throw new ExpenseRequestException('An expense request can only be revised after a revision is requested.');
         }
 
         DB::transaction(function () use ($er, $data, $actor) {
@@ -180,7 +190,7 @@ class ExpenseRequestService
     public function closeAsRecordOnly(ExpenseRequest $er, ?User $actor = null): void
     {
         if (! $er->isRecordOnly()) {
-            throw new \RuntimeException('Only company_paid_record_only expense requests can be closed as record-only.');
+            throw new ExpenseRequestException('Only company_paid_record_only expense requests can be closed as record-only.');
         }
 
         DB::transaction(function () use ($er, $actor) {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Hris;
 
+use App\Exceptions\Hris\ExpenseRequestException;
 use App\Http\Controllers\Controller;
 use App\Models\Hris\ExpenseRequest;
 use App\Models\Hris\FinanceAttachment;
@@ -80,7 +81,7 @@ class ExpenseRequestController extends Controller
 
         try {
             $this->service->submit($expenseRequest);
-        } catch (\RuntimeException $e) {
+        } catch (ExpenseRequestException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
@@ -95,7 +96,7 @@ class ExpenseRequestController extends Controller
 
         try {
             $this->service->revise($expenseRequest, $validated);
-        } catch (\RuntimeException $e) {
+        } catch (ExpenseRequestException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
@@ -120,7 +121,9 @@ class ExpenseRequestController extends Controller
             'category' => [$required, 'string', 'max:100'],
             'title' => [$required, 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'amount' => [$required, 'numeric', 'min:1'],
+            // decimal:0,2 rejects ambiguous money strings ("10.000" Indonesian thousands, ">2dp")
+            // that `numeric` alone silently collapses via the decimal:2 cast.
+            'amount' => [$required, 'numeric', 'decimal:0,2', 'min:1'],
             'expense_date' => [$required, 'date'],
             'payment_mode' => [$forCreate ? 'required' : 'sometimes', Rule::in([
                 ExpenseRequest::MODE_EMPLOYEE_REIMBURSEMENT,

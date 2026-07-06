@@ -19,6 +19,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Finance review workbench for Expense Requests (EXPENSE_MODULE.MD Phase 11/12).
@@ -40,6 +41,15 @@ class ExpenseRequestResource extends Resource
     public static function canViewAny(): bool
     {
         return static::financeCan('expense_requests.view_all');
+    }
+
+    /**
+     * Finance Center is a review surface; pre-submission Drafts are employee-owned and not
+     * actionable here. Excluding them stops a stuck Draft from "appearing in Finance Center".
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()->where('status', '!=', ExpenseRequest::STATUS_DRAFT);
     }
 
     public static function canCreate(): bool

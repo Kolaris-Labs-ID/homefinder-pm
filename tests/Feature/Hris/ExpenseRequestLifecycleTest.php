@@ -72,6 +72,33 @@ it('submits an ER once evidence is attached', function () {
     expect($er->fresh()->submitted_at)->not->toBeNull();
 });
 
+it('is idempotent when re-submitting an already-submitted ER', function () {
+    $er = makeErDraft();
+    attachErEvidence($er);
+    $this->service->submit($er);
+
+    $submittedAt = $er->fresh()->submitted_at;
+    $auditCount = \App\Models\Hris\FinanceAuditLog::where('event_type', 'expense_request.submitted')->count();
+
+    // Retry after a lost/timed-out response — must not re-stamp or double-audit.
+    $this->service->submit($er->fresh());
+
+    $fresh = $er->fresh();
+    expect($fresh->status)->toBe(ExpenseRequest::STATUS_SUBMITTED);
+    expect($fresh->submitted_at->equalTo($submittedAt))->toBeTrue();
+    expect(\App\Models\Hris\FinanceAuditLog::where('event_type', 'expense_request.submitted')->count())
+        ->toBe($auditCount);
+});
+
+it('refuses to submit a cancelled ER (no backward state transition)', function () {
+    $er = makeErDraft();
+    attachErEvidence($er);
+    $this->service->cancel($er);
+
+    expect(fn () => $this->service->submit($er->fresh()))->toThrow(RuntimeException::class);
+    expect($er->fresh()->status)->toBe(ExpenseRequest::STATUS_CANCELLED);
+});
+
 it('lets finance verify a submitted ER', function () {
     $er = makeErDraft();
     attachErEvidence($er);

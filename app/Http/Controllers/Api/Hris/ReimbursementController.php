@@ -59,7 +59,7 @@ class ReimbursementController extends Controller
 
         $validated = $request->validate([
             'type' => ['required', Rule::in(Reimbursement::getTypes())],
-            'amount' => ['required', 'numeric', 'min:1'],
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:1'],
             'description' => ['nullable', 'string', 'max:1000'],
             'receipt' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ]);
