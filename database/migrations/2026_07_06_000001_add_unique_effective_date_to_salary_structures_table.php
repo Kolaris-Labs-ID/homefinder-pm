@@ -11,11 +11,23 @@ return new class extends Migration
      * effective dates made "which structure is active" nondeterministic, which
      * is unacceptable for payroll. Replaces the non-unique composite index.
      *
-     * NOTE: if production already contains duplicate (employee_id, effective_date)
-     * rows, they must be de-duplicated before this migration can apply.
+     * Fails fast with a clear message (instead of a raw unique-index
+     * QueryException) if production already contains duplicate
+     * (employee_id, effective_date) rows — run
+     * `php artisan hris:salary-structures:report-duplicates` to find and
+     * resolve them manually first.
      */
     public function up(): void
     {
+        $duplicates = (new \App\Services\Hris\DuplicateSalaryStructureFinder)->find();
+
+        if ($duplicates->isNotEmpty()) {
+            throw new \RuntimeException(
+                "Cannot add unique(employee_id, effective_date): {$duplicates->count()} duplicate combination(s) exist. ".
+                'Run `php artisan hris:salary-structures:report-duplicates` and resolve them manually first.'
+            );
+        }
+
         Schema::table('salary_structures', function (Blueprint $table) {
             $table->dropIndex(['employee_id', 'effective_date']);
             $table->unique(['employee_id', 'effective_date']);
