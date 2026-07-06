@@ -521,4 +521,62 @@ describe('Weekly allowance uses the rate effective on each specific day', functi
         // Mon, Tue @ 50_000 (old rate) + Wed, Thu, Fri @ 100_000 (new rate)
         expect($payment['total_amount'])->toBe(2 * 50_000.0 + 3 * 100_000.0);
     });
+
+    it('applies two rate changes within the same week per day', function () {
+        $employee = makePayrollTestEmployee([
+            'effective_date' => '2025-01-01',
+            'weekly_allowance_enabled' => true,
+            'daily_allowance_rate' => 50_000,
+        ]);
+        foreach ([['2025-10-08', 100_000], ['2025-10-10', 150_000]] as [$date, $rate]) {
+            SalaryStructure::create([
+                'employee_id' => $employee->id,
+                'effective_date' => $date,
+                'basic_salary' => 4_000_000,
+                'daily_allowance_rate' => $rate,
+                'weekly_allowance_enabled' => true,
+                'pph21_method' => 'gross',
+                'jkk_risk_level' => 'low',
+            ]);
+        }
+
+        foreach (['2025-10-06', '2025-10-07', '2025-10-08', '2025-10-09', '2025-10-10'] as $d) {
+            leaveTestLog($employee, Carbon::parse($d), AttendanceLog::STATUS_PRESENT);
+        }
+
+        $payment = $this->weeklyService->calculateEmployeePayment(
+            $employee, Carbon::parse('2025-10-06'), Carbon::parse('2025-10-10')
+        );
+
+        // Mon,Tue @50k + Wed,Thu @100k + Fri @150k
+        expect($payment['total_amount'])->toBe(2 * 50_000.0 + 2 * 100_000.0 + 1 * 150_000.0);
+    });
+
+    it('does not apply a change that takes effect the following week', function () {
+        $employee = makePayrollTestEmployee([
+            'effective_date' => '2025-01-01',
+            'weekly_allowance_enabled' => true,
+            'daily_allowance_rate' => 50_000,
+        ]);
+        // Effective the next Monday — outside this Mon–Fri week.
+        SalaryStructure::create([
+            'employee_id' => $employee->id,
+            'effective_date' => '2025-10-13',
+            'basic_salary' => 4_000_000,
+            'daily_allowance_rate' => 100_000,
+            'weekly_allowance_enabled' => true,
+            'pph21_method' => 'gross',
+            'jkk_risk_level' => 'low',
+        ]);
+
+        foreach (['2025-10-06', '2025-10-07', '2025-10-08', '2025-10-09', '2025-10-10'] as $d) {
+            leaveTestLog($employee, Carbon::parse($d), AttendanceLog::STATUS_PRESENT);
+        }
+
+        $payment = $this->weeklyService->calculateEmployeePayment(
+            $employee, Carbon::parse('2025-10-06'), Carbon::parse('2025-10-10')
+        );
+
+        expect($payment['total_amount'])->toBe(5 * 50_000.0);
+    });
 });
