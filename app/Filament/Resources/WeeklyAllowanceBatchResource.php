@@ -149,6 +149,31 @@ class WeeklyAllowanceBatchResource extends Resource
                                 ->send();
                         }
                     }),
+                Tables\Actions\Action::make('recalculate')
+                    ->label('Recalculate')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->visible(fn (WeeklyAllowanceBatch $record) => ! $record->isLocked())
+                    ->requiresConfirmation()
+                    ->modalHeading('Recalculate Weekly Allowance')
+                    ->modalDescription('Recompute every payment in this batch from current attendance and salary structures. Batches in finance approval or already paid cannot be recalculated.')
+                    ->action(function (WeeklyAllowanceBatch $record) {
+                        try {
+                            app(WeeklyAllowanceService::class)->recalculateBatch($record);
+
+                            Notification::make()
+                                ->title('Batch Recalculated')
+                                ->body('All payments were recomputed from current attendance and salary structures.')
+                                ->success()
+                                ->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()
+                                ->title('Recalculation Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make()
                     ->visible(fn (WeeklyAllowanceBatch $record) => $record->isEditable()),

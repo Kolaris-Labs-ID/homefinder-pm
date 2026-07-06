@@ -330,7 +330,9 @@ class WeeklyAllowanceService
     }
 
     /**
-     * Recalculate a payment record.
+     * Recalculate a single payment record against current attendance and salary
+     * structures. Rejects payments whose batch is locked (pending finance / paid)
+     * so approved or paid payroll is never silently rewritten.
      */
     public function recalculatePayment(WeeklyAllowancePayment $payment): WeeklyAllowancePayment
     {
@@ -339,6 +341,10 @@ class WeeklyAllowanceService
 
         if (! $batch || ! $employee) {
             return $payment;
+        }
+
+        if ($batch->isLocked()) {
+            throw new \RuntimeException("Cannot recalculate a payment in a {$batch->status} batch.");
         }
 
         $calculated = $this->calculateEmployeePayment(
@@ -360,5 +366,28 @@ class WeeklyAllowanceService
         }
 
         return $payment->fresh();
+    }
+
+    /**
+     * HR-triggered recalculation of every payment in a batch against current
+     * attendance and salary structures. Only editable batches (draft / rejected)
+     * may be recalculated; locked batches (pending finance / paid) are rejected
+     * so finalized payroll stays immutable. Idempotent.
+     */
+    public function recalculateBatch(WeeklyAllowanceBatch $batch): WeeklyAllowanceBatch
+    {
+        if ($batch->isLocked()) {
+            throw new \RuntimeException("Cannot recalculate a {$batch->status} batch. Batches in finance approval or already paid are immutable.");
+        }
+
+        return DB::transaction(function () use ($batch) {
+            foreach ($batch->payments()->get() as $payment) {
+                $this->recalculatePayment($payment);
+            }
+
+            $batch->recalculateSummary();
+
+            return $batch->fresh();
+        });
     }
 }
