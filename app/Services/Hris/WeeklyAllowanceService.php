@@ -142,18 +142,17 @@ class WeeklyAllowanceService
         // Calculate total applying late penalties per day, using the rate that
         // was actually effective on each day (so a mid-week rate change only
         // applies from its effective_date onward, not retroactively to the whole week).
-        // Anchor to the week's Monday so each breakdown key maps to its true
-        // calendar date even if week_start_date isn't a Monday (getDaysBreakdown
-        // buckets logs by weekday, so the rate lookup must key off the same weekday).
-        $monday = $weekStart->copy()->startOfWeek(Carbon::MONDAY);
-        $dayOffsets = ['mon' => 0, 'tue' => 1, 'wed' => 2, 'thu' => 3, 'fri' => 4];
+        // Resolve using each day's real work date, which getDaysBreakdown records —
+        // robust to any week_start_date the caller passes (a non-Monday start would
+        // misalign an offset-based lookup).
         $totalAmount = 0.0;
-        foreach ($daysBreakdown as $key => &$day) {
+        foreach ($daysBreakdown as &$day) {
             if (! $day['present']) {
                 continue;
             }
-            $date = $monday->copy()->addDays($dayOffsets[$key]);
-            $dayStructure = $this->compensationResolver->resolveFrom($salaryStructures, $date);
+            $dayStructure = isset($day['date'])
+                ? $this->compensationResolver->resolveFrom($salaryStructures, Carbon::parse($day['date']))
+                : null;
             // Days before any structure is effective fall back to the week-end rate.
             $day['daily_rate'] = $dayStructure ? (float) $dayStructure->daily_allowance_rate : $dailyRate;
             $penaltyPercent = $day['penalty_percent'] ?? 0;
@@ -242,6 +241,7 @@ class WeeklyAllowanceService
                         'late' => $isLate,
                         'has_late_notice' => $hasLateNotice,
                         'penalty_percent' => $penaltyPercent,
+                        'date' => $dateKey,
                     ];
                 }
             }

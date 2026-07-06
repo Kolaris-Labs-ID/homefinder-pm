@@ -552,6 +552,36 @@ describe('Weekly allowance uses the rate effective on each specific day', functi
         expect($payment['total_amount'])->toBe(2 * 50_000.0 + 2 * 100_000.0 + 1 * 150_000.0);
     });
 
+    it('resolves per-day rates by real work date even when week_start_date is a weekend', function () {
+        // Regression: a non-Monday week_start must not shift the rate lookup window.
+        $employee = makePayrollTestEmployee([
+            'effective_date' => '2026-06-29',
+            'weekly_allowance_enabled' => true,
+            'daily_allowance_rate' => 100_000,
+        ]);
+        SalaryStructure::create([
+            'employee_id' => $employee->id,
+            'effective_date' => '2026-07-06', // Monday of the worked week
+            'basic_salary' => 4_000_000,
+            'daily_allowance_rate' => 200_000,
+            'weekly_allowance_enabled' => true,
+            'pph21_method' => 'gross',
+            'jkk_risk_level' => 'low',
+        ]);
+
+        foreach (['2026-07-06', '2026-07-07', '2026-07-08', '2026-07-09', '2026-07-10'] as $d) {
+            leaveTestLog($employee, Carbon::parse($d), AttendanceLog::STATUS_PRESENT);
+        }
+
+        // HR entered a Sunday start (2026-07-05) — days worked are still Mon–Fri 07-06..07-10.
+        $payment = $this->weeklyService->calculateEmployeePayment(
+            $employee, Carbon::parse('2026-07-05'), Carbon::parse('2026-07-10')
+        );
+
+        expect($payment['days_present'])->toBe(5)
+            ->and($payment['total_amount'])->toBe(5 * 200_000.0);
+    });
+
     it('does not apply a change that takes effect the following week', function () {
         $employee = makePayrollTestEmployee([
             'effective_date' => '2025-01-01',
