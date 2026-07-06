@@ -16,6 +16,23 @@ use App\Services\Hris\PayrollCalculationService;
 use App\Services\Hris\PayslipService;
 use Laravel\Sanctum\Sanctum;
 
+// Idempotent: one salary structure per (employee, effective_date) — the unique
+// constraint forbids duplicates when multiple batches share a month.
+function ensureAuthSalaryStructure(array $attrs): SalaryStructure
+{
+    $employeeId = $attrs['employee_id'];
+    $date = \Illuminate\Support\Carbon::parse($attrs['effective_date'])->toDateString();
+
+    $existing = SalaryStructure::where('employee_id', $employeeId)
+        ->whereDate('effective_date', $date)
+        ->first();
+
+    return $existing ?? SalaryStructure::factory()->create(array_merge($attrs, [
+        'employee_id' => $employeeId,
+        'effective_date' => $date,
+    ]));
+}
+
 beforeEach(function () {
     // Clean up before each test
     PayrunBatch::query()->delete();
@@ -55,7 +72,7 @@ test('Property 19: Payslip employee authorization', function () {
         $batch = PayrunBatch::factory()->draft()->create();
 
         foreach ($employees as $employee) {
-            SalaryStructure::factory()->create([
+            ensureAuthSalaryStructure([
                 'employee_id' => $employee->id,
                 'effective_date' => $batch->period_start_date,
             ]);
@@ -122,7 +139,6 @@ test('Property 19: Payslip employee authorization', function () {
     $paidBy->forceDelete();
 })->group('property-test', 'hris-payroll');
 
-
 /**
  * **Feature: hris-phase3-payroll, Property 19 Edge Cases: Payslip authorization boundary conditions**
  *
@@ -159,11 +175,11 @@ test('Property 19 Edge Cases: Payslip authorization boundary conditions', functi
     for ($i = 0; $i < 3; $i++) {
         $batch = PayrunBatch::factory()->draft()->create();
 
-        SalaryStructure::factory()->create([
+        ensureAuthSalaryStructure([
             'employee_id' => $employee1->id,
             'effective_date' => $batch->period_start_date,
         ]);
-        SalaryStructure::factory()->create([
+        ensureAuthSalaryStructure([
             'employee_id' => $employee2->id,
             'effective_date' => $batch->period_start_date,
         ]);
@@ -249,7 +265,6 @@ test('Property 19 Edge Cases: Payslip authorization boundary conditions', functi
     $paidBy->forceDelete();
 })->group('property-test', 'hris-payroll');
 
-
 /**
  * **Feature: hris-phase3-payroll, Property 19 Additional: Payslip authorization with different user roles**
  *
@@ -276,11 +291,11 @@ test('Property 19 Additional: Payslip authorization with different user roles', 
     // Create a paid batch
     $batch = PayrunBatch::factory()->draft()->create();
 
-    SalaryStructure::factory()->create([
+    ensureAuthSalaryStructure([
         'employee_id' => $employee1->id,
         'effective_date' => $batch->period_start_date,
     ]);
-    SalaryStructure::factory()->create([
+    ensureAuthSalaryStructure([
         'employee_id' => $employee2->id,
         'effective_date' => $batch->period_start_date,
     ]);

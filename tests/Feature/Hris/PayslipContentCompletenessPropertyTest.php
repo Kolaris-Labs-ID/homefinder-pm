@@ -16,6 +16,23 @@ use App\Services\Hris\PayrollCalculationService;
 use App\Services\Hris\PayslipService;
 use Carbon\Carbon;
 
+// Idempotent: one salary structure per (employee, effective_date) — the unique
+// constraint forbids duplicates when multiple batches share a month.
+function ensureContentSalaryStructure(array $attrs): SalaryStructure
+{
+    $employeeId = $attrs['employee_id'];
+    $date = \Illuminate\Support\Carbon::parse($attrs['effective_date'])->toDateString();
+
+    $existing = SalaryStructure::where('employee_id', $employeeId)
+        ->whereDate('effective_date', $date)
+        ->first();
+
+    return $existing ?? SalaryStructure::factory()->create(array_merge($attrs, [
+        'employee_id' => $employeeId,
+        'effective_date' => $date,
+    ]));
+}
+
 beforeEach(function () {
     // Clean up before each test
     PayrunBatch::query()->delete();
@@ -52,7 +69,7 @@ test('Property 18: Payslip content completeness', function () {
         $employees = Employee::factory()->count($employeeCount)->create();
 
         foreach ($employees as $employee) {
-            SalaryStructure::factory()->create([
+            ensureContentSalaryStructure([
                 'employee_id' => $employee->id,
                 'effective_date' => $batch->period_start_date,
             ]);
@@ -259,7 +276,7 @@ test('Property 18 Edge Cases: Payslip content with edge case values', function (
     // Edge case 1: Minimum salary (no allowances)
     $batch1 = PayrunBatch::factory()->draft()->create();
     $employee1 = Employee::factory()->create();
-    SalaryStructure::factory()->create([
+    ensureContentSalaryStructure([
         'employee_id' => $employee1->id,
         'effective_date' => $batch1->period_start_date,
         'basic_salary' => 1000000,
@@ -286,7 +303,7 @@ test('Property 18 Edge Cases: Payslip content with edge case values', function (
     // Edge case 2: High salary (above BPJS ceilings)
     $batch2 = PayrunBatch::factory()->draft()->create();
     $employee2 = Employee::factory()->create();
-    SalaryStructure::factory()->create([
+    ensureContentSalaryStructure([
         'employee_id' => $employee2->id,
         'effective_date' => $batch2->period_start_date,
         'basic_salary' => 50000000,
@@ -365,7 +382,7 @@ test('Property 18 Additional: Payslip content consistency', function () {
         $batch = PayrunBatch::factory()->draft()->create();
         $employee = Employee::factory()->create();
 
-        SalaryStructure::factory()->create([
+        ensureContentSalaryStructure([
             'employee_id' => $employee->id,
             'effective_date' => $batch->period_start_date,
         ]);
