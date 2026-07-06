@@ -363,13 +363,16 @@ test('Property 2: Active salary structure selection', function () {
         // Generate random number of salary structures (1-10)
         $numStructures = fake()->numberBetween(1, 10);
 
-        // Create salary structures with various effective dates
+        // Create salary structures with various effective dates.
+        // Offsets are distinct so no two structures share an effective_date
+        // (enforced by the unique (employee_id, effective_date) constraint).
         $structures = [];
         $effectiveDates = [];
+        $offsets = fake()->randomElements(range(-730, 730), $numStructures);
 
         for ($j = 0; $j < $numStructures; $j++) {
             // Generate effective dates: some before payrun, some after
-            $daysOffset = fake()->numberBetween(-730, 730); // +/- 2 years
+            $daysOffset = $offsets[$j];
             $effectiveDate = (clone $payrunDate)->addDays($daysOffset);
 
             $structure = SalaryStructure::create([
@@ -474,11 +477,11 @@ test('Property 2 Edge Cases: Active salary structure boundary conditions', funct
         'Should return null when no salary structures exist'
     );
 
-    // Edge case 2: All structures are in the future
+    // Edge case 2: All structures are in the future (distinct dates)
     for ($i = 0; $i < 5; $i++) {
         SalaryStructure::create([
             'employee_id' => $employee->id,
-            'effective_date' => now()->addDays(fake()->numberBetween(1, 365)),
+            'effective_date' => now()->addDays(($i + 1) * 30),
             'basic_salary' => fake()->randomFloat(2, 1000000, 100000000),
             'allowances_fixed' => [],
             'allowances_variable' => [],
@@ -497,12 +500,12 @@ test('Property 2 Edge Cases: Active salary structure boundary conditions', funct
     // Clean up for next edge case
     SalaryStructure::where('employee_id', $employee->id)->forceDelete();
 
-    // Edge case 3: All structures are in the past
+    // Edge case 3: All structures are in the past (distinct dates)
     $pastStructures = [];
     for ($i = 0; $i < 5; $i++) {
         $structure = SalaryStructure::create([
             'employee_id' => $employee->id,
-            'effective_date' => now()->subDays(fake()->numberBetween(1, 365)),
+            'effective_date' => now()->subDays(($i + 1) * 30),
             'basic_salary' => fake()->randomFloat(2, 1000000, 100000000),
             'allowances_fixed' => [],
             'allowances_variable' => [],
@@ -555,9 +558,11 @@ test('Property 2 Edge Cases: Active salary structure boundary conditions', funct
     // Clean up for next edge case
     SalaryStructure::where('employee_id', $employee->id)->forceDelete();
 
-    // Edge case 5: Multiple structures on same date (should return one)
+    // Edge case 5: A duplicate effective_date for the same employee is rejected
+    // by the unique (employee_id, effective_date) constraint — ties can no longer
+    // occur, so "which structure is active" is always deterministic.
     $sameDate = now()->subDays(30);
-    $structure1 = SalaryStructure::create([
+    SalaryStructure::create([
         'employee_id' => $employee->id,
         'effective_date' => $sameDate,
         'basic_salary' => 5000000,
@@ -568,7 +573,7 @@ test('Property 2 Edge Cases: Active salary structure boundary conditions', funct
         'jkk_risk_level' => SalaryStructure::JKK_RISK_LOW,
     ]);
 
-    $structure2 = SalaryStructure::create([
+    expect(fn () => SalaryStructure::create([
         'employee_id' => $employee->id,
         'effective_date' => $sameDate,
         'basic_salary' => 6000000,
@@ -577,18 +582,10 @@ test('Property 2 Edge Cases: Active salary structure boundary conditions', funct
         'deductions' => [],
         'pph21_method' => SalaryStructure::PPH21_METHOD_GROSS,
         'jkk_risk_level' => SalaryStructure::JKK_RISK_LOW,
-    ]);
-
-    $activeStructure = $payrollService->getActiveSalaryStructure($employee, now());
-
-    expect($activeStructure)->not->toBeNull(
-        'Should return a structure when multiple exist on same date'
-    );
-    expect(in_array($activeStructure->id, [$structure1->id, $structure2->id]))->toBeTrue(
-        'Should return one of the structures with the same effective_date'
-    );
+    ]))->toThrow(\Illuminate\Database\QueryException::class);
 
     // Clean up
+    SalaryStructure::where('employee_id', $employee->id)->forceDelete();
     $employee->user->forceDelete();
     $employee->forceDelete();
 })->group('property-test', 'hris-payroll');

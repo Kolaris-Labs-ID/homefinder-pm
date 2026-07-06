@@ -92,6 +92,55 @@ describe('SalaryStructureResource Create Page with New Fields', function () {
         $structure = SalaryStructure::where('employee_id', $employee->id)->first();
         expect($structure->bpjs_paid_by)->toBe('employee');
     });
+
+    it('rejects a duplicate effective_date for the same employee', function () {
+        $employee = Employee::factory()->create();
+        SalaryStructure::create([
+            'employee_id' => $employee->id,
+            'effective_date' => '2025-06-01',
+            'basic_salary' => 5000000,
+            'pph21_method' => 'gross',
+            'jkk_risk_level' => 'low',
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(CreateSalaryStructure::class)
+            ->fillForm([
+                'employee_id' => $employee->id,
+                'effective_date' => '2025-06-01',
+                'basic_salary' => 6000000,
+                'pph21_method' => 'gross',
+                'jkk_risk_level' => 'low',
+            ])
+            ->call('create')
+            ->assertHasFormErrors(['effective_date']);
+
+        expect(SalaryStructure::where('employee_id', $employee->id)->count())->toBe(1);
+    });
+
+    it('allows the same effective_date for a different employee', function () {
+        $employeeA = Employee::factory()->create();
+        $employeeB = Employee::factory()->create();
+        SalaryStructure::create([
+            'employee_id' => $employeeA->id,
+            'effective_date' => '2025-06-01',
+            'basic_salary' => 5000000,
+            'pph21_method' => 'gross',
+            'jkk_risk_level' => 'low',
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(CreateSalaryStructure::class)
+            ->fillForm([
+                'employee_id' => $employeeB->id,
+                'effective_date' => '2025-06-01',
+                'basic_salary' => 6000000,
+                'pph21_method' => 'gross',
+                'jkk_risk_level' => 'low',
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+    });
 });
 
 describe('SalaryStructureResource Edit Page with New Fields', function () {

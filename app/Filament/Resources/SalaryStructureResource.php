@@ -34,7 +34,23 @@ class SalaryStructureResource extends Resource
                             ->required(),
                         Forms\Components\DatePicker::make('effective_date')
                             ->required()
-                            ->default(now()),
+                            ->default(now())
+                            ->helperText('One salary structure per employee per date. Use the date the new rate takes effect.')
+                            ->rule(function (Forms\Get $get, ?SalaryStructure $record) {
+                                // whereDate ignores the stored 00:00:00 time on the date-cast column;
+                                // scoped to the employee and ignoring the current record on edit.
+                                return function (string $attribute, $value, \Closure $fail) use ($get, $record) {
+                                    $exists = SalaryStructure::query()
+                                        ->where('employee_id', $get('employee_id'))
+                                        ->whereDate('effective_date', $value)
+                                        ->when($record, fn ($q) => $q->whereKeyNot($record->getKey()))
+                                        ->exists();
+
+                                    if ($exists) {
+                                        $fail('This employee already has a salary structure with this effective date. Choose a different date.');
+                                    }
+                                };
+                            }),
                         Forms\Components\TextInput::make('basic_salary')
                             ->label('Basic Salary (IDR)')
                             ->numeric()
@@ -292,12 +308,12 @@ class SalaryStructureResource extends Resource
                     ->tooltip('Badan Penyelenggara Jaminan Sosial - Program jaminan sosial wajib bagi pekerja di Indonesia')
                     ->badge()
                     ->color(fn (?string $state, $record): string => match (true) {
-                        !$record->bpjs_enabled => 'danger',
+                        ! $record->bpjs_enabled => 'danger',
                         $state === 'company' => 'success',
                         $state === 'shared' => 'warning',
                         default => 'gray',
                     })
-                    ->formatStateUsing(fn (?string $state, $record): string => !$record->bpjs_enabled
+                    ->formatStateUsing(fn (?string $state, $record): string => ! $record->bpjs_enabled
                         ? 'Disabled'
                         : match ($state) {
                             'employee' => 'Employee',
