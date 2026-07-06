@@ -47,6 +47,19 @@ class ViewLeaveRequest extends ViewRecord
                     ])
                     ->columns(2),
 
+                // Medical certificate tracking — only shown for provisional Sick Leave approvals.
+                Section::make('Medical Certificate')
+                    ->schema([
+                        TextEntry::make('certificate_status')->badge(),
+                        TextEntry::make('certificate_deadline_at')->dateTime()->placeholder('—'),
+                        TextEntry::make('certificate_submitted_at')->dateTime()->placeholder('—'),
+                        TextEntry::make('certificate_verified_at')->dateTime()->placeholder('—'),
+                        TextEntry::make('certificateVerifiedBy.name')->label('Reviewed By')->placeholder('—'),
+                        TextEntry::make('certificate_rejection_reason')->placeholder('—')->columnSpanFull(),
+                    ])
+                    ->columns(2)
+                    ->visible(fn (LeaveRequest $record): bool => filled($record->certificate_status)),
+
                 // Approval History Section - only shown when record has approval workflow
                 Section::make('Approval History')
                     ->schema([
@@ -128,7 +141,57 @@ class ViewLeaveRequest extends ViewRecord
                 ->requiresConfirmation()
                 ->visible(fn (): bool => Gate::allows('cancel', $this->record))
                 ->action(fn () => LeaveRequestActionHandler::cancel($this->record)),
+
+            // Medical certificate review (provisional Sick Leave approval)
+            Actions\Action::make('verify_certificate')
+                ->label(__('Verify Certificate'))
+                ->icon('heroicon-o-document-check')
+                ->color('success')
+                ->requiresConfirmation()
+                ->visible(fn (): bool => $this->canReviewCertificate())
+                ->action(fn () => $this->handleVerifyCertificate()),
+            Actions\Action::make('reject_certificate')
+                ->label(__('Reject Certificate'))
+                ->icon('heroicon-o-document-minus')
+                ->color('danger')
+                ->form([
+                    Forms\Components\Textarea::make('reason')
+                        ->label(__('Rejection Reason'))
+                        ->required()
+                        ->rows(3)
+                        ->maxLength(1000),
+                ])
+                ->visible(fn (): bool => $this->canReviewCertificate())
+                ->action(fn (array $data) => $this->handleRejectCertificate($data['reason'])),
         ];
+    }
+
+    protected function canReviewCertificate(): bool
+    {
+        return $this->record->certificate_status === LeaveRequest::CERT_STATUS_SUBMITTED
+            && Gate::allows('update', $this->record);
+    }
+
+    protected function handleVerifyCertificate(): void
+    {
+        try {
+            LeaveRequestActionHandler::verifyCertificate($this->record, auth()->user());
+
+            Notification::make()->title(__('Certificate Verified'))->success()->send();
+        } catch (\Exception $e) {
+            Notification::make()->title(__('Verification Failed'))->body($e->getMessage())->danger()->send();
+        }
+    }
+
+    protected function handleRejectCertificate(string $reason): void
+    {
+        try {
+            LeaveRequestActionHandler::rejectCertificate($this->record, auth()->user(), $reason);
+
+            Notification::make()->title(__('Certificate Rejected'))->success()->send();
+        } catch (\Exception $e) {
+            Notification::make()->title(__('Rejection Failed'))->body($e->getMessage())->danger()->send();
+        }
     }
 
     /**

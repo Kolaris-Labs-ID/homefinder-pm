@@ -7,12 +7,12 @@ use App\Models\Hris\LeaveBalance;
 use App\Models\Hris\LeaveRequest;
 use App\Models\Hris\LeaveType;
 use App\Models\Hris\Position;
-use App\Models\User;
 use App\Services\Hris\LeaveBalanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
+
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
 use function Pest\Laravel\putJson;
@@ -350,7 +350,7 @@ it('tracks sick leave used days after approval without quota validation', functi
     expect((int) $balance->remaining_days)->toBe(-2);
 });
 
-it('rejects sick leave request when doctors letter is missing', function () {
+it('allows sick leave request without a doctors letter (provisional approval flow)', function () {
     Sanctum::actingAs($this->employee->user);
 
     $sickLeaveType = LeaveType::factory()->create([
@@ -366,10 +366,34 @@ it('rejects sick leave request when doctors letter is missing', function () {
         'reason' => 'Flu',
     ]);
 
+    $response->assertCreated();
+
+    $leaveRequest = LeaveRequest::where('leave_type_id', $sickLeaveType->id)->first();
+    expect($leaveRequest)->not->toBeNull();
+    expect($leaveRequest->attachment_path)->toBeNull();
+    // Certificate tracking only starts at HR approval, not at submission.
+    expect($leaveRequest->certificate_status)->toBeNull();
+});
+
+it('still requires an attachment at submission for a non-Sick requires-attachment leave type', function () {
+    Sanctum::actingAs($this->employee->user);
+
+    $bereavementType = LeaveType::factory()->create([
+        'code' => 'BEREAVEMENT',
+        'requires_attachment' => true,
+    ]);
+
+    $response = postJson('/api/hris/leave-requests', [
+        'leave_type_id' => $bereavementType->id,
+        'start_date' => now()->addDay()->toDateString(),
+        'end_date' => now()->addDays(2)->toDateString(),
+        'reason' => 'Family loss',
+    ]);
+
     $response->assertUnprocessable()
         ->assertJsonValidationErrors(['attachment']);
 
-    expect(LeaveRequest::where('leave_type_id', $sickLeaveType->id)->count())->toBe(0);
+    expect(LeaveRequest::where('leave_type_id', $bereavementType->id)->count())->toBe(0);
 });
 
 it('allows newly hired employee to request annual leave', function () {

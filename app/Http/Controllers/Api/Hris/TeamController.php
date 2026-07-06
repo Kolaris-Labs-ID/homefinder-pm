@@ -7,6 +7,7 @@ use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\ClientVisit;
 use App\Models\Hris\Employee;
 use App\Models\Hris\LeaveRequest;
+use App\Services\Hris\LeaveBalanceService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -68,6 +69,7 @@ class TeamController extends Controller
                     'status' => $status['status'],
                     'status_label' => $status['label'],
                     'status_detail' => $status['detail'],
+                    'certificate_status' => $status['certificate_status'] ?? null,
                     'work_mode' => $attendance?->check_in_time ? $attendance->mode : null,
                     'check_in_time' => $attendance?->check_in_time ? Carbon::parse($attendance->check_in_time)->format('H:i:s') : null,
                     'is_on_break' => $attendance && $attendance->break_start_time && !$attendance->break_end_time,
@@ -110,10 +112,16 @@ class TeamController extends Controller
 
         // Check if on approved leave
         if ($leave) {
+            // Sick Leave gets its own label (rather than the generic "On Leave") so the
+            // team tab's Letter Pending badge reads naturally next to it; other leave
+            // types are unaffected.
+            $isSick = ($leave->leaveType->code ?? null) === LeaveBalanceService::CODE_SICK;
+
             return [
                 'status' => 'on_leave',
-                'label' => 'On Leave',
+                'label' => $isSick ? 'On Sick Leave' : 'On Leave',
                 'detail' => $leave->leaveType->name ?? 'Leave',
+                'certificate_status' => $leave->certificate_status,
             ];
         }
 

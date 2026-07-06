@@ -117,6 +117,21 @@ class LeaveRequestResource extends Resource
                 Tables\Columns\TextColumn::make('currentApprover.name')
                     ->label('Approver')
                     ->placeholder('—'),
+                Tables\Columns\BadgeColumn::make('certificate_status')
+                    ->label('Certificate')
+                    ->colors([
+                        'warning' => LeaveRequest::CERT_STATUS_PENDING,
+                        'info' => LeaveRequest::CERT_STATUS_SUBMITTED,
+                        'success' => LeaveRequest::CERT_STATUS_VERIFIED,
+                        'danger' => [LeaveRequest::CERT_STATUS_REJECTED, LeaveRequest::CERT_STATUS_EXPIRED],
+                    ])
+                    ->placeholder('—')
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('certificate_deadline_at')
+                    ->label('Cert. Deadline')
+                    ->dateTime()
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('submitted_at')
                     ->dateTime()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -221,6 +236,27 @@ class LeaveRequestResource extends Resource
                     ->requiresConfirmation()
                     ->visible(fn (LeaveRequest $record): bool => Gate::allows('cancel', $record))
                     ->action(fn (LeaveRequest $record) => Pages\LeaveRequestActionHandler::cancel($record)),
+                // Medical certificate review (provisional Sick Leave approval)
+                Tables\Actions\Action::make('verify_certificate')
+                    ->label(__('Verify Certificate'))
+                    ->icon('heroicon-o-document-check')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->visible(fn (LeaveRequest $record): bool => static::canReviewCertificate($record))
+                    ->action(fn (LeaveRequest $record) => static::handleVerifyCertificate($record)),
+                Tables\Actions\Action::make('reject_certificate')
+                    ->label(__('Reject Certificate'))
+                    ->icon('heroicon-o-document-minus')
+                    ->color('danger')
+                    ->form([
+                        Forms\Components\Textarea::make('reason')
+                            ->label(__('Rejection Reason'))
+                            ->required()
+                            ->rows(3)
+                            ->maxLength(1000),
+                    ])
+                    ->visible(fn (LeaveRequest $record): bool => static::canReviewCertificate($record))
+                    ->action(fn (LeaveRequest $record, array $data) => static::handleRejectCertificate($record, $data['reason'])),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -389,6 +425,52 @@ class LeaveRequestResource extends Resource
             Notification::make()
                 ->title(__('Leave Request Rejected'))
                 ->body(__('The leave request has been rejected.'))
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title(__('Rejection Failed'))
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    /**
+     * Only show certificate review actions once the employee has actually
+     * submitted one, and only to users who can already edit this record.
+     */
+    protected static function canReviewCertificate(LeaveRequest $record): bool
+    {
+        return $record->certificate_status === LeaveRequest::CERT_STATUS_SUBMITTED
+            && Gate::allows('update', $record);
+    }
+
+    protected static function handleVerifyCertificate(LeaveRequest $record): void
+    {
+        try {
+            Pages\LeaveRequestActionHandler::verifyCertificate($record, auth()->user());
+
+            Notification::make()
+                ->title(__('Certificate Verified'))
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title(__('Verification Failed'))
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    protected static function handleRejectCertificate(LeaveRequest $record, string $reason): void
+    {
+        try {
+            Pages\LeaveRequestActionHandler::rejectCertificate($record, auth()->user(), $reason);
+
+            Notification::make()
+                ->title(__('Certificate Rejected'))
                 ->success()
                 ->send();
         } catch (\Exception $e) {

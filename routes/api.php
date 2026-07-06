@@ -79,6 +79,7 @@ Route::middleware(['auth:sanctum'])
         Route::get('/leave-requests', [LeaveRequestController::class, 'index']);
         Route::post('/leave-requests', [LeaveRequestController::class, 'store']);
         Route::put('/leave-requests/{leaveRequest}/cancel', [LeaveRequestController::class, 'cancel']);
+        Route::post('/leave-requests/{leaveRequest}/certificate', [LeaveRequestController::class, 'uploadCertificate']);
 
         // Attendance endpoints
         Route::prefix('attendance')->group(function () {

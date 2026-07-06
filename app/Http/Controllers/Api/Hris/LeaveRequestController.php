@@ -32,10 +32,15 @@ class LeaveRequestController extends Controller
                 'total_days' => $leaveRequest->total_days,
                 'status' => $leaveRequest->status,
                 'reason' => $leaveRequest->reason,
-                'has_attachment' => !empty($leaveRequest->attachment_path),
+                'has_attachment' => ! empty($leaveRequest->attachment_path),
                 'approved_at' => $leaveRequest->approved_at,
                 'rejected_at' => $leaveRequest->rejected_at,
                 'rejection_reason' => $leaveRequest->rejection_reason,
+                'certificate_status' => $leaveRequest->certificate_status,
+                'certificate_deadline_at' => $leaveRequest->certificate_deadline_at,
+                'certificate_submitted_at' => $leaveRequest->certificate_submitted_at,
+                'certificate_verified_at' => $leaveRequest->certificate_verified_at,
+                'certificate_rejection_reason' => $leaveRequest->certificate_rejection_reason,
             ]);
 
         return response()->json([
@@ -57,8 +62,11 @@ class LeaveRequestController extends Controller
 
         $leaveType = LeaveType::findOrFail($data['leave_type_id']);
 
-        // Validate attachment if required by leave type (e.g., sick leave)
-        if ($leaveType->requires_attachment) {
+        // Sick Leave uses provisional approval: no attachment required at submission,
+        // HR approves immediately and the employee gets a 48h window to upload the
+        // certificate (see LeaveRequest::markAsApproved()). Every other requires_attachment
+        // leave type keeps the original enforce-at-submission rule unchanged.
+        if ($leaveType->requires_attachment && $leaveType->code !== LeaveBalanceService::CODE_SICK) {
             $request->validate([
                 'attachment' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
             ], [
@@ -111,6 +119,80 @@ class LeaveRequestController extends Controller
         ], 201);
     }
 
+    /**
+     * Upload (or resubmit) the medical certificate for a provisionally-approved leave.
+     * Reuses the same storage disk/path/mime-validation convention as store().
+     */
+    public function uploadCertificate(Request $request, LeaveRequest $leaveRequest): JsonResponse
+    {
+        $employee = $this->resolveEmployee($request);
+
+        abort_if($leaveRequest->employee_id !== $employee->id, 403, 'You cannot upload a certificate for this leave request.');
+
+        if (! in_array($leaveRequest->certificate_status, [
+            LeaveRequest::CERT_STATUS_PENDING,
+            LeaveRequest::CERT_STATUS_REJECTED,
+        ], true)) {
+            abort(422, 'This leave request is not awaiting a certificate upload.');
+        }
+
+        // certificate_status may still read 'pending' if the deadline just passed and
+        // hris:leave-certificate-expire (hourly) hasn't caught up yet — check the
+        // timestamp directly so the 48h window is enforced exactly, not "48h + cron lag".
+        if ($leaveRequest->certificate_deadline_at !== null && $leaveRequest->certificate_deadline_at->isPast()) {
+            abort(422, 'The certificate submission window has expired.');
+        }
+
+        $request->validate([
+            'attachment' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+        ]);
+
+        $attachmentPath = $request->file('attachment')->store(
+            "leave-attachments/{$employee->id}",
+            'private'
+        );
+
+        $leaveRequest->update([
+            'attachment_path' => $attachmentPath,
+            'certificate_status' => LeaveRequest::CERT_STATUS_SUBMITTED,
+            'certificate_submitted_at' => now(),
+            'certificate_rejection_reason' => null,
+        ]);
+
+        $this->notifyHRCertificateSubmitted($leaveRequest);
+
+        return response()->json([
+            'message' => 'Certificate uploaded successfully.',
+            'data' => $leaveRequest->fresh('leaveType'),
+        ]);
+    }
+
+    /**
+     * Same HR-role lookup convention as CheckExpiringCertifications::getHRUsers().
+     */
+    protected function notifyHRCertificateSubmitted(LeaveRequest $leaveRequest): void
+    {
+        $employeeName = $leaveRequest->employee->user?->name ?? 'Unknown';
+
+        $hrUsers = \App\Models\User::whereHas('roles', function ($query) {
+            $query->whereIn('name', ['hr-admin', 'hr-manager']);
+        })->get();
+
+        foreach ($hrUsers as $hrUser) {
+            \App\Models\Notification::create([
+                'user_id' => $hrUser->id,
+                'type' => 'certificate_submitted_hr',
+                'title' => 'Certificate Awaiting Review',
+                'message' => "{$employeeName} submitted a medical certificate for review.",
+                'data' => [
+                    'leave_request_id' => $leaveRequest->id,
+                    'employee_id' => $leaveRequest->employee_id,
+                    'employee_name' => $employeeName,
+                ],
+            ]);
+        }
+    }
+
     public function cancel(Request $request, LeaveRequest $leaveRequest): JsonResponse
     {
         $employee = $this->resolveEmployee($request);
@@ -151,4 +233,3 @@ class LeaveRequestController extends Controller
         return $employee;
     }
 }
-

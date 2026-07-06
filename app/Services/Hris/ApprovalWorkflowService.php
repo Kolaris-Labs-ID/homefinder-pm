@@ -401,8 +401,13 @@ class ApprovalWorkflowService
 
     /**
      * Mark the approvable model as rejected.
+     *
+     * Public (not protected, unlike markApprovableAsApproved) so that a system-driven
+     * rejection outside the normal ApprovalStep flow — e.g. hris:leave-certificate-expire
+     * auto-rejecting an already-approved leave whose certificate deadline passed — can
+     * reuse this exact status-flip + notification path instead of duplicating it.
      */
-    protected function markApprovableAsRejected(Model $approvable, string $reason): void
+    public function markApprovableAsRejected(Model $approvable, string $reason): void
     {
         if (method_exists($approvable, 'markAsRejected')) {
             $approvable->markAsRejected($reason);

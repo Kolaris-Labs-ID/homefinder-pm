@@ -41,3 +41,15 @@ Schedule::command('lembur:auto-close')
     ->everyThirtyMinutes()
     ->timezone('Asia/Jakarta')
     ->description('Auto-close overtime sessions running longer than 6 hours and flag for HR review');
+
+// Remind employees/HR about approaching Sick Leave medical certificate deadlines
+Schedule::command('hris:leave-certificate-remind')
+    ->everySixHours()
+    ->timezone('Asia/Jakarta')
+    ->description('Notify employees and HR when a Sick Leave certificate deadline is within 24 hours');
+
+// Auto-reject provisionally-approved Sick Leave requests whose 48h certificate deadline passed
+Schedule::command('hris:leave-certificate-expire')
+    ->hourly()
+    ->timezone('Asia/Jakarta')
+    ->description('Auto-reject Sick Leave requests with no certificate submitted within 48 hours of approval');
