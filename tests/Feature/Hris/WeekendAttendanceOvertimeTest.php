@@ -399,3 +399,53 @@ describe('AttendancePayrollService weekend_work_days tracking', function () {
     });
 
 });
+
+// ---------------------------------------------------------------------------
+// Overtime weekend sessions resolve the daily rate by the work date
+// ---------------------------------------------------------------------------
+
+describe('Overtime weekend sessions resolve daily rate per work date', function () {
+
+    it('pays Saturday at the old rate and Sunday at the new rate when the rate changes mid-weekend', function () {
+        [, $employee] = makeEmployee(); // base structure: 50k effective 2026-01-01
+
+        // Rate raised to 100k effective Sunday 2026-04-12 (the week end).
+        SalaryStructure::create([
+            'employee_id' => $employee->id,
+            'effective_date' => '2026-04-12',
+            'basic_salary' => 5_000_000,
+            'daily_allowance_rate' => 100_000,
+            'prorate_enabled' => false,
+            'pph21_method' => 'gross',
+            'jkk_risk_level' => 'low',
+        ]);
+
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'date' => '2026-04-11', // Saturday — old rate
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
+            'check_in_time' => '2026-04-11 08:00:00',
+        ]);
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'date' => '2026-04-12', // Sunday — new rate
+            'status' => AttendanceLog::STATUS_PRESENT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_WEB,
+            'check_in_time' => '2026-04-12 09:00:00',
+        ]);
+
+        $batch = generateBatch();
+        $payment = $batch->payments()->where('employee_id', $employee->id)->first();
+
+        // Sat @ 50k + Sun @ 100k = 150k (NOT 2 x 100k = 200k).
+        expect((float) $payment->total_amount)->toBe(150_000.0);
+
+        $byDate = collect($payment->sessions_breakdown)->keyBy('date');
+        expect((float) $byDate['2026-04-11']['pay'])->toBe(50_000.0)
+            ->and((float) $byDate['2026-04-12']['pay'])->toBe(100_000.0);
+    });
+
+});

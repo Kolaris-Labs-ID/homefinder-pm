@@ -7,7 +7,6 @@ use App\Models\Hris\Employee;
 use App\Models\Hris\OvertimeLog;
 use App\Models\Hris\OvertimePayBatch;
 use App\Models\Hris\OvertimePayment;
-use App\Models\Hris\SalaryStructure;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +14,13 @@ use Illuminate\Support\Facades\DB;
 
 class OvertimePayService
 {
+    protected CompensationResolver $compensationResolver;
+
+    public function __construct(?CompensationResolver $compensationResolver = null)
+    {
+        $this->compensationResolver = $compensationResolver ?? app(CompensationResolver::class);
+    }
+
     /**
      * Generate a weekly overtime pay batch for the given week.
      * Picks up all approved, unpaid OvertimeLogs whose start_time falls within the week.
@@ -229,16 +235,14 @@ class OvertimePayService
                 continue;
             }
 
-            // Resolve daily allowance rate from the employee's active salary structure
-            $salaryStructure = SalaryStructure::forEmployee($employee->id)
-                ->activeForDate($weekEnd)
-                ->first();
+            // Load all structures effective on/before week end once; the daily rate
+            // for each qualifying day is resolved by that day's date so a rate change
+            // mid-week only applies from its effective_date onward.
+            $salaryStructures = $this->compensationResolver->structuresAsOf($employee, $weekEnd);
 
-            if (! $salaryStructure || (float) $salaryStructure->daily_allowance_rate <= 0) {
+            if ($salaryStructures->isEmpty()) {
                 continue;
             }
-
-            $dailyRate = (float) $salaryStructure->daily_allowance_rate;
 
             // Find existing OvertimePayment for this employee in the batch
             $payment = $batch->payments()->where('employee_id', $employee->id)->first();
@@ -261,13 +265,20 @@ class OvertimePayService
                     continue; // Already recorded — skip to keep idempotent
                 }
 
+                // Rate effective on the day actually worked (0 if no structure covers it yet).
+                $logDate = Carbon::parse($log->date);
+                $dailyRate = $this->compensationResolver->dailyRateFrom($salaryStructures, $logDate);
+                if ($dailyRate <= 0) {
+                    continue;
+                }
+
                 $isHoliday = $log->status === AttendanceLog::STATUS_HOLIDAY;
                 $newSessions[] = [
                     'overtime_log_id' => null,
                     'attendance_log_id' => $log->id,
                     'task_name' => $isHoliday ? 'Holiday attendance' : 'Weekend attendance',
                     'session_type' => $isHoliday ? 'holiday_attendance' : 'weekend_attendance',
-                    'date' => Carbon::parse($log->date)->toDateString(),
+                    'date' => $logDate->toDateString(),
                     'duration_minutes' => 0,
                     'hourly_rate' => 0.0,
                     'pay' => round($dailyRate, 2),
