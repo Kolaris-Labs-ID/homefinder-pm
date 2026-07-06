@@ -2,30 +2,39 @@
 
 ## Apa itu Late Pay Compensation?
 
-Late Pay Compensation adalah kompensasi yang diberikan kepada karyawan karena keterlambatan pembayaran gaji. Kompensasi ini dihitung sebagai **1% dari gaji pokok per hari kalender terlambat**, dan dibayarkan secara terpisah dari gaji utama.
+Late Pay Compensation adalah kompensasi yang diberikan kepada karyawan karena keterlambatan pembayaran gaji. Kompensasi ini dihitung sebagai **1% dari THP (Take Home Pay / gaji bersih diterima) per hari kalender terlambat**, dan dibayarkan secara terpisah dari gaji utama.
+
+### Apa itu THP?
+
+**THP** (Take Home Pay) adalah gaji bersih yang diterima karyawan — di sistem, nilai ini diambil dari `net_income` pada payroll record payrun yang `pay_date`-nya sama dengan **scheduled pay date**.
+
+- Saat generate batch, sistem menyimpan nilai ini sebagai **`thp_snapshot`** per karyawan.
+- Kolom **gaji pokok** (`basic_salary_snapshot`) juga ditampilkan di tabel, tetapi hanya sebagai **referensi historis** — **bukan** basis perhitungan kompensasi.
 
 ### Rumus Dasar (Tanpa Pembayaran Parsial)
 
 ```
-Kompensasi = Gaji Pokok × (Rate % / 100) × Jumlah Hari Terlambat
+Kompensasi = THP × (Rate % / 100) × Jumlah Hari Terlambat
 ```
 
 Contoh:
-- Gaji Pokok: Rp 10.000.000
+- Gaji pokok (referensi): Rp 10.000.000
+- THP: Rp 8.000.000
 - Rate: 1% per hari
 - Terlambat: 2 hari
-- Kompensasi: 10.000.000 × 0.01 × 2 = **Rp 200.000**
+- Kompensasi: 8.000.000 × 0.01 × 2 = **Rp 160.000**
 
 ---
 
 ## Rumus dengan Pembayaran Parsial (Multi-Phase)
 
-Jika gaji dibayarkan sebagian (partial payment) sebelum tanggal pembayaran penuh, kompensasi dihitung secara bertahap (multi-phase). Kompensasi hanya diterapkan pada **sisa gaji yang belum dibayar** pada setiap fase.
+Jika gaji dibayarkan sebagian (partial payment) sebelum tanggal pembayaran penuh, kompensasi dihitung secara bertahap (multi-phase). Kompensasi hanya diterapkan pada **sisa THP yang belum dibayar** pada setiap fase.
 
 ### Contoh Perhitungan Multi-Phase
 
 **Skenario:**
-- Gaji Pokok: Rp 10.000.000
+- Gaji pokok (referensi): Rp 10.000.000
+- THP: Rp 8.000.000
 - Rate: 1% per hari
 - Tanggal Scheduled: 25 April
 - Tanggal Actual (pembayaran penuh): 2 Mei (7 hari terlambat)
@@ -35,16 +44,16 @@ Jika gaji dibayarkan sebagian (partial payment) sebelum tanggal pembayaran penuh
 
 **Perhitungan:**
 
-| Fase | Tanggal | Hari | Sisa Gaji | Kompensasi |
-|------|---------|------|-----------|------------|
-| 1 | 25–28 April | 3 hari | 100% (Rp 10M) | 1% × 10M × 3 = Rp 300.000 |
-| 2 | 28–30 April | 2 hari | 70% (Rp 7M) | 1% × 7M × 2 = Rp 140.000 |
-| 3 | 30 April–2 Mei | 2 hari | 50% (Rp 5M) | 1% × 5M × 2 = Rp 100.000 |
-| **Total** | | | | **Rp 540.000** |
+| Fase | Tanggal | Hari | Sisa THP | Kompensasi |
+|------|---------|------|----------|------------|
+| 1 | 25–28 April | 3 hari | 100% (Rp 8M) | 1% × 8M × 3 = Rp 240.000 |
+| 2 | 28–30 April | 2 hari | 70% (Rp 5,6M) | 1% × 5,6M × 2 = Rp 112.000 |
+| 3 | 30 April–2 Mei | 2 hari | 50% (Rp 4M) | 1% × 4M × 2 = Rp 80.000 |
+| **Total** | | | | **Rp 432.000** |
 
-**Tanpa pembayaran parsial:** 10M × 0.01 × 7 = Rp 700.000  
-**Dengan pembayaran parsial:** Rp 540.000  
-**Hemat:** Rp 160.000
+**Tanpa pembayaran parsial:** 8M × 0.01 × 7 = Rp 560.000  
+**Dengan pembayaran parsial:** Rp 432.000  
+**Hemat:** Rp 128.000
 
 ---
 
@@ -53,6 +62,8 @@ Jika gaji dibayarkan sebagian (partial payment) sebelum tanggal pembayaran penuh
 ### 1. Generate Batch (Membuat Batch Baru)
 
 **Menu:** Payroll → Late Pay Compensation
+
+**Prasyarat:** Payrun untuk **scheduled pay date** harus sudah dihitung (ada payroll record dengan THP > 0). Jika belum, karyawan akan di-skip saat generate.
 
 **Langkah-langkah:**
 1. Klik tombol **"Generate batch"** di pojok kanan atas
@@ -66,8 +77,10 @@ Jika gaji dibayarkan sebagian (partial payment) sebelum tanggal pembayaran penuh
 
 Sistem akan otomatis:
 - Menghitung jumlah hari terlambat
-- Mengambil semua karyawan aktif dengan gaji pokok
-- Menghitung kompensasi per karyawan
+- Mengambil semua karyawan aktif yang memenuhi **dua prasyarat**:
+  1. Salary structure aktif pada actual pay date
+  2. Payroll record dengan THP (`net_income`) > 0 untuk payrun scheduled pay date
+- Menghitung kompensasi per karyawan berdasarkan THP
 - Membuat status batch: **"Calculated"**
 
 ---
@@ -246,9 +259,10 @@ Jika batch di-reject:
 
 ### Untuk HR
 1. **Cek tanggal dengan teliti** — Pastikan scheduled dan actual pay date benar
-2. **Gunakan pembayaran parsial** — Jika gaji dibayar sebagian, input partial payment untuk mengurangi kompensasi
-3. **Review warning bank** — Pastikan data bank karyawan lengkap sebelum submit
-4. **Catat notes** — Gunakan kolom notes untuk dokumentasi
+2. **Pastikan payrun sudah dihitung** — Generate batch hanya bisa mengambil THP jika payroll record untuk scheduled pay date sudah ada
+3. **Gunakan pembayaran parsial** — Jika gaji dibayar sebagian, input partial payment untuk mengurangi kompensasi
+4. **Review warning bank** — Pastikan data bank karyawan lengkap sebelum submit
+5. **Catat notes** — Gunakan kolom notes untuk dokumentasi
 
 ### Untuk Finance
 1. **Review total amount** — Pastikan total kompensasi masuk akal
@@ -264,34 +278,41 @@ Jika batch di-reject:
 
 - Scheduled: 25 April
 - Actual: 27 April
-- Gaji Pokok: Rp 10.000.000
+- Gaji pokok (referensi): Rp 10.000.000
+- THP: Rp 8.000.000
 - Rate: 1%
-- Kompensasi: 10.000.000 × 0.01 × 2 = **Rp 200.000**
+- Kompensasi: 8.000.000 × 0.01 × 2 = **Rp 160.000**
 
 ### Kasus 2: Keterlambatan 7 Hari, Dengan 2 Partial Payment
 
 - Scheduled: 25 April
 - Actual: 2 Mei
-- Gaji Pokok: Rp 10.000.000
+- THP: Rp 8.000.000
 - Rate: 1%
 - Partial 1: 28 April, 30%
 - Partial 2: 30 April, 20%
-- Kompensasi: **Rp 540.000** (lihat contoh perhitungan di atas)
+- Kompensasi: **Rp 432.000** (lihat contoh perhitungan multi-phase di atas)
 
 ### Kasus 3: Keterlambatan 5 Hari, 50% Partial Payment di Tengah
 
 - Scheduled: 25 April
 - Actual: 30 April
-- Gaji Pokok: Rp 10.000.000
+- THP: Rp 8.000.000
 - Rate: 1%
 - Partial: 27 April, 50%
-- Fase 1 (25–27, 2 hari): 1% × 10M × 2 = Rp 200.000
-- Fase 2 (27–30, 3 hari): 1% × 5M × 3 = Rp 150.000
-- Total: **Rp 350.000**
+- Fase 1 (25–27, 2 hari): 1% × 8M × 2 = Rp 160.000
+- Fase 2 (27–30, 3 hari): 1% × 4M × 3 = Rp 120.000
+- Total: **Rp 280.000**
 
 ---
 
 ## FAQ
+
+**Q: Apa itu THP dan dari mana datanya?**  
+A: THP (Take Home Pay) adalah gaji bersih (`net_income`) dari slip/payrun periode scheduled pay date. Nilai ini diambil otomatis saat generate batch dan disimpan sebagai `thp_snapshot`.
+
+**Q: Kenapa gaji pokok di tabel berbeda dengan THP?**  
+A: Gaji pokok (`basic_salary_snapshot`) disimpan sebagai snapshot referensi historis. Perhitungan kompensasi memakai THP, bukan gaji pokok.
 
 **Q: Apakah rate 1% bisa diubah?**  
 A: Ya, HR bisa mengubah rate saat generate batch, tapi default adalah 1%.
@@ -306,7 +327,10 @@ A: Sistem akan menolak dan menampilkan error. Total tidak boleh melebihi 100%.
 A: Tidak. Batch yang sudah paid tidak bisa dihapus untuk audit trail.
 
 **Q: Karyawan yang tidak punya salary structure akan mendapat kompensasi?**  
-A: Tidak. Sistem akan melewati karyawan tanpa salary structure aktif.
+A: Tidak. Sistem akan melewati karyawan tanpa salary structure aktif pada actual pay date.
+
+**Q: Karyawan tidak muncul di batch meskipun punya salary structure?**  
+A: Kemungkinan payrun untuk scheduled pay date belum dihitung, atau THP (`net_income`) karyawan tersebut 0 atau tidak ada. Pastikan payrun sudah di-calculate sebelum generate batch.
 
 ---
 
