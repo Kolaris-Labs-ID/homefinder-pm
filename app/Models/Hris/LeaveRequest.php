@@ -145,8 +145,8 @@ class LeaveRequest extends Model implements ApprovableContract
 
     /**
      * Approved leave requests still awaiting a medical certificate, whether or
-     * not their deadline has passed yet — used by both the reminder and the
-     * auto-expire scheduled commands (see hris:leave-certificate-remind/-expire).
+     * not their deadline has passed yet — used by the reminder scheduled
+     * command (see hris:leave-certificate-remind).
      */
     public function scopeCertificatePending($query)
     {

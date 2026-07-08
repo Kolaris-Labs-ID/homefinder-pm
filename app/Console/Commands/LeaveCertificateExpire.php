@@ -3,8 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Hris\LeaveRequest;
-use App\Services\Hris\ApprovalWorkflowService;
-use App\Services\Hris\LeaveBalanceService;
+use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -13,9 +12,9 @@ class LeaveCertificateExpire extends Command
 {
     protected $signature = 'hris:leave-certificate-expire';
 
-    protected $description = 'Auto-reject provisionally-approved Sick Leave requests whose 48h medical certificate deadline has passed without a submission';
+    protected $description = 'Flag provisionally-approved Sick Leave requests past the 48h medical certificate deadline as overdue, awaiting HR resolution (convert to Annual Leave or Alpha)';
 
-    public function handle(ApprovalWorkflowService $approvalWorkflowService, LeaveBalanceService $leaveBalanceService): int
+    public function handle(): int
     {
         $overdue = LeaveRequest::certificateOverdue()->get();
 
@@ -26,7 +25,7 @@ class LeaveCertificateExpire extends Command
         }
 
         $this->info("Found {$overdue->count()} overdue certificate deadline(s).");
-        $converted = 0;
+        $flagged = 0;
 
         foreach ($overdue as $leaveRequest) {
             try {
@@ -35,58 +34,83 @@ class LeaveCertificateExpire extends Command
                 // this same command could have already resolved this record by the time
                 // we get here. Re-checking under lockForUpdate() makes this safe to run
                 // from multiple workers and safe to re-run without double-processing.
-                DB::transaction(function () use ($leaveRequest, $approvalWorkflowService, $leaveBalanceService) {
+                $didFlag = DB::transaction(function () use ($leaveRequest): bool {
                     $locked = LeaveRequest::whereKey($leaveRequest->id)->lockForUpdate()->first();
 
                     if (! $locked
                         || $locked->status !== LeaveRequest::STATUS_APPROVED
-                        || $locked->certificate_status !== LeaveRequest::CERT_STATUS_PENDING
-                        || $locked->auto_rejected
+                        || ! in_array($locked->certificate_status, [
+                            LeaveRequest::CERT_STATUS_PENDING,
+                            LeaveRequest::CERT_STATUS_REJECTED,
+                        ], true)
                         || $locked->certificate_deadline_at === null
                         || $locked->certificate_deadline_at->isAfter(now())
                     ) {
-                        return;
+                        return false;
                     }
 
-                    $reason = 'Missing medical certificate after '.LeaveRequest::CERTIFICATE_DEADLINE_HOURS.' hours.';
-
-                    // Reuse the same status-flip + requestor notification every other
-                    // rejection in the system goes through — do not duplicate it here.
-                    $approvalWorkflowService->markApprovableAsRejected($locked, $reason);
-
-                    $leaveBalanceService->release($locked);
-
+                    // No auto-rejection: the leave stays approved until HR resolves it
+                    // (convert to Annual Leave or mark as Alpha) — see
+                    // SickLeaveResolutionService.
                     $locked->update([
-                        'certificate_status' => LeaveRequest::CERT_STATUS_EXPIRED,
-                        'auto_rejected' => true,
+                        'certificate_status' => LeaveRequest::CERT_STATUS_OVERDUE,
                     ]);
 
-                    Log::channel('audit')->info('Sick Leave auto-rejected: medical certificate deadline passed', [
+                    Log::channel('audit')->info('Sick Leave certificate overdue: flagged for HR resolution', [
                         'leave_request_id' => $locked->id,
                         'employee_id' => $locked->employee_id,
-                        'previous_status' => LeaveRequest::STATUS_APPROVED,
-                        'new_status' => LeaveRequest::STATUS_REJECTED,
-                        'certificate_status' => LeaveRequest::CERT_STATUS_EXPIRED,
+                        'certificate_status' => LeaveRequest::CERT_STATUS_OVERDUE,
                         'certificate_deadline_at' => $locked->certificate_deadline_at->toIso8601String(),
-                        'converted_at' => now()->toIso8601String(),
+                        'flagged_at' => now()->toIso8601String(),
                         'actor' => 'System',
-                        'reason' => $reason,
                     ]);
+
+                    return true;
                 });
 
-                $converted++;
-                $this->line("  ✓ Auto-rejected leave request #{$leaveRequest->id} (employee_id={$leaveRequest->employee_id})");
+                if ($didFlag) {
+                    // Outside the transaction so a rollback can't leave ghost notifications.
+                    $this->notifyHROverdue($leaveRequest->fresh());
+                    $flagged++;
+                    $this->line("  ✓ Flagged leave request #{$leaveRequest->id} as overdue (employee_id={$leaveRequest->employee_id})");
+                }
             } catch (\Throwable $e) {
-                $this->error("  ✗ Failed to auto-reject leave request #{$leaveRequest->id}: ".$e->getMessage());
-                Log::error('LeaveCertificateExpire: failed to auto-reject leave request', [
+                $this->error("  ✗ Failed to flag leave request #{$leaveRequest->id}: ".$e->getMessage());
+                Log::error('LeaveCertificateExpire: failed to flag overdue leave request', [
                     'leave_request_id' => $leaveRequest->id,
                     'error' => $e->getMessage(),
                 ]);
             }
         }
 
-        $this->info("Auto-rejected {$converted} leave request(s).");
+        $this->info("Flagged {$flagged} leave request(s) for HR resolution.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Same HR-role lookup convention as LeaveRequestController::notifyHRCertificateSubmitted().
+     */
+    protected function notifyHROverdue(LeaveRequest $leaveRequest): void
+    {
+        $employeeName = $leaveRequest->employee->user?->name ?? 'Unknown';
+
+        $hrUsers = User::whereHas('roles', function ($query) {
+            $query->whereIn('name', ['hr-admin', 'hr-manager']);
+        })->get();
+
+        foreach ($hrUsers as $hrUser) {
+            \App\Models\Notification::create([
+                'user_id' => $hrUser->id,
+                'type' => 'certificate_overdue_hr',
+                'title' => 'Sick Leave Needs Resolution',
+                'message' => "{$employeeName}'s sick leave passed the 48h certificate deadline — resolve it (convert to Annual Leave or Alpha).",
+                'data' => [
+                    'leave_request_id' => $leaveRequest->id,
+                    'employee_id' => $leaveRequest->employee_id,
+                    'employee_name' => $employeeName,
+                ],
+            ]);
+        }
     }
 }

@@ -19,6 +19,8 @@ function makeApprovedSickLeaveAwaitingCertificate(array $overrides = []): LeaveR
         'requires_attachment' => true,
         'default_annual_quota' => null,
     ]);
+    // firstOrCreate() creates via array_merge($attributes, $values) where $values
+    // wins — without this unset the factory's random code would override 'SICK'.
     unset($sickTypeAttributes['code']);
     $sickType = LeaveType::firstOrCreate(['code' => 'SICK'], $sickTypeAttributes);
 
@@ -36,47 +38,69 @@ function makeApprovedSickLeaveAwaitingCertificate(array $overrides = []): LeaveR
 
 // --- hris:leave-certificate-expire ---
 
-it('auto-rejects an approved sick leave whose certificate deadline has passed with nothing submitted', function () {
+it('flags an approved sick leave past its certificate deadline as overdue, keeping it approved', function () {
     $leaveRequest = makeApprovedSickLeaveAwaitingCertificate();
     $leaveRequest->update(['certificate_deadline_at' => now()->subHour()]);
 
     $this->artisan('hris:leave-certificate-expire')->assertExitCode(0);
 
     $leaveRequest->refresh();
-    expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_REJECTED);
-    expect($leaveRequest->certificate_status)->toBe(LeaveRequest::CERT_STATUS_EXPIRED);
-    expect($leaveRequest->auto_rejected)->toBeTrue();
-    expect($leaveRequest->rejection_reason)->not->toBeNull();
+    expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_APPROVED)
+        ->and($leaveRequest->certificate_status)->toBe(LeaveRequest::CERT_STATUS_OVERDUE)
+        ->and($leaveRequest->rejection_reason)->toBeNull()
+        ->and($leaveRequest->auto_rejected)->toBeFalse();
 });
 
-it('reuses the existing rejection mechanism so the employee gets the standard rejection notification', function () {
+it('keeps the leave balance untouched when flagging an overdue certificate', function () {
     $leaveRequest = makeApprovedSickLeaveAwaitingCertificate();
     $leaveRequest->update(['certificate_deadline_at' => now()->subHour()]);
 
     $this->artisan('hris:leave-certificate-expire');
 
-    $leaveRequest->refresh();
-    $notification = Notification::where('user_id', $leaveRequest->employee->user_id)
-        ->where('type', 'approval_rejected')
-        ->first();
-
-    expect($notification)->not->toBeNull();
-});
-
-it('releases the leave balance when auto-rejecting an overdue certificate', function () {
-    $leaveRequest = makeApprovedSickLeaveAwaitingCertificate();
-    $leaveRequest->update(['certificate_deadline_at' => now()->subHour()]);
-
-    $balanceBefore = LeaveBalance::where('employee_id', $leaveRequest->employee_id)
+    $balance = LeaveBalance::where('employee_id', $leaveRequest->employee_id)
         ->where('leave_type_id', $leaveRequest->leave_type_id)
         ->where('year', $leaveRequest->start_date->year)
         ->first();
-    expect($balanceBefore->used_days)->toBe($leaveRequest->total_days);
+
+    expect($balance->used_days)->toBe($leaveRequest->total_days);
+});
+
+it('flags a cert-rejected request whose deadline has passed', function () {
+    $leaveRequest = makeApprovedSickLeaveAwaitingCertificate();
+    $leaveRequest->update([
+        'certificate_deadline_at' => now()->subHour(),
+        'certificate_status' => LeaveRequest::CERT_STATUS_REJECTED,
+    ]);
 
     $this->artisan('hris:leave-certificate-expire');
 
-    $balanceBefore->refresh();
-    expect($balanceBefore->used_days)->toBe(0);
+    expect($leaveRequest->refresh()->certificate_status)->toBe(LeaveRequest::CERT_STATUS_OVERDUE);
+});
+
+it('notifies HR when flagging an overdue certificate', function () {
+    Role::firstOrCreate(['name' => 'hr-admin', 'guard_name' => 'web']);
+    $hrUser = tap(User::factory()->create())->assignRole('hr-admin');
+
+    $leaveRequest = makeApprovedSickLeaveAwaitingCertificate();
+    $leaveRequest->update(['certificate_deadline_at' => now()->subHour()]);
+
+    $this->artisan('hris:leave-certificate-expire');
+
+    expect(Notification::where('user_id', $hrUser->id)->where('type', 'certificate_overdue_hr')->count())->toBe(1);
+});
+
+it('is idempotent: a second run does not re-flag or re-notify', function () {
+    Role::firstOrCreate(['name' => 'hr-admin', 'guard_name' => 'web']);
+    $hrUser = tap(User::factory()->create())->assignRole('hr-admin');
+
+    $leaveRequest = makeApprovedSickLeaveAwaitingCertificate();
+    $leaveRequest->update(['certificate_deadline_at' => now()->subHour()]);
+
+    $this->artisan('hris:leave-certificate-expire');
+    $this->artisan('hris:leave-certificate-expire');
+
+    expect($leaveRequest->refresh()->certificate_status)->toBe(LeaveRequest::CERT_STATUS_OVERDUE)
+        ->and(Notification::where('user_id', $hrUser->id)->where('type', 'certificate_overdue_hr')->count())->toBe(1);
 });
 
 it('does not touch a leave request whose certificate was already submitted, even past the deadline', function () {
@@ -118,20 +142,6 @@ it('does not touch a leave request whose deadline has not passed yet', function 
     $leaveRequest->refresh();
     expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_APPROVED);
     expect($leaveRequest->auto_rejected)->toBeFalse();
-});
-
-it('is idempotent when run twice on the same overdue leave request', function () {
-    $leaveRequest = makeApprovedSickLeaveAwaitingCertificate();
-    $leaveRequest->update(['certificate_deadline_at' => now()->subHour()]);
-
-    $this->artisan('hris:leave-certificate-expire');
-    $firstRejectedAt = $leaveRequest->refresh()->rejected_at;
-
-    $this->artisan('hris:leave-certificate-expire');
-    $leaveRequest->refresh();
-
-    expect($leaveRequest->rejected_at->equalTo($firstRejectedAt))->toBeTrue();
-    expect(Notification::where('user_id', $leaveRequest->employee->user_id)->where('type', 'approval_rejected')->count())->toBe(1);
 });
 
 // --- hris:leave-certificate-remind ---
@@ -199,9 +209,18 @@ it('certificateOverdue scope matches pending and cert-rejected requests past dea
 
     $future = makeApprovedSickLeaveAwaitingCertificate();
 
+    $legacyAutoRejected = makeApprovedSickLeaveAwaitingCertificate();
+    $legacyAutoRejected->update([
+        'status' => LeaveRequest::STATUS_REJECTED,
+        'certificate_deadline_at' => now()->subHour(),
+        'certificate_status' => LeaveRequest::CERT_STATUS_EXPIRED,
+        'auto_rejected' => true,
+    ]);
+
     $ids = LeaveRequest::certificateOverdue()->pluck('id');
 
     expect($ids)->toContain($pending->id)
         ->toContain($certRejected->id)
-        ->not->toContain($future->id);
+        ->not->toContain($future->id)
+        ->not->toContain($legacyAutoRejected->id);
 });
