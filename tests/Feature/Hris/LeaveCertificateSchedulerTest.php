@@ -15,11 +15,12 @@ uses(RefreshDatabase::class);
 function makeApprovedSickLeaveAwaitingCertificate(array $overrides = []): LeaveRequest
 {
     $employee = Employee::factory()->create();
-    $sickType = LeaveType::factory()->create([
-        'code' => 'SICK',
+    $sickTypeAttributes = LeaveType::factory()->raw([
         'requires_attachment' => true,
         'default_annual_quota' => null,
     ]);
+    unset($sickTypeAttributes['code']);
+    $sickType = LeaveType::firstOrCreate(['code' => 'SICK'], $sickTypeAttributes);
 
     $leaveRequest = LeaveRequest::factory()->create(array_merge([
         'employee_id' => $employee->id,
@@ -184,4 +185,23 @@ it('does not remind for a certificate that was already submitted', function () {
     $this->artisan('hris:leave-certificate-remind', ['--hours' => 24]);
 
     expect(Notification::where('user_id', $leaveRequest->employee->user_id)->where('type', 'certificate_reminder')->count())->toBe(0);
+});
+
+it('certificateOverdue scope matches pending and cert-rejected requests past deadline', function () {
+    $pending = makeApprovedSickLeaveAwaitingCertificate();
+    $pending->update(['certificate_deadline_at' => now()->subHour()]);
+
+    $certRejected = makeApprovedSickLeaveAwaitingCertificate();
+    $certRejected->update([
+        'certificate_deadline_at' => now()->subHour(),
+        'certificate_status' => LeaveRequest::CERT_STATUS_REJECTED,
+    ]);
+
+    $future = makeApprovedSickLeaveAwaitingCertificate();
+
+    $ids = LeaveRequest::certificateOverdue()->pluck('id');
+
+    expect($ids)->toContain($pending->id)
+        ->toContain($certRejected->id)
+        ->not->toContain($future->id);
 });

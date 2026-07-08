@@ -39,6 +39,18 @@ class LeaveRequest extends Model implements ApprovableContract
 
     public const CERT_STATUS_EXPIRED = 'expired';
 
+    // 48h deadline passed without a verified certificate — awaiting HR resolution
+    // (convert to Annual Leave / Alpha via SickLeaveResolutionService).
+    public const CERT_STATUS_OVERDUE = 'overdue';
+
+    public const CERT_STATUS_RESOLVED = 'resolved';
+
+    public const RESOLUTION_CONVERTED = 'converted';
+
+    public const RESOLUTION_PARTIAL_ALPHA = 'partial_alpha';
+
+    public const RESOLUTION_ALPHA = 'alpha';
+
     public const CERTIFICATE_DEADLINE_HOURS = 48;
 
     protected $fillable = [
@@ -64,6 +76,10 @@ class LeaveRequest extends Model implements ApprovableContract
         'certificate_verified_by',
         'certificate_rejection_reason',
         'auto_rejected',
+        'certificate_resolution',
+        'certificate_resolved_at',
+        'certificate_resolved_by',
+        'converted_from_leave_request_id',
     ];
 
     protected $casts = [
@@ -77,6 +93,7 @@ class LeaveRequest extends Model implements ApprovableContract
         'certificate_deadline_at' => 'datetime',
         'certificate_submitted_at' => 'datetime',
         'certificate_verified_at' => 'datetime',
+        'certificate_resolved_at' => 'datetime',
         'auto_rejected' => 'boolean',
     ];
 
@@ -98,6 +115,19 @@ class LeaveRequest extends Model implements ApprovableContract
     public function certificateVerifiedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'certificate_verified_by');
+    }
+
+    public function certificateResolvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'certificate_resolved_by');
+    }
+
+    /**
+     * The original sick leave this (annual) request was converted from.
+     */
+    public function convertedFrom(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'converted_from_leave_request_id');
     }
 
     /**
@@ -125,14 +155,17 @@ class LeaveRequest extends Model implements ApprovableContract
     }
 
     /**
-     * Certificate-pending requests whose deadline has passed and haven't been
-     * auto-rejected yet. Named to mirror TrainingRecord::scopeExpiringWithinDays().
+     * Approved requests past their certificate deadline that still need to be
+     * flagged for HR resolution: certificate never submitted (pending) or the
+     * last submission was rejected by HR (rejected). No auto_rejected filter —
+     * legacy auto-rejected rows have status=rejected and fall out of the
+     * status=approved condition.
      */
     public function scopeCertificateOverdue($query)
     {
-        return $query->certificatePending()
-            ->where('certificate_deadline_at', '<', now())
-            ->where('auto_rejected', false);
+        return $query->where('status', self::STATUS_APPROVED)
+            ->whereIn('certificate_status', [self::CERT_STATUS_PENDING, self::CERT_STATUS_REJECTED])
+            ->where('certificate_deadline_at', '<', now());
     }
 
     /**
