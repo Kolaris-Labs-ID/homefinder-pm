@@ -211,7 +211,8 @@ it('previews the split and warns about locked payroll batches', function () {
 
     $preview = \App\Filament\Resources\LeaveRequestResource::certificateResolutionPreview($sick);
 
-    expect($preview)->toContain('1')->toContain('2')
+    expect($preview)->toContain('1 day(s) will convert to Annual Leave')
+        ->toContain('2 day(s) will become Alpha')
         ->and($preview)->not->toContain('Warning');
 
     \App\Models\Hris\PayrunBatch::factory()->create([
@@ -229,7 +230,8 @@ it('previews the real quota when the employee has no annual balance row yet', fu
 
     $preview = \App\Filament\Resources\LeaveRequestResource::certificateResolutionPreview($sick);
 
-    expect($preview)->toContain('12');
+    expect($preview)->toContain('12 annual day(s) remaining')
+        ->toContain('3 day(s) will convert to Annual Leave');
 });
 
 it('exposes resolution fields in the leave requests API payload', function () {

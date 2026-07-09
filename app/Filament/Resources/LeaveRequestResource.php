@@ -505,10 +505,12 @@ class LeaveRequestResource extends Resource
 
     /**
      * Human preview of what resolving will do, shown in the confirmation modal.
-     * Mirrors SickLeaveResolutionService::resolve() arithmetic exactly — including
-     * ensureBalance()'s lazy row provisioning — so the preview can never diverge
-     * from the resolution. Warns when a locked payroll batch already covers the
-     * leave period (resolution proceeds but won't retro-adjust paid payroll).
+     * Hand-mirrors SickLeaveResolutionService::resolve() arithmetic — including
+     * ensureBalance()'s lazy row provisioning — but nothing enforces the mirror:
+     * if the split policy changes in the service, update this too (the preview
+     * tests in SickLeaveResolutionTest pin the current wording/numbers). Warns
+     * when a locked payroll batch already covers the leave period (resolution
+     * proceeds but won't retro-adjust paid payroll).
      */
     public static function certificateResolutionPreview(LeaveRequest $record): string
     {
