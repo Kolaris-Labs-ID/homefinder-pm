@@ -25,6 +25,9 @@ class LeaveCertificateExpire extends Command
         }
 
         $this->info("Found {$overdue->count()} overdue certificate deadline(s).");
+        $hrUsers = User::whereHas('roles', function ($query) {
+            $query->whereIn('name', ['hr-admin', 'hr-manager']);
+        })->get();
         $flagged = 0;
 
         foreach ($overdue as $leaveRequest) {
@@ -34,7 +37,7 @@ class LeaveCertificateExpire extends Command
                 // this same command could have already resolved this record by the time
                 // we get here. Re-checking under lockForUpdate() makes this safe to run
                 // from multiple workers and safe to re-run without double-processing.
-                $didFlag = DB::transaction(function () use ($leaveRequest): bool {
+                $didFlag = DB::transaction(function () use ($leaveRequest, $hrUsers): bool {
                     $locked = LeaveRequest::whereKey($leaveRequest->id)->lockForUpdate()->first();
 
                     if (! $locked
@@ -65,12 +68,15 @@ class LeaveCertificateExpire extends Command
                         'actor' => 'System',
                     ]);
 
+                    // Notification rows are plain DB writes with no side effects, so
+                    // creating them inside the transaction makes flag + notification
+                    // atomic (exactly-once).
+                    $this->notifyHROverdue($locked, $hrUsers);
+
                     return true;
                 });
 
                 if ($didFlag) {
-                    // Outside the transaction so a rollback can't leave ghost notifications.
-                    $this->notifyHROverdue($leaveRequest->fresh());
                     $flagged++;
                     $this->line("  ✓ Flagged leave request #{$leaveRequest->id} as overdue (employee_id={$leaveRequest->employee_id})");
                 }
@@ -91,13 +97,9 @@ class LeaveCertificateExpire extends Command
     /**
      * Same HR-role lookup convention as LeaveRequestController::notifyHRCertificateSubmitted().
      */
-    protected function notifyHROverdue(LeaveRequest $leaveRequest): void
+    protected function notifyHROverdue(LeaveRequest $leaveRequest, $hrUsers): void
     {
         $employeeName = $leaveRequest->employee->user?->name ?? 'Unknown';
-
-        $hrUsers = User::whereHas('roles', function ($query) {
-            $query->whereIn('name', ['hr-admin', 'hr-manager']);
-        })->get();
 
         foreach ($hrUsers as $hrUser) {
             \App\Models\Notification::create([

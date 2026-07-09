@@ -75,7 +75,7 @@ class LeaveCertificateRemind extends Command
             'user_id' => $employee->user_id,
             'type' => 'certificate_reminder',
             'title' => 'Medical Certificate Needed',
-            'message' => "Please upload your medical certificate for your Sick Leave — {$hoursRemaining} hour(s) remaining before it's automatically rejected.",
+            'message' => "Please upload your medical certificate for your Sick Leave — {$hoursRemaining} hour(s) remaining before it's escalated to HR for resolution (conversion to Annual Leave or unpaid absence).",
             'data' => [
                 'leave_request_id' => $leaveRequest->id,
                 'certificate_deadline_at' => $leaveRequest->certificate_deadline_at->toIso8601String(),

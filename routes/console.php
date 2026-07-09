@@ -48,8 +48,8 @@ Schedule::command('hris:leave-certificate-remind')
     ->timezone('Asia/Jakarta')
     ->description('Notify employees and HR when a Sick Leave certificate deadline is within 24 hours');
 
-// Auto-reject provisionally-approved Sick Leave requests whose 48h certificate deadline passed
+// Flag provisionally-approved Sick Leave requests whose 48h certificate deadline passed for HR resolution
 Schedule::command('hris:leave-certificate-expire')
     ->hourly()
     ->timezone('Asia/Jakarta')
-    ->description('Auto-reject Sick Leave requests with no certificate submitted within 48 hours of approval');
+    ->description('Flag Sick Leave requests with no certificate within 48 hours as overdue and notify HR for resolution');

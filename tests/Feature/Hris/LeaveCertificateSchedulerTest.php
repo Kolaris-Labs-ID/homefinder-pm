@@ -80,13 +80,18 @@ it('flags a cert-rejected request whose deadline has passed', function () {
 it('notifies HR when flagging an overdue certificate', function () {
     Role::firstOrCreate(['name' => 'hr-admin', 'guard_name' => 'web']);
     $hrUser = tap(User::factory()->create())->assignRole('hr-admin');
+    $nonHrUser = User::factory()->create();
 
     $leaveRequest = makeApprovedSickLeaveAwaitingCertificate();
     $leaveRequest->update(['certificate_deadline_at' => now()->subHour()]);
 
     $this->artisan('hris:leave-certificate-expire');
 
-    expect(Notification::where('user_id', $hrUser->id)->where('type', 'certificate_overdue_hr')->count())->toBe(1);
+    $notifications = Notification::where('user_id', $hrUser->id)->where('type', 'certificate_overdue_hr')->get();
+
+    expect($notifications)->toHaveCount(1)
+        ->and($notifications->first()->data['leave_request_id'])->toBe($leaveRequest->id)
+        ->and(Notification::where('user_id', $nonHrUser->id)->count())->toBe(0);
 });
 
 it('is idempotent: a second run does not re-flag or re-notify', function () {
@@ -130,7 +135,8 @@ it('does not touch a leave request whose certificate was already verified', func
     $this->artisan('hris:leave-certificate-expire');
 
     $leaveRequest->refresh();
-    expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_APPROVED);
+    expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_APPROVED)
+        ->and($leaveRequest->certificate_status)->toBe(LeaveRequest::CERT_STATUS_VERIFIED);
 });
 
 it('does not touch a leave request whose deadline has not passed yet', function () {
@@ -140,7 +146,8 @@ it('does not touch a leave request whose deadline has not passed yet', function 
     $this->artisan('hris:leave-certificate-expire');
 
     $leaveRequest->refresh();
-    expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_APPROVED);
+    expect($leaveRequest->status)->toBe(LeaveRequest::STATUS_APPROVED)
+        ->and($leaveRequest->certificate_status)->toBe(LeaveRequest::CERT_STATUS_PENDING);
     expect($leaveRequest->auto_rejected)->toBeFalse();
 });
 
