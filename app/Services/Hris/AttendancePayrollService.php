@@ -81,6 +81,8 @@ class AttendancePayrollService
             'late_days' => $lateDays,
             'half_days' => $halfDays,
             'absent_days' => $absentDays,
+            // Raw status='leave' log count, retained for reporting only — unrelated
+            // to the request-driven paid/unpaid split below.
             'leave_days' => $leaveDays,
             'paid_leave_days' => $paidLeaveDays,
             'unpaid_leave_days' => $unpaidLeaveDays,
@@ -140,13 +142,20 @@ class AttendancePayrollService
                 continue;
             }
 
-            $covering = $approvedLeaves->first(
+            $coveringRequests = $approvedLeaves->filter(
                 fn (LeaveRequest $lr) => $lr->start_date->lte($date) && $lr->end_date->gte($date)
             );
 
-            if (! $covering) {
+            if ($coveringRequests->isEmpty()) {
                 continue;
             }
+
+            // Overlapping approvals are possible (no overlap guard at submission) —
+            // prefer a salary-protecting request so an unpaid overlap can't
+            // non-deterministically strip pay protection.
+            $covering = $coveringRequests->first(
+                fn (LeaveRequest $lr) => in_array($lr->leaveType?->code, [LeaveBalanceService::CODE_ANNUAL, LeaveBalanceService::CODE_SICK], true)
+            ) ?? $coveringRequests->first();
 
             if (in_array($covering->leaveType?->code, [LeaveBalanceService::CODE_ANNUAL, LeaveBalanceService::CODE_SICK], true)) {
                 $paid++;
@@ -222,14 +231,7 @@ class AttendancePayrollService
 
     protected function countActiveWeekdayHolidays(Carbon $startDate, Carbon $endDate): int
     {
-        return MasterHoliday::active()
-            ->forDateRange($startDate->toDateString(), $endDate->toDateString())
-            ->get()
-            ->filter(fn (MasterHoliday $holiday) => ! $holiday->date->isWeekend())
-            ->pluck('date')
-            ->map(fn ($date) => Carbon::parse($date)->toDateString())
-            ->unique()
-            ->count();
+        return count($this->getActiveWeekdayHolidayDateStrings($startDate, $endDate));
     }
 
     /**

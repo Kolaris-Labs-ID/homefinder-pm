@@ -197,3 +197,19 @@ it('end to end: converted sick leave protects converted days and prorates alpha 
 
     expect((float) $record->prorate_ratio)->toEqualWithDelta(21 / 23, 0.001);
 });
+
+it('prefers the salary-protecting request when overlapping approvals cover the same days', function () {
+    $employee = prorateFixEmployee();
+    $unpaid = LeaveType::where('code', 'UNPAID')->firstOrFail();
+    $annual = LeaveType::factory()->create(['code' => 'ANNUAL']);
+
+    prorateFixAttend($employee, '2025-10-01', '2025-10-31', ['2025-10-06', '2025-10-07', '2025-10-08']);
+    // UNPAID created FIRST so insertion order would pick it without the preference
+    prorateFixLeave($employee, $unpaid, '2025-10-06', '2025-10-08');
+    prorateFixLeave($employee, $annual, '2025-10-06', '2025-10-08');
+
+    $summary = prorateFixSummary($employee);
+
+    expect($summary['paid_leave_days'])->toBe(3)
+        ->and($summary['unpaid_leave_days'])->toBe(0);
+});
