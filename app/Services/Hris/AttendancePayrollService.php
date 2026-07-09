@@ -18,11 +18,6 @@ class AttendancePayrollService
 
     /**
      * Get attendance summary for an employee within a date range.
-     *
-     * @param Employee $employee
-     * @param Carbon $periodStart
-     * @param Carbon $periodEnd
-     * @return array
      */
     public function getAttendanceSummary(Employee $employee, Carbon $periodStart, Carbon $periodEnd): array
     {
@@ -51,9 +46,9 @@ class AttendancePayrollService
         // Count weekend work days (Sat/Sun with actual attendance)
         $weekendWorkDays = $logs->filter(function ($log) {
             return in_array($log->status, [
-                    AttendanceLog::STATUS_PRESENT,
-                    AttendanceLog::STATUS_LATE,
-                ])
+                AttendanceLog::STATUS_PRESENT,
+                AttendanceLog::STATUS_LATE,
+            ])
                 && Carbon::parse($log->date)->isWeekend();
         })->count();
 
@@ -68,11 +63,12 @@ class AttendancePayrollService
         $eligiblePaidHolidayDays = $this->getPaidHolidaysForEmployeeInPeriod($employee, $periodStart, $periodEnd);
         $effectiveWorkingDays = $this->calculateEffectiveWorkingDays($periodStart, $periodEnd);
 
-        // Classify leave days that protect basic salary vs unpaid leave days
-        // that still reduce prorated salary.
+        // Classify leave days that protect basic salary vs unpaid leave days that
+        // still reduce prorated salary. Driven by approved LeaveRequest date ranges,
+        // NOT status='leave' attendance rows — an employee on approved leave usually
+        // has no attendance row at all, and their salary must still be protected.
         [$paidLeaveDays, $unpaidLeaveDays] = $this->classifyLeaveDays(
             $employee,
-            $logs->where('status', AttendanceLog::STATUS_LEAVE),
             $periodStart,
             $periodEnd
         );
@@ -104,27 +100,19 @@ class AttendancePayrollService
     }
 
     /**
-     * Split leave-status attendance logs into salary-protecting vs unpaid leave days.
+     * Split approved-leave days in the period into salary-protecting vs unpaid.
      *
-     * Annual and sick leave protect the employee's basic salary from prorate.
-     * Unpaid leave and unmatched leave attendance still prorate the basic salary.
+     * Counts weekday, non-holiday dates covered by an approved LeaveRequest that
+     * the employee did not actually attend (attended dates already count toward
+     * actual_attendance_days — skipping them here prevents double counting).
+     * Annual and sick leave protect the basic salary from prorate; any other
+     * leave code still prorates it, and a date covered by no approved request
+     * at all (alpha) is simply not counted.
      *
-     * @param Employee $employee
-     * @param \Illuminate\Support\Collection $leaveLogs AttendanceLog entries with status=leave
-     * @param Carbon $periodStart
-     * @param Carbon $periodEnd
      * @return array{0:int,1:int} [paidLeaveDays, unpaidLeaveDays]
      */
-    protected function classifyLeaveDays(
-        Employee $employee,
-        $leaveLogs,
-        Carbon $periodStart,
-        Carbon $periodEnd
-    ): array {
-        if ($leaveLogs->isEmpty()) {
-            return [0, 0];
-        }
-
+    protected function classifyLeaveDays(Employee $employee, Carbon $periodStart, Carbon $periodEnd): array
+    {
         $approvedLeaves = LeaveRequest::with('leaveType')
             ->where('employee_id', $employee->id)
             ->where('status', LeaveRequest::STATUS_APPROVED)
@@ -132,21 +120,35 @@ class AttendancePayrollService
             ->where('end_date', '>=', $periodStart)
             ->get();
 
+        if ($approvedLeaves->isEmpty()) {
+            return [0, 0];
+        }
+
+        $attendedDates = $this->getActualAttendanceDateStrings($employee->id, $periodStart, $periodEnd);
+        $holidayDates = $this->getActiveWeekdayHolidayDateStrings($periodStart, $periodEnd);
+
         $paid = 0;
         $unpaid = 0;
 
-        foreach ($leaveLogs as $log) {
-            $logDate = $log->date instanceof Carbon
-                ? $log->date
-                : Carbon::parse($log->date);
+        foreach (CarbonPeriod::create($periodStart->copy()->startOfDay(), $periodEnd->copy()->startOfDay()) as $date) {
+            $dateString = $date->toDateString();
 
-            $matching = $approvedLeaves->first(function (LeaveRequest $lr) use ($logDate) {
-                return $lr->start_date->lte($logDate) && $lr->end_date->gte($logDate);
-            });
+            if ($date->isWeekend()
+                || in_array($dateString, $holidayDates, true)
+                || in_array($dateString, $attendedDates, true)
+            ) {
+                continue;
+            }
 
-            $leaveCode = $matching?->leaveType?->code;
+            $covering = $approvedLeaves->first(
+                fn (LeaveRequest $lr) => $lr->start_date->lte($date) && $lr->end_date->gte($date)
+            );
 
-            if (in_array($leaveCode, [LeaveBalanceService::CODE_ANNUAL, LeaveBalanceService::CODE_SICK], true)) {
+            if (! $covering) {
+                continue;
+            }
+
+            if (in_array($covering->leaveType?->code, [LeaveBalanceService::CODE_ANNUAL, LeaveBalanceService::CODE_SICK], true)) {
                 $paid++;
             } else {
                 $unpaid++;
@@ -158,10 +160,6 @@ class AttendancePayrollService
 
     /**
      * Calculate working days in a period (excluding weekends).
-     *
-     * @param Carbon $startDate
-     * @param Carbon $endDate
-     * @return int
      */
     public function calculateWorkingDays(Carbon $startDate, Carbon $endDate): int
     {
@@ -170,7 +168,7 @@ class AttendancePayrollService
 
         foreach ($period as $date) {
             // Exclude weekends (Saturday = 6, Sunday = 0)
-            if (!$date->isWeekend()) {
+            if (! $date->isWeekend()) {
                 $workingDays++;
             }
         }
@@ -196,7 +194,7 @@ class AttendancePayrollService
     {
         $employee = Employee::find($employeeId);
 
-        if (!$employee) {
+        if (! $employee) {
             return 0;
         }
 
@@ -232,6 +230,21 @@ class AttendancePayrollService
             ->map(fn ($date) => Carbon::parse($date)->toDateString())
             ->unique()
             ->count();
+    }
+
+    /**
+     * Active weekday holiday dates in the period as 'Y-m-d' strings.
+     */
+    protected function getActiveWeekdayHolidayDateStrings(Carbon $startDate, Carbon $endDate): array
+    {
+        return MasterHoliday::active()
+            ->forDateRange($startDate->toDateString(), $endDate->toDateString())
+            ->get()
+            ->filter(fn (MasterHoliday $holiday) => ! $holiday->date->isWeekend())
+            ->map(fn (MasterHoliday $holiday) => $holiday->date->toDateString())
+            ->unique()
+            ->values()
+            ->all();
     }
 
     protected function getPaidHolidaysForEmployeeInPeriod(Employee $employee, Carbon $startDate, Carbon $endDate): int
@@ -271,12 +284,7 @@ class AttendancePayrollService
 
     protected function getPayrollActualAttendanceDays(Employee $employee, Carbon $startDate, Carbon $endDate): int
     {
-        $holidayDates = MasterHoliday::active()
-            ->forDateRange($startDate->toDateString(), $endDate->toDateString())
-            ->get()
-            ->filter(fn (MasterHoliday $holiday) => ! $holiday->date->isWeekend())
-            ->map(fn (MasterHoliday $holiday) => $holiday->date->toDateString())
-            ->all();
+        $holidayDates = $this->getActiveWeekdayHolidayDateStrings($startDate, $endDate);
 
         $dates = collect($this->getActualAttendanceDateStrings($employee->id, $startDate, $endDate));
 
@@ -343,9 +351,7 @@ class AttendancePayrollService
      * are treated as worked so they do NOT prorate the basic salary. Unpaid
      * leave days and unexcused absences still reduce actual days worked.
      *
-     * @param array $attendanceSummary
-     * @param array $config Configuration for what to count
-     * @return float
+     * @param  array  $config  Configuration for what to count
      */
     public function calculateActualDaysWorked(array $attendanceSummary, array $config = []): float
     {
@@ -381,10 +387,6 @@ class AttendancePayrollService
 
     /**
      * Calculate prorate ratio.
-     *
-     * @param int $actualDaysWorked
-     * @param int $totalWorkingDays
-     * @return float
      */
     public function calculateProrateRatio(int $actualDaysWorked, int $totalWorkingDays): float
     {
@@ -401,9 +403,8 @@ class AttendancePayrollService
     /**
      * Calculate daily allowance based on attendance.
      *
-     * @param array $allowanceConfig Allowance configuration
-     * @param array $attendanceSummary Attendance summary
-     * @return float
+     * @param  array  $allowanceConfig  Allowance configuration
+     * @param  array  $attendanceSummary  Attendance summary
      */
     public function calculateDailyAllowance(array $allowanceConfig, array $attendanceSummary): float
     {
@@ -431,7 +432,7 @@ class AttendancePayrollService
         $countableDays += $attendanceSummary['half_days'] * $halfDayRatio;
 
         // Subtract WFH days if not counted
-        if (!($allowanceConfig['count_wfh'] ?? true)) {
+        if (! ($allowanceConfig['count_wfh'] ?? true)) {
             $countableDays -= $attendanceSummary['wfh_days'];
         }
 
@@ -453,8 +454,8 @@ class AttendancePayrollService
     /**
      * Calculate all variable allowances based on attendance.
      *
-     * @param array $variableAllowances Array of allowance configurations
-     * @param array $attendanceSummary Attendance summary
+     * @param  array  $variableAllowances  Array of allowance configurations
+     * @param  array  $attendanceSummary  Attendance summary
      * @return array ['total' => float, 'breakdown' => array]
      */
     public function calculateVariableAllowances(array $variableAllowances, array $attendanceSummary): array
@@ -481,10 +482,6 @@ class AttendancePayrollService
 
     /**
      * Calculate prorated basic salary.
-     *
-     * @param float $fullBasicSalary
-     * @param float $prorateRatio
-     * @return float
      */
     public function calculateProratedSalary(float $fullBasicSalary, float $prorateRatio): float
     {
@@ -493,9 +490,6 @@ class AttendancePayrollService
 
     /**
      * Get attendance summary formatted for payslip display.
-     *
-     * @param array $attendanceSummary
-     * @return string
      */
     public function getAttendanceLabel(array $attendanceSummary): string
     {
