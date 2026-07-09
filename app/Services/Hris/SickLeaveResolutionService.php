@@ -41,12 +41,16 @@ class SickLeaveResolutionService
 
             $locked->loadMissing(['employee', 'leaveType']);
 
-            $annualRemaining = $this->leaveBalanceService->annualLeaveRemaining(
-                $locked->employee,
-                $locked->start_date->year
-            );
+            $annualType = LeaveType::where('code', LeaveBalanceService::CODE_ANNUAL)->first();
 
-            $convertDays = (int) min($annualRemaining, $locked->total_days);
+            // ensureBalance() lazily provisions the year row the same way consume()
+            // would, so a first-leave-of-the-year employee sees their real quota
+            // instead of a missing-row zero.
+            $annualRemaining = $annualType
+                ? $this->leaveBalanceService->ensureBalance($locked->employee, $annualType, $locked->start_date->year)->remaining_days
+                : 0;
+
+            $convertDays = min($annualRemaining, $locked->total_days);
             $alphaDays = $locked->total_days - $convertDays;
 
             // Reject the sick request first — the same status-flip + requestor
@@ -58,8 +62,6 @@ class SickLeaveResolutionService
             $annualRequest = null;
 
             if ($convertDays > 0) {
-                $annualType = LeaveType::where('code', LeaveBalanceService::CODE_ANNUAL)->firstOrFail();
-
                 $annualRequest = LeaveRequest::create([
                     'employee_id' => $locked->employee_id,
                     'leave_type_id' => $annualType->id,
@@ -118,24 +120,31 @@ class SickLeaveResolutionService
 
     protected function notifyEmployeeResolved(LeaveRequest $leaveRequest, array $result): void
     {
-        $userId = $leaveRequest->employee?->user_id;
+        try {
+            $userId = $leaveRequest->employee?->user_id;
 
-        if (! $userId) {
-            return;
-        }
+            if (! $userId) {
+                return;
+            }
 
-        Notification::create([
-            'user_id' => $userId,
-            'type' => 'sick_leave_resolved',
-            'title' => 'Sick Leave Resolved',
-            'message' => "Your sick leave was resolved: {$result['converted_days']} day(s) converted to Annual Leave, {$result['alpha_days']} day(s) marked as Alpha (unpaid absence).",
-            'data' => [
+            Notification::create([
+                'user_id' => $userId,
+                'type' => 'sick_leave_resolved',
+                'title' => 'Sick Leave Resolved',
+                'message' => "Your sick leave was resolved: {$result['converted_days']} day(s) converted to Annual Leave, {$result['alpha_days']} day(s) marked as Alpha (unpaid absence).",
+                'data' => [
+                    'leave_request_id' => $leaveRequest->id,
+                    'resolution' => $result['resolution'],
+                    'converted_days' => $result['converted_days'],
+                    'alpha_days' => $result['alpha_days'],
+                    'annual_leave_request_id' => $result['annual_leave_request_id'],
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send sick leave resolution notification: '.$e->getMessage(), [
                 'leave_request_id' => $leaveRequest->id,
                 'resolution' => $result['resolution'],
-                'converted_days' => $result['converted_days'],
-                'alpha_days' => $result['alpha_days'],
-                'annual_leave_request_id' => $result['annual_leave_request_id'],
-            ],
-        ]);
+            ]);
+        }
     }
 }

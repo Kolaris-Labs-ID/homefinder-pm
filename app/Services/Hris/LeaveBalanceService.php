@@ -82,7 +82,7 @@ class LeaveBalanceService
         return null;
     }
 
-    public function annualLeaveRemaining(Employee $employee, int $year): int
+    protected function annualLeaveRemaining(Employee $employee, int $year): int
     {
         $annualType = LeaveType::where('code', self::CODE_ANNUAL)->first();
 

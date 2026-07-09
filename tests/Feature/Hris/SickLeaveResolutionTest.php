@@ -15,7 +15,7 @@ uses(RefreshDatabase::class);
  * Approved sick leave already flagged overdue, with an ANNUAL type + balance
  * row holding exactly $annualRemaining days for the leave's start year.
  */
-function makeOverdueSickLeave(int $totalDays = 3, int $annualRemaining = 12): LeaveRequest
+function makeOverdueSickLeave(int $totalDays = 3, int $annualRemaining = 12, bool $provisionAnnualBalance = true): LeaveRequest
 {
     $employee = Employee::factory()->create();
 
@@ -44,10 +44,12 @@ function makeOverdueSickLeave(int $totalDays = 3, int $annualRemaining = 12): Le
 
     $leaveRequest->markAsApproved();
 
-    LeaveBalance::updateOrCreate(
-        ['employee_id' => $employee->id, 'leave_type_id' => $annualType->id, 'year' => $start->year],
-        ['starting_balance' => 12, 'used_days' => 12 - $annualRemaining, 'remaining_days' => $annualRemaining]
-    );
+    if ($provisionAnnualBalance) {
+        LeaveBalance::updateOrCreate(
+            ['employee_id' => $employee->id, 'leave_type_id' => $annualType->id, 'year' => $start->year],
+            ['starting_balance' => 12, 'used_days' => 12 - $annualRemaining, 'remaining_days' => $annualRemaining]
+        );
+    }
 
     $leaveRequest->update([
         'certificate_deadline_at' => now()->subHour(),
@@ -137,6 +139,26 @@ it('releases the sick usage counter and consumes annual quota', function () {
     expect($sickBalance->refresh()->used_days)->toBe(0)
         ->and($annualBalance->used_days)->toBe(3)
         ->and($annualBalance->remaining_days)->toBe(9);
+});
+
+it('converts using the default quota when the employee has no annual balance row yet', function () {
+    $sick = makeOverdueSickLeave(totalDays: 3, provisionAnnualBalance: false);
+
+    $result = resolveOverdueSickLeave($sick);
+
+    expect($result['resolution'])->toBe(LeaveRequest::RESOLUTION_CONVERTED)
+        ->and($result['converted_days'])->toBe(3)
+        ->and($result['alpha_days'])->toBe(0);
+
+    $annualType = LeaveType::where('code', 'ANNUAL')->first();
+    $balance = LeaveBalance::where('employee_id', $sick->employee_id)
+        ->where('leave_type_id', $annualType->id)
+        ->where('year', $sick->start_date->year)
+        ->first();
+
+    expect($balance)->not->toBeNull()
+        ->and($balance->used_days)->toBe(3)
+        ->and($balance->remaining_days)->toBe(9);
 });
 
 it('refuses to resolve a request that is not overdue', function () {
