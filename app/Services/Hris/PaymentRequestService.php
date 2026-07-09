@@ -70,18 +70,18 @@ class PaymentRequestService
                 $metadata['finance_notes'] = $er->finance_notes;
             }
 
+            $payee = $this->resolvePayee($er, $overrides);
+
             $pr = PaymentRequest::create([
                 'payment_request_number' => $this->generateNumber(),
                 'source_type' => PaymentRequest::SOURCE_EXPENSE_REQUEST,
                 'source_id' => $er->id,
                 'created_by' => $creator->id,
                 'payee_type' => $er->payment_mode,
-                'payee_name' => $overrides['payee_name'] ?? $er->payee_name,
-                'bank_name' => $overrides['bank_name'] ?? $er->payee_bank_name,
-                'bank_account_number_encrypted' => $overrides['bank_account_number'] ?? $er->payee_bank_account_number,
-                'bank_account_last4' => isset($overrides['bank_account_number'])
-                    ? substr(preg_replace('/\D/', '', $overrides['bank_account_number']), -4)
-                    : $er->payee_bank_account_last4,
+                'payee_name' => $payee['name'],
+                'bank_name' => $payee['bank_name'],
+                'bank_account_number_encrypted' => $payee['bank_account_number'],
+                'bank_account_last4' => $payee['bank_account_last4'],
                 'amount' => $amount,
                 'currency' => $er->currency,
                 'description' => $er->title,
@@ -96,6 +96,43 @@ class PaymentRequestService
 
             return $pr;
         });
+    }
+
+    /**
+     * Resolve the PR payee from the ER. For an employee reimbursement the payee is the
+     * employee, so their profile (bank holder/name + bank details) fills the blank payee_*
+     * fields the ER legitimately omits. A PR cannot exist without a payee name.
+     */
+    private function resolvePayee(ExpenseRequest $er, array $overrides): array
+    {
+        $name = $overrides['payee_name'] ?? $er->payee_name;
+        $bankName = $overrides['bank_name'] ?? $er->payee_bank_name;
+        $accountNumber = $overrides['bank_account_number'] ?? $er->payee_bank_account_number;
+        $last4 = array_key_exists('bank_account_number', $overrides)
+            ? substr(preg_replace('/\D/', '', (string) $overrides['bank_account_number']), -4)
+            : $er->payee_bank_account_last4;
+
+        if (! $name && $er->payment_mode === ExpenseRequest::MODE_EMPLOYEE_REIMBURSEMENT) {
+            $employee = $er->employee()->with('user')->first();
+            $name = $employee?->bank_account_holder ?: $employee?->user?->name;
+            $bankName = $bankName ?: $employee?->bank_name;
+
+            if (! $accountNumber && $employee?->bank_account_number) {
+                $accountNumber = $employee->bank_account_number;
+                $last4 = substr(preg_replace('/\D/', '', $accountNumber), -4);
+            }
+        }
+
+        if (! $name) {
+            throw new \RuntimeException('This expense request has no payee. Add the payee name and bank details before creating a payment request.');
+        }
+
+        return [
+            'name' => $name,
+            'bank_name' => $bankName,
+            'bank_account_number' => $accountNumber,
+            'bank_account_last4' => $last4,
+        ];
     }
 
     private function varianceMetadata(string $amount, ExpenseRequest $er, array $overrides): array

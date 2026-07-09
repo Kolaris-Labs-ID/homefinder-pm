@@ -56,6 +56,49 @@ it('creates a PR from a verified ER, defaulting payee + bank from the ER', funct
     expect($er->fresh()->status)->toBe(ExpenseRequest::STATUS_PR_CREATED);
 });
 
+it('resolves the payee from the employee profile for an employee reimbursement with blank payee fields', function () {
+    $this->employee->update([
+        'bank_name' => 'BCA',
+        'bank_account_number' => '9998887776',
+        'bank_account_holder' => 'Andi Reimburse',
+    ]);
+
+    $er = verifiedEr([
+        'payment_mode' => ExpenseRequest::MODE_EMPLOYEE_REIMBURSEMENT,
+        'payee_name' => null, 'payee_bank_name' => null, 'payee_bank_account_number' => null,
+    ]);
+
+    $pr = $this->pr->createFromExpenseRequest($er, $this->creator);
+
+    expect($pr->payee_name)->toBe('Andi Reimburse');
+    expect($pr->bank_name)->toBe('BCA');
+    expect($pr->bank_account_last4)->toBe('7776');
+    expect($pr->bank_account_number)->toBe('9998887776');
+});
+
+it('falls back to the employee user name when the reimbursement employee has no bank holder', function () {
+    $this->employee->user->update(['name' => 'Budi Employee']);
+
+    $er = verifiedEr([
+        'payment_mode' => ExpenseRequest::MODE_EMPLOYEE_REIMBURSEMENT,
+        'payee_name' => null, 'payee_bank_name' => null, 'payee_bank_account_number' => null,
+    ]);
+
+    $pr = $this->pr->createFromExpenseRequest($er, $this->creator);
+
+    expect($pr->payee_name)->toBe('Budi Employee');
+});
+
+it('rejects conversion with a clear error when no payee can be resolved', function () {
+    $er = verifiedEr([
+        'payment_mode' => ExpenseRequest::MODE_VENDOR_PAYMENT,
+        'payee_name' => null, 'payee_bank_name' => null, 'payee_bank_account_number' => null,
+    ]);
+
+    expect(fn () => $this->pr->createFromExpenseRequest($er, $this->creator))
+        ->toThrow(RuntimeException::class);
+});
+
 it('refuses to create a PR from an unverified ER', function () {
     $er = test()->er->create($this->employee, [
         'category' => 'travel', 'title' => 'Taxi', 'amount' => 1000000, 'expense_date' => '2026-05-30',
