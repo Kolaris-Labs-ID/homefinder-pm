@@ -56,9 +56,15 @@ class ViewLeaveRequest extends ViewRecord
                         TextEntry::make('certificate_verified_at')->dateTime()->placeholder('—'),
                         TextEntry::make('certificateVerifiedBy.name')->label('Reviewed By')->placeholder('—'),
                         TextEntry::make('certificate_rejection_reason')->placeholder('—')->columnSpanFull(),
+                        TextEntry::make('certificate_resolution')->badge()->placeholder('—'),
+                        TextEntry::make('certificate_resolved_at')->dateTime()->placeholder('—'),
+                        TextEntry::make('certificateResolvedBy.name')->label('Resolved By')->placeholder('—'),
+                        TextEntry::make('convertedFrom.id')
+                            ->label('Converted From Sick Leave #')
+                            ->placeholder('—'),
                     ])
                     ->columns(2)
-                    ->visible(fn (LeaveRequest $record): bool => filled($record->certificate_status)),
+                    ->visible(fn (LeaveRequest $record): bool => filled($record->certificate_status) || filled($record->converted_from_leave_request_id)),
 
                 // Approval History Section - only shown when record has approval workflow
                 Section::make('Approval History')
@@ -163,6 +169,17 @@ class ViewLeaveRequest extends ViewRecord
                 ])
                 ->visible(fn (): bool => $this->canReviewCertificate())
                 ->action(fn (array $data) => $this->handleRejectCertificate($data['reason'])),
+
+            // Overdue-certificate resolution: convert to Annual Leave / Alpha
+            Actions\Action::make('resolve_certificate')
+                ->label(__('Resolve (Convert/Alpha)'))
+                ->icon('heroicon-o-scale')
+                ->color('warning')
+                ->requiresConfirmation()
+                ->modalHeading(__('Resolve Overdue Sick Leave'))
+                ->modalDescription(fn (): string => LeaveRequestResource::certificateResolutionPreview($this->record))
+                ->visible(fn (): bool => $this->canResolveCertificate())
+                ->action(fn () => $this->handleResolveCertificate()),
         ];
     }
 
@@ -191,6 +208,35 @@ class ViewLeaveRequest extends ViewRecord
             Notification::make()->title(__('Certificate Rejected'))->success()->send();
         } catch (\Exception $e) {
             Notification::make()->title(__('Rejection Failed'))->body($e->getMessage())->danger()->send();
+        }
+    }
+
+    protected function canResolveCertificate(): bool
+    {
+        return $this->record->certificate_status === LeaveRequest::CERT_STATUS_OVERDUE
+            && $this->record->status === LeaveRequest::STATUS_APPROVED
+            && Gate::allows('update', $this->record);
+    }
+
+    protected function handleResolveCertificate(): void
+    {
+        try {
+            $result = LeaveRequestActionHandler::resolveCertificate($this->record, auth()->user());
+
+            Notification::make()
+                ->title(__('Sick Leave Resolved'))
+                ->body(__(':converted day(s) converted to Annual Leave, :alpha day(s) marked Alpha.', [
+                    'converted' => $result['converted_days'],
+                    'alpha' => $result['alpha_days'],
+                ]))
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title(__('Resolution Failed'))
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
         }
     }
 

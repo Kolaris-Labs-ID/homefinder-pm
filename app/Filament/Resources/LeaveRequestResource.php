@@ -4,7 +4,10 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\LeaveRequestResource\Pages;
 use App\Models\Hris\LeaveRequest;
+use App\Models\Hris\LeaveType;
+use App\Models\Hris\PayrunBatch;
 use App\Services\Hris\ApprovalWorkflowService;
+use App\Services\Hris\LeaveBalanceService;
 use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -123,7 +126,8 @@ class LeaveRequestResource extends Resource
                         'warning' => LeaveRequest::CERT_STATUS_PENDING,
                         'info' => LeaveRequest::CERT_STATUS_SUBMITTED,
                         'success' => LeaveRequest::CERT_STATUS_VERIFIED,
-                        'danger' => [LeaveRequest::CERT_STATUS_REJECTED, LeaveRequest::CERT_STATUS_EXPIRED],
+                        'danger' => [LeaveRequest::CERT_STATUS_REJECTED, LeaveRequest::CERT_STATUS_EXPIRED, LeaveRequest::CERT_STATUS_OVERDUE],
+                        'gray' => LeaveRequest::CERT_STATUS_RESOLVED,
                     ])
                     ->placeholder('—')
                     ->toggleable(),
@@ -257,6 +261,16 @@ class LeaveRequestResource extends Resource
                     ])
                     ->visible(fn (LeaveRequest $record): bool => static::canReviewCertificate($record))
                     ->action(fn (LeaveRequest $record, array $data) => static::handleRejectCertificate($record, $data['reason'])),
+                // Overdue-certificate resolution: convert to Annual Leave / Alpha
+                Tables\Actions\Action::make('resolve_certificate')
+                    ->label(__('Resolve (Convert/Alpha)'))
+                    ->icon('heroicon-o-scale')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading(__('Resolve Overdue Sick Leave'))
+                    ->modalDescription(fn (LeaveRequest $record): string => static::certificateResolutionPreview($record))
+                    ->visible(fn (LeaveRequest $record): bool => static::canResolveCertificate($record))
+                    ->action(fn (LeaveRequest $record) => static::handleResolveCertificate($record)),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -476,6 +490,74 @@ class LeaveRequestResource extends Resource
         } catch (\Exception $e) {
             Notification::make()
                 ->title(__('Rejection Failed'))
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    protected static function canResolveCertificate(LeaveRequest $record): bool
+    {
+        return $record->certificate_status === LeaveRequest::CERT_STATUS_OVERDUE
+            && $record->status === LeaveRequest::STATUS_APPROVED
+            && Gate::allows('update', $record);
+    }
+
+    /**
+     * Human preview of what resolving will do, shown in the confirmation modal.
+     * Mirrors SickLeaveResolutionService::resolve() arithmetic exactly — including
+     * ensureBalance()'s lazy row provisioning — so the preview can never diverge
+     * from the resolution. Warns when a locked payroll batch already covers the
+     * leave period (resolution proceeds but won't retro-adjust paid payroll).
+     */
+    public static function certificateResolutionPreview(LeaveRequest $record): string
+    {
+        $record->loadMissing('employee');
+
+        $annualType = LeaveType::where('code', LeaveBalanceService::CODE_ANNUAL)->first();
+
+        $remaining = $annualType
+            ? app(LeaveBalanceService::class)->ensureBalance($record->employee, $annualType, $record->start_date->year)->remaining_days
+            : 0;
+
+        $convertDays = min($remaining, $record->total_days);
+        $alphaDays = $record->total_days - $convertDays;
+
+        $preview = __(':remaining annual day(s) remaining. :converted day(s) will convert to Annual Leave (salary protected, no daily allowance); :alpha day(s) will become Alpha (prorated salary, no daily allowance).', [
+            'remaining' => $remaining,
+            'converted' => $convertDays,
+            'alpha' => $alphaDays,
+        ]);
+
+        $lockedBatchExists = PayrunBatch::query()
+            ->whereIn('status', [PayrunBatch::STATUS_PENDING_FINANCE, PayrunBatch::STATUS_PAID])
+            ->where('period_start_date', '<=', $record->end_date)
+            ->where('period_end_date', '>=', $record->start_date)
+            ->exists();
+
+        if ($lockedBatchExists) {
+            $preview .= ' '.__('Warning: a payroll batch covering this period is already locked — this resolution will NOT retro-adjust paid payroll.');
+        }
+
+        return $preview;
+    }
+
+    protected static function handleResolveCertificate(LeaveRequest $record): void
+    {
+        try {
+            $result = Pages\LeaveRequestActionHandler::resolveCertificate($record, auth()->user());
+
+            Notification::make()
+                ->title(__('Sick Leave Resolved'))
+                ->body(__(':converted day(s) converted to Annual Leave, :alpha day(s) marked Alpha.', [
+                    'converted' => $result['converted_days'],
+                    'alpha' => $result['alpha_days'],
+                ]))
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title(__('Resolution Failed'))
                 ->body($e->getMessage())
                 ->danger()
                 ->send();

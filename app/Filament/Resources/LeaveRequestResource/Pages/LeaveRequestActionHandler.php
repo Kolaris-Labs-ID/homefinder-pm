@@ -52,6 +52,16 @@ class LeaveRequestActionHandler
         ]);
     }
 
+    /**
+     * HR resolves an overdue-certificate sick leave: quota-covered days convert
+     * to an auto-approved Annual Leave request, the remainder becomes alpha.
+     * The service owns the transaction and idempotency guards.
+     */
+    public static function resolveCertificate(LeaveRequest $leaveRequest, User $resolver): array
+    {
+        return app(\App\Services\Hris\SickLeaveResolutionService::class)->resolve($leaveRequest, $resolver);
+    }
+
     public static function approve(LeaveRequest $leaveRequest): void
     {
         DB::transaction(function () use ($leaveRequest) {

@@ -192,3 +192,39 @@ it('notifies the employee with the outcome breakdown', function () {
         ->and($notification->data['converted_days'])->toBe(1)
         ->and($notification->data['alpha_days'])->toBe(2);
 });
+
+it('resolves via the Filament action handler', function () {
+    $sick = makeOverdueSickLeave(totalDays: 2, annualRemaining: 12);
+    $hr = User::factory()->create();
+
+    $result = \App\Filament\Resources\LeaveRequestResource\Pages\LeaveRequestActionHandler::resolveCertificate($sick, $hr);
+
+    expect($result['resolution'])->toBe(LeaveRequest::RESOLUTION_CONVERTED)
+        ->and($sick->refresh()->certificate_status)->toBe(LeaveRequest::CERT_STATUS_RESOLVED);
+});
+
+it('previews the split and warns about locked payroll batches', function () {
+    $sick = makeOverdueSickLeave(totalDays: 3, annualRemaining: 1);
+
+    $preview = \App\Filament\Resources\LeaveRequestResource::certificateResolutionPreview($sick);
+
+    expect($preview)->toContain('1')->toContain('2')
+        ->and($preview)->not->toContain('Warning');
+
+    \App\Models\Hris\PayrunBatch::factory()->create([
+        'period_start_date' => $sick->start_date->copy()->startOfMonth(),
+        'period_end_date' => $sick->start_date->copy()->endOfMonth(),
+        'status' => \App\Models\Hris\PayrunBatch::STATUS_PAID,
+    ]);
+
+    expect(\App\Filament\Resources\LeaveRequestResource::certificateResolutionPreview($sick->refresh()))
+        ->toContain('Warning');
+});
+
+it('previews the real quota when the employee has no annual balance row yet', function () {
+    $sick = makeOverdueSickLeave(totalDays: 3, provisionAnnualBalance: false);
+
+    $preview = \App\Filament\Resources\LeaveRequestResource::certificateResolutionPreview($sick);
+
+    expect($preview)->toContain('12');
+});
