@@ -129,6 +129,8 @@ class LeaveRequestController extends Controller
 
         abort_if($leaveRequest->employee_id !== $employee->id, 403, 'You cannot upload a certificate for this leave request.');
 
+        abort_if($leaveRequest->status !== LeaveRequest::STATUS_APPROVED, 422, 'Only approved leave requests can receive a certificate.');
+
         // pending/rejected: within the normal 48h window. overdue: deadline passed
         // but HR hasn't resolved yet — a late letter is still accepted, and HR can
         // verify it instead of converting the leave. Only verified/submitted/resolved
@@ -150,12 +152,29 @@ class LeaveRequestController extends Controller
             'private'
         );
 
-        $leaveRequest->update([
-            'attachment_path' => $attachmentPath,
-            'certificate_status' => LeaveRequest::CERT_STATUS_SUBMITTED,
-            'certificate_submitted_at' => now(),
-            'certificate_rejection_reason' => null,
-        ]);
+        // Guarded write: re-checks state in the UPDATE itself so a concurrent HR
+        // resolution (overdue -> resolved) between our guard read and this write
+        // can't be clobbered back to 'submitted'.
+        $updated = LeaveRequest::whereKey($leaveRequest->id)
+            ->where('status', LeaveRequest::STATUS_APPROVED)
+            ->whereIn('certificate_status', [
+                LeaveRequest::CERT_STATUS_PENDING,
+                LeaveRequest::CERT_STATUS_REJECTED,
+                LeaveRequest::CERT_STATUS_OVERDUE,
+            ])
+            ->update([
+                'attachment_path' => $attachmentPath,
+                'certificate_status' => LeaveRequest::CERT_STATUS_SUBMITTED,
+                'certificate_submitted_at' => now(),
+                'certificate_rejection_reason' => null,
+            ]);
+
+        if (! $updated) {
+            Storage::disk('private')->delete($attachmentPath);
+            abort(422, 'This leave request is not awaiting a certificate upload.');
+        }
+
+        $leaveRequest->refresh();
 
         $this->notifyHRCertificateSubmitted($leaveRequest);
 
