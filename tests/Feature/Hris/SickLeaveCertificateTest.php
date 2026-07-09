@@ -145,25 +145,71 @@ it('rejects a certificate upload once the submission window has expired', functi
     $response->assertUnprocessable();
 });
 
-it('rejects a certificate upload once the deadline has passed even if hris:leave-certificate-expire has not run yet', function () {
+it('still lets the employee upload a certificate after the deadline while awaiting HR resolution', function () {
     Storage::fake('private');
 
     $leaveRequest = makeSickLeaveRequest(['status' => LeaveRequest::STATUS_APPROVED]);
     $leaveRequest->markAsApproved();
-    // Simulate the deadline passing without the hourly scheduler having caught up:
-    // certificate_status is still 'pending', only the timestamp has moved.
-    $leaveRequest->update(['certificate_deadline_at' => now()->subHour()]);
+    $leaveRequest->update([
+        'certificate_deadline_at' => now()->subHour(),
+        'certificate_status' => LeaveRequest::CERT_STATUS_OVERDUE,
+    ]);
 
     Sanctum::actingAs($leaveRequest->employee->user);
 
-    $response = postJson("/api/hris/leave-requests/{$leaveRequest->id}/certificate", [
+    postJson("/api/hris/leave-requests/{$leaveRequest->id}/certificate", [
         'attachment' => UploadedFile::fake()->create('letter.pdf', 100, 'application/pdf'),
+    ])->assertOk();
+
+    expect($leaveRequest->refresh()->certificate_status)->toBe(LeaveRequest::CERT_STATUS_SUBMITTED);
+});
+
+it('lets the employee upload after the deadline even before the cron flags it overdue', function () {
+    Storage::fake('private');
+
+    $leaveRequest = makeSickLeaveRequest(['status' => LeaveRequest::STATUS_APPROVED]);
+    $leaveRequest->markAsApproved();
+    $leaveRequest->update(['certificate_deadline_at' => now()->subHour()]); // still CERT_STATUS_PENDING
+
+    Sanctum::actingAs($leaveRequest->employee->user);
+
+    postJson("/api/hris/leave-requests/{$leaveRequest->id}/certificate", [
+        'attachment' => UploadedFile::fake()->create('letter.pdf', 100, 'application/pdf'),
+    ])->assertOk();
+});
+
+it('blocks certificate upload once the request has been resolved', function () {
+    Storage::fake('private');
+
+    $leaveRequest = makeSickLeaveRequest(['status' => LeaveRequest::STATUS_APPROVED]);
+    $leaveRequest->markAsApproved();
+    $leaveRequest->update([
+        'certificate_deadline_at' => now()->subHour(),
+        'certificate_status' => LeaveRequest::CERT_STATUS_RESOLVED,
     ]);
 
-    $response->assertUnprocessable();
-    $leaveRequest->refresh();
-    expect($leaveRequest->certificate_status)->toBe(LeaveRequest::CERT_STATUS_PENDING);
-    Storage::disk('private')->assertMissing(($leaveRequest->attachment_path ?? 'none'));
+    Sanctum::actingAs($leaveRequest->employee->user);
+
+    postJson("/api/hris/leave-requests/{$leaveRequest->id}/certificate", [
+        'attachment' => UploadedFile::fake()->create('letter.pdf', 100, 'application/pdf'),
+    ])->assertUnprocessable();
+});
+
+it('returns a post-deadline certificate rejection to the overdue queue', function () {
+    $leaveRequest = makeSickLeaveRequest(['status' => LeaveRequest::STATUS_APPROVED]);
+    $leaveRequest->markAsApproved();
+    $leaveRequest->update([
+        'certificate_deadline_at' => now()->subHour(),
+        'certificate_status' => LeaveRequest::CERT_STATUS_SUBMITTED,
+        'certificate_submitted_at' => now(),
+    ]);
+
+    $hrUser = User::factory()->create();
+
+    \App\Filament\Resources\LeaveRequestResource\Pages\LeaveRequestActionHandler::rejectCertificate($leaveRequest, $hrUser, 'Illegible scan.');
+
+    expect($leaveRequest->refresh()->certificate_status)->toBe(LeaveRequest::CERT_STATUS_OVERDUE)
+        ->and($leaveRequest->certificate_rejection_reason)->toBe('Illegible scan.');
 });
 
 it('rejects a certificate upload for a leave request that never required one', function () {

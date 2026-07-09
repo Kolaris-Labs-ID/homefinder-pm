@@ -29,7 +29,9 @@ class LeaveRequestActionHandler
 
     /**
      * HR rejects an uploaded certificate (e.g. illegible scan) without rejecting
-     * the leave — the employee may resubmit until certificate_deadline_at passes.
+     * the leave. Within the 48h window the employee may resubmit (rejected);
+     * past the deadline the request returns to the overdue resolution queue
+     * instead — see SickLeaveResolutionService.
      */
     public static function rejectCertificate(LeaveRequest $leaveRequest, User $verifier, string $reason): void
     {
@@ -37,8 +39,13 @@ class LeaveRequestActionHandler
             throw new \Exception('This certificate has not been submitted for review.');
         }
 
+        $isPastDeadline = $leaveRequest->certificate_deadline_at !== null
+            && $leaveRequest->certificate_deadline_at->isPast();
+
         $leaveRequest->update([
-            'certificate_status' => LeaveRequest::CERT_STATUS_REJECTED,
+            'certificate_status' => $isPastDeadline
+                ? LeaveRequest::CERT_STATUS_OVERDUE
+                : LeaveRequest::CERT_STATUS_REJECTED,
             'certificate_verified_at' => now(),
             'certificate_verified_by' => $verifier->id,
             'certificate_rejection_reason' => $reason,

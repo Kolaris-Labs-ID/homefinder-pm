@@ -129,18 +129,16 @@ class LeaveRequestController extends Controller
 
         abort_if($leaveRequest->employee_id !== $employee->id, 403, 'You cannot upload a certificate for this leave request.');
 
+        // pending/rejected: within the normal 48h window. overdue: deadline passed
+        // but HR hasn't resolved yet — a late letter is still accepted, and HR can
+        // verify it instead of converting the leave. Only verified/submitted/resolved
+        // states (and legacy expired) block re-upload.
         if (! in_array($leaveRequest->certificate_status, [
             LeaveRequest::CERT_STATUS_PENDING,
             LeaveRequest::CERT_STATUS_REJECTED,
+            LeaveRequest::CERT_STATUS_OVERDUE,
         ], true)) {
             abort(422, 'This leave request is not awaiting a certificate upload.');
-        }
-
-        // certificate_status may still read 'pending' if the deadline just passed and
-        // hris:leave-certificate-expire (hourly) hasn't caught up yet — check the
-        // timestamp directly so the 48h window is enforced exactly, not "48h + cron lag".
-        if ($leaveRequest->certificate_deadline_at !== null && $leaveRequest->certificate_deadline_at->isPast()) {
-            abort(422, 'The certificate submission window has expired.');
         }
 
         $request->validate([
