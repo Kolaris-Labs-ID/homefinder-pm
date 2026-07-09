@@ -41,6 +41,8 @@ class LeaveRequestController extends Controller
                 'certificate_submitted_at' => $leaveRequest->certificate_submitted_at,
                 'certificate_verified_at' => $leaveRequest->certificate_verified_at,
                 'certificate_rejection_reason' => $leaveRequest->certificate_rejection_reason,
+                'certificate_resolution' => $leaveRequest->certificate_resolution,
+                'converted_from_leave_request_id' => $leaveRequest->converted_from_leave_request_id,
             ]);
 
         return response()->json([

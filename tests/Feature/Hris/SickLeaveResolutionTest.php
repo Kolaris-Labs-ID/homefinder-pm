@@ -8,6 +8,9 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Services\Hris\SickLeaveResolutionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+
+use function Pest\Laravel\getJson;
 
 uses(RefreshDatabase::class);
 
@@ -227,4 +230,19 @@ it('previews the real quota when the employee has no annual balance row yet', fu
     $preview = \App\Filament\Resources\LeaveRequestResource::certificateResolutionPreview($sick);
 
     expect($preview)->toContain('12');
+});
+
+it('exposes resolution fields in the leave requests API payload', function () {
+    $sick = makeOverdueSickLeave(totalDays: 3, annualRemaining: 1);
+    resolveOverdueSickLeave($sick);
+
+    Sanctum::actingAs($sick->employee->user);
+
+    $response = getJson('/api/hris/leave-requests')->assertOk();
+
+    $row = collect($response->json('data'))->firstWhere('id', $sick->id);
+
+    expect($row['certificate_status'])->toBe(LeaveRequest::CERT_STATUS_RESOLVED)
+        ->and($row['certificate_resolution'])->toBe(LeaveRequest::RESOLUTION_PARTIAL_ALPHA)
+        ->and($row)->toHaveKey('converted_from_leave_request_id');
 });
