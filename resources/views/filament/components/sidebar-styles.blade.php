@@ -14,15 +14,15 @@
     html[data-ph-skin="navy"] {
         --ph-sb-bg: #1a1a5e;
         --ph-sb-bg-header: #14144d;
-        --ph-sb-text: #c9cbf0;
-        --ph-sb-muted: #9698d4;
+        --ph-sb-text: #e0e2fb;
+        --ph-sb-muted: #b0b3ea;
         --ph-sb-hover-bg: rgba(255, 255, 255, .08);
-        --ph-sb-hover-text: #f4f4ff;
+        --ph-sb-hover-text: #ffffff;
         --ph-sb-active-bg: rgba(99, 102, 241, .32);
         --ph-sb-active-text: #ffffff;
-        --ph-sb-active-icon: #a5b4fc;
+        --ph-sb-active-icon: #b6c2ff;
         --ph-sb-accent: #6366f1;
-        --ph-sb-guide: rgba(255, 255, 255, .20);
+        --ph-sb-guide: rgba(255, 255, 255, .24);
         --ph-sb-border: rgba(255, 255, 255, .08);
     }
 
@@ -30,8 +30,8 @@
     html[data-ph-skin="slate"] {
         --ph-sb-bg: #1e293b;
         --ph-sb-bg-header: #172033;
-        --ph-sb-text: #cbd5e1;
-        --ph-sb-muted: #94a3b8;
+        --ph-sb-text: #e2e8f0;
+        --ph-sb-muted: #b3c0d0;
         --ph-sb-hover-bg: rgba(255, 255, 255, .06);
         --ph-sb-hover-text: #f1f5f9;
         --ph-sb-active-bg: rgba(59, 130, 246, .16);
@@ -47,14 +47,14 @@
         --ph-sb-bg: #f6f5f7;
         --ph-sb-bg-header: #ffffff;
         --ph-sb-text: #1f2937;
-        --ph-sb-muted: #6b7280;
-        --ph-sb-hover-bg: rgba(15, 23, 42, .05);
+        --ph-sb-muted: #4b5563;
+        --ph-sb-hover-bg: rgba(15, 23, 42, .06);
         --ph-sb-hover-text: #0f172a;
-        --ph-sb-active-bg: rgba(37, 99, 235, .10);
+        --ph-sb-active-bg: rgba(37, 99, 235, .12);
         --ph-sb-active-text: #111827;
         --ph-sb-active-icon: #2563eb;
         --ph-sb-accent: #2563eb;
-        --ph-sb-guide: rgba(15, 23, 42, .14);
+        --ph-sb-guide: rgba(15, 23, 42, .20);
         --ph-sb-border: rgba(15, 23, 42, .08);
     }
 
@@ -129,10 +129,17 @@
         transform: translateY(-50%);
     }
 
-    /* ---- item link ---- */
+    /* ---- item link ----
+       Filament puts text-gray-* classes on the label <span> itself, so the
+       skin color must target .fi-sidebar-item-label directly — setting it on
+       the parent button never reaches the span in either light or dark mode. */
     .fi-sidebar-item-button {
         color: var(--ph-sb-text) !important;
         border-radius: .5rem;
+    }
+
+    .fi-sidebar-item-button .fi-sidebar-item-label {
+        color: var(--ph-sb-text) !important;
     }
 
     .fi-sidebar-item-icon {
@@ -144,7 +151,8 @@
         color: var(--ph-sb-hover-text) !important;
     }
 
-    .fi-sidebar-item-button:hover .fi-sidebar-item-icon {
+    .fi-sidebar-item-button:hover .fi-sidebar-item-icon,
+    .fi-sidebar-item-button:hover .fi-sidebar-item-label {
         color: var(--ph-sb-hover-text) !important;
     }
 
@@ -153,6 +161,11 @@
         background-color: var(--ph-sb-active-bg) !important;
         color: var(--ph-sb-active-text) !important;
         box-shadow: inset 2px 0 0 var(--ph-sb-accent);
+    }
+
+    .fi-sidebar-item.fi-active > .fi-sidebar-item-button .fi-sidebar-item-label {
+        color: var(--ph-sb-active-text) !important;
+        font-weight: 600;
     }
 
     .fi-sidebar-item.fi-active > .fi-sidebar-item-button .fi-sidebar-item-icon {
@@ -221,7 +234,7 @@
         width: .7rem;
         height: .7rem;
         border-radius: 9999px;
-        border: 1px solid rgba(255, 255, 255, .35);
+        border: 1px solid var(--ph-sb-guide);
         flex: none;
     }
 
