@@ -10,6 +10,7 @@ use Filament\Actions;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Support\Facades\DB;
 
 class ListPaymentRequests extends ListRecords
 {
@@ -57,13 +58,15 @@ class ListPaymentRequests extends ListRecords
                         $invoice = $data['invoice'] ?? null;
                         unset($data['invoice']);
 
-                        $pr = app(PaymentRequestService::class)->createManual(auth()->user(), $data);
+                        DB::transaction(function () use ($data, $invoice) {
+                            $pr = app(PaymentRequestService::class)->createManual(auth()->user(), $data);
 
-                        if ($invoice) {
-                            app(FinanceAttachmentService::class)->store(
-                                $pr, $invoice, FinanceAttachment::ROLE_SUPPORTING_DOCUMENT, auth()->user()
-                            );
-                        }
+                            if ($invoice) {
+                                app(FinanceAttachmentService::class)->store(
+                                    $pr, $invoice, FinanceAttachment::ROLE_SUPPORTING_DOCUMENT, auth()->user()
+                                );
+                            }
+                        });
 
                         Notification::make()->title('Manual payment request created')->success()->send();
                     } catch (\Throwable $e) {

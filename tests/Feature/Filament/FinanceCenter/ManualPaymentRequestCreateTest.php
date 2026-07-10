@@ -62,3 +62,21 @@ it('createManual rejects a non-positive amount', function () {
         'currency' => 'IDR',
     ]))->toThrow(RuntimeException::class);
 })->group('manual-pr');
+
+it('finance_creator can create a manual PR without an invoice', function () {
+    $creator = FinanceCenterFlowFactory::financeCreator();
+
+    Livewire::actingAs($creator)
+        ->test(ListPaymentRequests::class)
+        ->mountAction('createManual')
+        ->set('mountedActionsData.0.payee_name', 'PT No Invoice')
+        ->set('mountedActionsData.0.amount', 250000)
+        ->set('mountedActionsData.0.currency', 'IDR')
+        ->callMountedAction()
+        ->assertHasNoActionErrors();
+
+    $pr = PaymentRequest::where('payee_name', 'PT No Invoice')->first();
+
+    expect($pr)->not->toBeNull()
+        ->and($pr->financeAttachments()->count())->toBe(0);
+})->group('manual-pr');
