@@ -432,7 +432,7 @@ class PayrollCalculationService
                 continue;
             }
 
-            if ($log->mode === AttendanceLog::MODE_WFH || $log->status === AttendanceLog::STATUS_PRESENT) {
+            if (in_array($log->mode, AttendanceLog::getQuotaModes(), true) || $log->status === AttendanceLog::STATUS_PRESENT) {
                 $total += $dailyRate;
             } elseif ($log->status === AttendanceLog::STATUS_LATE) {
                 $penaltyPercent = $this->attendanceCalculationService->calculateLatePenalty($log);

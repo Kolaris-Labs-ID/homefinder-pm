@@ -228,7 +228,7 @@ class WeeklyAllowanceService
                     $isPresent = in_array($log->status, [
                         AttendanceLog::STATUS_PRESENT,
                         AttendanceLog::STATUS_LATE,
-                    ]) || $log->mode === AttendanceLog::MODE_WFH;
+                    ]) || in_array($log->mode, AttendanceLog::getQuotaModes(), true);
 
                     $isLate = $log->status === AttendanceLog::STATUS_LATE;
                     $penaltyPercent = $isPresent ? $this->attendanceService->calculateLatePenalty($log) : 0;

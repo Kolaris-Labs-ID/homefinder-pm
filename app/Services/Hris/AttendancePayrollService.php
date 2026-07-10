@@ -35,7 +35,7 @@ class AttendancePayrollService
         $leaveDays = $logs->where('status', AttendanceLog::STATUS_LEAVE)->count();
         $holidayDays = $logs->where('status', AttendanceLog::STATUS_HOLIDAY)->count();
 
-        $wfhDays = $logs->where('mode', AttendanceLog::MODE_WFH)->count();
+        $wfhDays = $logs->whereIn('mode', AttendanceLog::getQuotaModes())->count();
         $officeDays = $logs->where('mode', AttendanceLog::MODE_OFFICE)->count();
         $missingCheckoutDays = $logs->where('missing_checkout', true)->count();
         $visitDays = $logs->filter(function ($log) {

@@ -89,9 +89,9 @@ class AttendanceService
         $weekStart = $date->copy()->startOfWeek(Carbon::MONDAY);
         $weekEnd = $date->copy()->endOfWeek(Carbon::SUNDAY);
 
-        // Count WFH days used in the current week
+        // Count remote (WFH/WFA) days used in the current week — shared quota
         $wfhDaysUsed = AttendanceLog::forEmployee($employee->id)
-            ->forMode(AttendanceLog::MODE_WFH)
+            ->whereIn('mode', AttendanceLog::getQuotaModes())
             ->forDateRange($weekStart, $weekEnd)
             ->whereNotNull('check_in_time')
             ->count();
@@ -123,8 +123,8 @@ class AttendanceService
             throw new \Exception('Employee has already checked in for today.');
         }
 
-        // Validate WFH quota if WFH mode is selected
-        if ($mode === AttendanceLog::MODE_WFH) {
+        // Validate shared remote-work quota for WFH/WFA modes
+        if (in_array($mode, AttendanceLog::getQuotaModes(), true)) {
             $remainingQuota = $this->getRemainingWfhQuota($employee, $today);
             if ($remainingQuota <= 0) {
                 throw new \Exception('WFH quota exhausted for this week.');

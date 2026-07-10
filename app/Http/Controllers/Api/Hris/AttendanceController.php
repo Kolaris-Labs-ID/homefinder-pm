@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\AttendanceSetting;
 use App\Models\Hris\Employee;
-use App\Models\Hris\LateNotice;
 use App\Services\Hris\AttendanceService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -27,9 +26,6 @@ class AttendanceController extends Controller
      * Record employee check-in.
      *
      * POST /api/hris/attendance/check-in
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function checkIn(Request $request): JsonResponse
     {
@@ -57,6 +53,7 @@ class AttendanceController extends Controller
                 'mode' => ['nullable', Rule::in([
                     AttendanceLog::MODE_OFFICE,
                     AttendanceLog::MODE_WFH,
+                    AttendanceLog::MODE_WFA,
                 ])],
                 'photo' => ['nullable', 'image', 'max:5120'], // Max 5MB
             ]);
@@ -123,9 +120,6 @@ class AttendanceController extends Controller
      * Get daily attendance for the authenticated employee.
      *
      * GET /api/hris/attendance/daily?date=YYYY-MM-DD
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function daily(Request $request): JsonResponse
     {
@@ -139,7 +133,7 @@ class AttendanceController extends Controller
             $date = isset($data['date']) ? Carbon::parse($data['date'], 'Asia/Jakarta') : Carbon::today('Asia/Jakarta');
             $attendanceLog = $this->attendanceService->getTodayAttendance($employee, $date);
 
-            if (!$attendanceLog) {
+            if (! $attendanceLog) {
                 return response()->json([
                     'message' => 'No attendance record found for the specified date.',
                     'data' => null,
@@ -163,7 +157,7 @@ class AttendanceController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Failed to fetch daily attendance: ' . $e->getMessage(),
+                'message' => 'Failed to fetch daily attendance: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -172,9 +166,6 @@ class AttendanceController extends Controller
      * Get remaining WFH quota for the current week.
      *
      * GET /api/hris/attendance/wfh-quota
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function wfhQuota(Request $request): JsonResponse
     {
@@ -199,7 +190,7 @@ class AttendanceController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Failed to fetch WFH quota: ' . $e->getMessage(),
+                'message' => 'Failed to fetch WFH quota: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -208,9 +199,6 @@ class AttendanceController extends Controller
      * Get attendance history for the authenticated employee.
      *
      * GET /api/hris/attendance/history?from=YYYY-MM-DD&to=YYYY-MM-DD
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function history(Request $request): JsonResponse
     {
@@ -230,6 +218,7 @@ class AttendanceController extends Controller
             // Compute status for each attendance log
             $formattedLogs = $attendanceLogs->map(function (AttendanceLog $log) {
                 $log->status = $this->attendanceService->computeStatus($log);
+
                 return $this->formatAttendanceLog($log);
             });
 
@@ -251,7 +240,7 @@ class AttendanceController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Failed to fetch attendance history: ' . $e->getMessage(),
+                'message' => 'Failed to fetch attendance history: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -260,9 +249,6 @@ class AttendanceController extends Controller
      * Record employee check-out.
      *
      * POST /api/hris/attendance/check-out
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function checkOut(Request $request): JsonResponse
     {
@@ -341,9 +327,6 @@ class AttendanceController extends Controller
      * Start employee break.
      *
      * POST /api/hris/attendance/break/start
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function startBreak(Request $request): JsonResponse
     {
@@ -377,9 +360,6 @@ class AttendanceController extends Controller
      * End employee break.
      *
      * POST /api/hris/attendance/break/end
-     *
-     * @param Request $request
-     * @return JsonResponse
      */
     public function endBreak(Request $request): JsonResponse
     {
@@ -412,15 +392,13 @@ class AttendanceController extends Controller
     /**
      * Resolve the employee from the authenticated user.
      *
-     * @param Request $request
-     * @return Employee
      * @throws \Illuminate\Http\Exceptions\HttpResponseException
      */
     protected function resolveEmployee(Request $request): Employee
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             throw new \Illuminate\Http\Exceptions\HttpResponseException(
                 response()->json([
                     'message' => 'Unauthenticated.',
@@ -430,7 +408,7 @@ class AttendanceController extends Controller
 
         $employee = $user->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             throw new \Illuminate\Http\Exceptions\HttpResponseException(
                 response()->json([
                     'message' => 'Employee profile not found. Please contact HR to set up your employee record.',
@@ -450,30 +428,29 @@ class AttendanceController extends Controller
      * - Standard Authorization header (Bearer token)
      * - Query parameter "token" (for use in <Image> components)
      *
-     * @param Request $request
      * @return \Symfony\Component\HttpFoundation\Response
      */
     public function servePhoto(Request $request)
     {
         // Authenticate via query token (needed for <Image> components that can't send headers)
         $token = $request->query('token');
-        if (!$token) {
+        if (! $token) {
             abort(401, 'Authentication required.');
         }
 
         $accessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
-        if (!$accessToken || !$accessToken->tokenable) {
+        if (! $accessToken || ! $accessToken->tokenable) {
             abort(401, 'Invalid token.');
         }
 
         $path = $request->query('path');
 
-        if (!$path || !Storage::disk('local')->exists($path)) {
+        if (! $path || ! Storage::disk('local')->exists($path)) {
             abort(404, 'Photo not found.');
         }
 
         // Ensure the path is within attendance-photos directory
-        if (!str_starts_with($path, 'attendance-photos/')) {
+        if (! str_starts_with($path, 'attendance-photos/')) {
             abort(403, 'Access denied.');
         }
 
@@ -487,9 +464,6 @@ class AttendanceController extends Controller
 
     /**
      * Format an AttendanceLog for API response.
-     *
-     * @param AttendanceLog $log
-     * @return array
      */
     protected function formatAttendanceLog(AttendanceLog $log): array
     {
@@ -532,9 +506,6 @@ class AttendanceController extends Controller
      * Eloquent reads them back as UTC (wrong). This helper re-interprets
      * the raw datetime values as Jakarta, producing correct ISO output
      * regardless of APP_TIMEZONE setting.
-     *
-     * @param \Carbon\Carbon|null $time
-     * @return string|null
      */
     protected function formatAsJakartaIso(?\Carbon\Carbon $time): ?string
     {
@@ -554,9 +525,6 @@ class AttendanceController extends Controller
      *
      * If the path is already a full URL (e.g. Supabase), return as-is.
      * If it's a local storage path, generate an API URL to serve it.
-     *
-     * @param string|null $path
-     * @return string|null
      */
     protected function resolvePhotoUrl(?string $path): ?string
     {
@@ -570,6 +538,6 @@ class AttendanceController extends Controller
         }
 
         // Local path — generate API URL to serve it
-        return url('/api/hris/attendance/photo') . '?' . http_build_query(['path' => $path]);
+        return url('/api/hris/attendance/photo').'?'.http_build_query(['path' => $path]);
     }
 }

@@ -12,7 +12,7 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class AttendanceLogsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
+class AttendanceLogsExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     protected Collection $attendanceLogs;
 
@@ -73,6 +73,7 @@ class AttendanceLogsExport implements FromCollection, WithHeadings, WithMapping,
                     $row[] = match ($attendanceLog->mode) {
                         AttendanceLog::MODE_OFFICE => 'Office',
                         AttendanceLog::MODE_WFH => 'Work From Home',
+                        AttendanceLog::MODE_WFA => 'Work From Anywhere',
                         default => $attendanceLog->mode ?? '',
                     };
                     break;

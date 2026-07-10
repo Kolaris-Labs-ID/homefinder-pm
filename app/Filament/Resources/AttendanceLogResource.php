@@ -47,6 +47,7 @@ class AttendanceLogResource extends Resource
                             ->options([
                                 AttendanceLog::MODE_OFFICE => 'Office',
                                 AttendanceLog::MODE_WFH => 'Work From Home',
+                                AttendanceLog::MODE_WFA => 'Work From Anywhere',
                             ])
                             ->disabled(),
                         Forms\Components\Select::make('source')
@@ -162,11 +163,13 @@ class AttendanceLogResource extends Resource
                             ->color(fn (?string $state): string => match ($state) {
                                 AttendanceLog::MODE_OFFICE => 'primary',
                                 AttendanceLog::MODE_WFH => 'success',
+                                AttendanceLog::MODE_WFA => 'info',
                                 default => 'gray',
                             })
                             ->formatStateUsing(fn (?string $state): string => match ($state) {
                                 AttendanceLog::MODE_OFFICE => 'Office',
                                 AttendanceLog::MODE_WFH => 'Work From Home',
+                                AttendanceLog::MODE_WFA => 'Work From Anywhere',
                                 default => $state ?? '-',
                             }),
                         Infolists\Components\TextEntry::make('status')
@@ -344,10 +347,12 @@ class AttendanceLogResource extends Resource
                     ->colors([
                         'primary' => AttendanceLog::MODE_OFFICE,
                         'success' => AttendanceLog::MODE_WFH,
+                        'info' => AttendanceLog::MODE_WFA,
                     ])
                     ->formatStateUsing(fn (string $state): string => match ($state) {
                         AttendanceLog::MODE_OFFICE => 'Office',
                         AttendanceLog::MODE_WFH => 'WFH',
+                        AttendanceLog::MODE_WFA => 'WFA',
                         default => $state,
                     }),
                 Tables\Columns\TextColumn::make('check_in_time')
@@ -479,6 +484,7 @@ class AttendanceLogResource extends Resource
                     ->options([
                         AttendanceLog::MODE_OFFICE => 'Office',
                         AttendanceLog::MODE_WFH => 'Work From Home',
+                        AttendanceLog::MODE_WFA => 'Work From Anywhere',
                     ]),
                 Tables\Filters\TernaryFilter::make('has_photos')
                     ->label('Has Photos')

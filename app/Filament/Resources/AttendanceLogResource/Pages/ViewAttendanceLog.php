@@ -32,11 +32,13 @@ class ViewAttendanceLog extends ViewRecord
                             ->color(fn (?string $state): string => match ($state) {
                                 'office' => 'primary',
                                 'wfh' => 'success',
+                                'wfa' => 'info',
                                 default => 'gray',
                             })
                             ->formatStateUsing(fn (?string $state): string => match ($state) {
                                 'office' => 'Office',
                                 'wfh' => 'Work From Home',
+                                'wfa' => 'Work From Anywhere',
                                 default => $state ?? '-',
                             }),
                         TextEntry::make('source')

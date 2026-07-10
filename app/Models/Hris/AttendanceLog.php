@@ -14,22 +14,35 @@ class AttendanceLog extends Model
 
     // Status constants
     const STATUS_PRESENT = 'present';
+
     const STATUS_LATE = 'late';
+
     const STATUS_HALF_DAY = 'half_day';
+
     const STATUS_ABSENT = 'absent';
+
     const STATUS_LEAVE = 'leave';
+
     const STATUS_HOLIDAY = 'holiday';
+
     const STATUS_VISIT = 'visit';
 
     // Mode constants
     const MODE_OFFICE = 'office';
+
     const MODE_WFH = 'wfh';
+
+    const MODE_WFA = 'wfa';
 
     // Source constants
     const SOURCE_WEB = 'web';
+
     const SOURCE_MOBILE = 'mobile';
+
     const SOURCE_BIOMETRIC = 'biometric';
+
     const SOURCE_IMPORT = 'import';
+
     const SOURCE_VISIT = 'visit';
 
     protected $fillable = [
@@ -86,7 +99,7 @@ class AttendanceLog extends Model
 
         static::creating(function (AttendanceLog $attendanceLog) {
             // Only auto-populate if date is set and payroll period fields are not already set
-            if ($attendanceLog->date && !$attendanceLog->payroll_period_name) {
+            if ($attendanceLog->date && ! $attendanceLog->payroll_period_name) {
                 $payrollPeriodService = app(PayrollPeriodService::class);
                 $period = $payrollPeriodService->getPeriodForDate($attendanceLog->date);
 
@@ -121,6 +134,17 @@ class AttendanceLog extends Model
         return [
             self::MODE_OFFICE,
             self::MODE_WFH,
+        ];
+    }
+
+    /**
+     * Modes that consume the shared weekly remote-work quota.
+     */
+    public static function getQuotaModes(): array
+    {
+        return [
+            self::MODE_WFH,
+            self::MODE_WFA,
         ];
     }
 
@@ -197,9 +221,7 @@ class AttendanceLog extends Model
     /**
      * Scope a query to filter by payroll period name.
      *
-     * @param Builder $query
-     * @param string $periodName Period name in format "MonthName YYYY"
-     * @return Builder
+     * @param  string  $periodName  Period name in format "MonthName YYYY"
      */
     public function scopeForPayrollPeriod(Builder $query, string $periodName): Builder
     {
@@ -253,5 +275,4 @@ class AttendanceLog extends Model
     {
         return (bool) $this->missing_checkout;
     }
-
 }
