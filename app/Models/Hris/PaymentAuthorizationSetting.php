@@ -15,6 +15,7 @@ class PaymentAuthorizationSetting extends Model
         'finance_signer_1_user_id',
         'finance_signer_2_user_id',
         'executive_signer_user_id',
+        'pr_rejecter_user_ids',
         'require_two_finance_signatures',
         'require_executive_signature',
         'high_value_threshold',
@@ -28,6 +29,7 @@ class PaymentAuthorizationSetting extends Model
         'allow_creator_to_sign' => 'boolean',
         'allow_executor_to_sign' => 'boolean',
         'high_value_threshold' => 'decimal:2',
+        'pr_rejecter_user_ids' => 'array',
     ];
 
     public static function current(): self
@@ -54,5 +56,10 @@ class PaymentAuthorizationSetting extends Model
     public function executiveSigner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'executive_signer_user_id');
+    }
+
+    public function isPrRejecter(int $userId): bool
+    {
+        return in_array($userId, array_map('intval', $this->pr_rejecter_user_ids ?? []), true);
     }
 }
