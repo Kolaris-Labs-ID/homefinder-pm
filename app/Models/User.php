@@ -15,8 +15,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
-use Spatie\Permission\Traits\HasRoles;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements FilamentUser
 {
@@ -38,6 +38,7 @@ class User extends Authenticatable implements FilamentUser
         'is_division_head',
         'mood_emoji',
         'mood_text',
+        'sidebar_skin',
     ];
 
     /**
@@ -89,7 +90,7 @@ class User extends Authenticatable implements FilamentUser
         return $this->belongsToMany(Ticket::class, 'ticket_users');
     }
 
-     public function createdTickets(): HasMany
+    public function createdTickets(): HasMany
     {
         return $this->hasMany(Ticket::class, 'created_by');
     }
@@ -177,13 +178,14 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessPanel(Panel $panel): bool
     {
         $roles = Role::all()->pluck('name')->toArray();
+
         return $this->hasAnyRole($roles);
     }
 
     public function getAvatarUrlAttribute(): string
     {
         // If avatar_url is stored in database, use it
-        if (!empty($this->attributes['avatar_url'] ?? null)) {
+        if (! empty($this->attributes['avatar_url'] ?? null)) {
             return $this->attributes['avatar_url'];
         }
 
@@ -192,7 +194,7 @@ class User extends Authenticatable implements FilamentUser
         $background = 'E0E7FF';
         $color = '312E81';
 
-        return 'https://ui-avatars.com/api/?' . http_build_query([
+        return 'https://ui-avatars.com/api/?'.http_build_query([
             'name' => $name,
             'background' => $background,
             'color' => $color,

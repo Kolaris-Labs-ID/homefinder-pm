@@ -15,7 +15,6 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -45,6 +44,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([])
             ->renderHook('panels::head.end', fn () => view('filament.components.sidebar-styles')->render())
+            ->renderHook('panels::sidebar.nav.end', fn () => view('filament.components.sidebar-skin-switcher')->render())
             ->renderHook('panels::global-search.before', fn () => view('filament.components.notification-bell-link')->render())
             ->renderHook('panels::scripts.after', fn () => view('filament.components.confetti')->render())
             ->middleware([

@@ -148,6 +148,11 @@ Route::middleware(['web', 'throttle:30,1'])
     ->get('/verify/payment-document/{code}', [\App\Http\Controllers\VerifyPaymentDocumentController::class, 'show'])
     ->name('verify.payment-document');
 
+Route::middleware('auth')->post(
+    '/admin/preferences/sidebar-skin',
+    [\App\Http\Controllers\SidebarSkinController::class, 'update']
+)->name('preferences.sidebar-skin');
+
 Route::middleware('auth')->prefix('api')->name('api.')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
