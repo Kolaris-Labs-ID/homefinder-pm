@@ -2,7 +2,9 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\Hris\PaymentAuthorizationSetting;
 use App\Models\Hris\PaymentRequest;
+use App\Models\User;
 use App\Services\Hris\PaymentRequestService;
 use Filament\Forms;
 use Filament\Notifications\Notification;
@@ -42,14 +44,34 @@ class PaymentApprovalView extends Page implements HasTable
         if (! $user) {
             return false;
         }
+
+        return static::userCan($user, 'payment_requests.approve')
+            || static::userCanReject($user);
+    }
+
+    protected static function userCan(?User $user, string $permission): bool
+    {
+        if (! $user) {
+            return false;
+        }
         if ($user->hasRole('super_admin')) {
             return true;
         }
         try {
-            return $user->hasPermissionTo('payment_requests.approve', 'web');
+            return $user->hasPermissionTo($permission, 'web');
         } catch (\Throwable $e) {
             return false;
         }
+    }
+
+    protected static function userCanReject(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        return static::userCan($user, 'payment_requests.reject')
+            || PaymentAuthorizationSetting::current()->isPrRejecter((int) $user->id);
     }
 
     public static function shouldRegisterNavigation(): bool
@@ -72,15 +94,18 @@ class PaymentApprovalView extends Page implements HasTable
             ])
             ->actions([
                 Tables\Actions\Action::make('approve')->color('success')->icon('heroicon-o-check')
+                    ->visible(fn () => static::userCan(Auth::user(), 'payment_requests.approve'))
                     ->requiresConfirmation()
                     ->modalDescription('Approving freezes an immutable business snapshot of this payment.')
                     ->action(fn (PaymentRequest $r) => static::run(fn () => app(PaymentRequestService::class)->approveAsCoo($r, Auth::user()), 'Payment request approved')),
 
                 Tables\Actions\Action::make('reject')->color('danger')->icon('heroicon-o-x-mark')
+                    ->visible(fn () => static::userCanReject(Auth::user()))
                     ->form([Forms\Components\Textarea::make('reason')->required()])
                     ->action(fn (PaymentRequest $r, array $data) => static::run(fn () => app(PaymentRequestService::class)->rejectAsCoo($r, Auth::user(), $data['reason']), 'Payment request rejected')),
 
                 Tables\Actions\Action::make('request_clarification')->icon('heroicon-o-question-mark-circle')
+                    ->visible(fn () => static::userCan(Auth::user(), 'payment_requests.request_clarification'))
                     ->form([Forms\Components\Textarea::make('note')->required()])
                     ->action(fn (PaymentRequest $r, array $data) => static::run(fn () => app(PaymentRequestService::class)->requestClarification($r, Auth::user(), $data['note']), 'Clarification requested')),
             ]);
