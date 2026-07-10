@@ -32,7 +32,7 @@ class ProjectTicketsStatusWidget extends Widget
 
     protected static ?string $pollingInterval = '30s';
 
-    public string $viewMode = 'my_tickets'; // 'my_tickets' | 'all_tickets'
+    public string $viewMode = 'all_tickets'; // 'my_tickets' | 'all_tickets'
 
     public array $expandedProjects = [];
 
