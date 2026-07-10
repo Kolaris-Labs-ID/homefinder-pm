@@ -280,33 +280,21 @@ it('throws when marking an already-paid bundle paid again', function () {
         ->toThrow(RuntimeException::class);
 });
 
-// ─── 7. High-value SoD ──────────────────────────────────────────────────────────
+// ─── 7. Payer identity no longer restricted (SoD removed) ────────────────────────
 
-it('blocks a finance signer from paying a high-value bundle', function () {
-    // financeA signed finance_signer_1 — must not be payer on a high-value bundle.
-    $pr = proofApprovedPr(10_000_000); // equals threshold → SoD applies
-    $bundle = proofAuthorizedBundle($pr);
-
-    expect(fn () => $this->payments->markPaid($bundle, $this->financeA, fakePdf()))
-        ->toThrow(RuntimeException::class, 'Segregation of duties: the payer cannot be a finance signer on a high-value bundle.');
-
-    expect($bundle->fresh()->status)->toBe(PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT);
-});
-
-it('allows the executive signer to pay a high-value bundle', function () {
+it('allows the executive signer to pay a bundle', function () {
     $pr = proofApprovedPr(10_000_000);
     $bundle = proofAuthorizedBundle($pr);
 
-    // exec signed executive_signer but is NOT a finance signer → SoD allows it.
     $result = $this->payments->markPaid($bundle, $this->exec, fakePdf());
     expect($result->status)->toBe(PaymentBundle::STATUS_PAID);
 });
 
-it('allows a finance signer to pay a LOW-value bundle', function () {
-    $pr = proofApprovedPr(9_999_999); // just below threshold
+it('allows a finance signer to pay a bundle they signed (SoD removed)', function () {
+    // financeA signed finance_signer_1 — previously blocked as payer, now permitted.
+    $pr = proofApprovedPr(10_000_000);
     $bundle = proofAuthorizedBundle($pr);
 
-    // financeA signed finance_signer_1 but the bundle is low-value → no SoD restriction.
     $result = $this->payments->markPaid($bundle, $this->financeA, fakePdf());
     expect($result->status)->toBe(PaymentBundle::STATUS_PAID);
 });

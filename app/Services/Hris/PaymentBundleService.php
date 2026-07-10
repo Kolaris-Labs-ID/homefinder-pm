@@ -475,11 +475,6 @@ class PaymentBundleService
             throw new RuntimeException('The executive signer must differ from both finance signers.');
         }
 
-        $threshold = (string) config('finance.payment_bundle_high_value_threshold');
-        if (bccomp((string) $bundle->total_amount, $threshold, 2) >= 0 && (int) $exec === (int) $bundle->created_by) {
-            throw new RuntimeException('On a high-value bundle the creator may not be the executive signer.');
-        }
-
         $users = [
             PaymentBundleSignatureSlot::FINANCE_SIGNER_1->value => User::findOrFail($f1),
             PaymentBundleSignatureSlot::FINANCE_SIGNER_2->value => User::findOrFail($f2),

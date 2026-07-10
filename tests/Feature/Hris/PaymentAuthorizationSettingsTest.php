@@ -27,7 +27,6 @@ it('current() creates the row with safe defaults', function () {
     expect($setting->require_executive_signature)->toBeTrue();
     expect($setting->allow_creator_to_sign)->toBeFalse();
     expect($setting->allow_executor_to_sign)->toBeFalse();
-    expect($setting->high_value_threshold)->toBe('10000000.00');
     expect($setting->finance_signer_1_user_id)->toBeNull();
     expect($setting->finance_signer_2_user_id)->toBeNull();
     expect($setting->executive_signer_user_id)->toBeNull();

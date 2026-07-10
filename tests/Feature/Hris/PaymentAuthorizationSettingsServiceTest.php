@@ -39,7 +39,6 @@ it('validate() passes and isComplete() is true for valid settings with all three
         'executive_signer_user_id' => test()->exec->id,
         'require_two_finance_signatures' => true,
         'require_executive_signature' => true,
-        'high_value_threshold' => '10000000.00',
     ]);
 
     expect(fn () => test()->svc->validate($s))->not->toThrow(RuntimeException::class);
@@ -181,17 +180,6 @@ it('passes when require_executive_signature is false and Executive is null', fun
     expect(test()->svc->isComplete($s))->toBeTrue();
 });
 
-it('throws when high_value_threshold is negative', function () {
-    $s = settingsWith([
-        'finance_signer_1_user_id' => test()->f1->id,
-        'finance_signer_2_user_id' => test()->f2->id,
-        'executive_signer_user_id' => test()->exec->id,
-        'high_value_threshold' => '-1.00',
-    ]);
-
-    expect(fn () => test()->svc->validate($s))
-        ->toThrow(RuntimeException::class, 'The high-value threshold must be zero or greater.');
-});
 
 it('the three payment bundle permissions exist after seeding', function () {
     expect(Permission::where('name', 'payment_bundles.sign.finance')->exists())->toBeTrue();

@@ -29,9 +29,6 @@ class PaymentRequestService
 
     private const VARIANCE_RISK_RATIO = 0.10;
 
-    /** Payments at/above this require a reconciler distinct from the payer (configurable default). */
-    private const HIGH_VALUE_THRESHOLD = '10000000';
-
     public function __construct(
         protected FinanceAuditLogger $audit,
         protected FinanceAttachmentService $attachments,
@@ -369,17 +366,13 @@ class PaymentRequestService
     }
 
     /**
-     * Confirm a payment against the bank statement. Payer cannot reconcile their own
-     * high-value payment; any field mismatch fails reconciliation rather than closing it.
+     * Confirm a payment against the bank statement. Any field mismatch fails
+     * reconciliation rather than closing it.
      */
     public function reconcile(PaymentRequest $pr, User $reconciler, array $observed): void
     {
         if ($pr->status !== PaymentRequest::STATUS_PAID_PENDING_RECONCILIATION) {
             throw new \RuntimeException('Only a paid-pending-reconciliation PR can be reconciled.');
-        }
-
-        if ($this->isHighValue($pr) && (int) $pr->paid_by === (int) $reconciler->id) {
-            throw new \RuntimeException('The payment executor cannot reconcile their own high-value payment.');
         }
 
         $matches = bccomp((string) ($observed['amount'] ?? '0'), (string) $pr->amount, 2) === 0
@@ -452,11 +445,6 @@ class PaymentRequestService
 
             $this->audit->log($pr, 'payment_request.reversed', $actor, ['reason' => $reason]);
         });
-    }
-
-    private function isHighValue(PaymentRequest $pr): bool
-    {
-        return bccomp((string) $pr->amount, self::HIGH_VALUE_THRESHOLD, 2) >= 0;
     }
 
     public function buildSnapshot(PaymentRequest $pr): array

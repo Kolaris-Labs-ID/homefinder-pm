@@ -158,8 +158,6 @@ class PaymentBundlePaymentService
     /**
      * Upload payment proof, mark the bundle paid, cascade paid status to items and live sources.
      * Accepts bundles in authorized_for_payment, payment_recording, or payment_proof_rejected.
-     * High-value bundles (≥ threshold) enforce segregation of duties: the actor (payer) must not
-     * be a finance signer on the same bundle.
      */
     public function markPaid(
         PaymentBundle $bundle,
@@ -191,21 +189,6 @@ class PaymentBundlePaymentService
 
             if ($bundle->signed_pdf_attachment_id === null) {
                 throw new \RuntimeException('A signed authorization document is required.');
-            }
-
-            // High-value SoD: payer must not be a finance signer on this bundle.
-            if (bccomp((string) $bundle->total_amount, (string) config('finance.payment_bundle_high_value_threshold'), 2) >= 0) {
-                $financeSignerIds = $bundle->signatures()
-                    ->where('status', \App\Models\Hris\PaymentBundleSignature::STATUS_SIGNED)
-                    ->get()
-                    ->filter(fn ($sig) => $sig->signature_slot->isFinance()) // signature_slot is cast to the enum
-                    ->pluck('signed_by')
-                    ->filter()
-                    ->all();
-
-                if (in_array($actor->id, $financeSignerIds, true)) {
-                    throw new \RuntimeException('Segregation of duties: the payer cannot be a finance signer on a high-value bundle.');
-                }
             }
 
             $attachment = $this->attachments->store($bundle, $proof, FinanceAttachment::ROLE_PAYMENT_PROOF, $actor);

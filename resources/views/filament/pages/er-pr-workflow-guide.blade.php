@@ -679,13 +679,8 @@
                         <tbody class="divide-y divide-gray-100 dark:divide-white/5">
                             <tr><td class="px-4 py-2 font-medium">Finance Signer 1 ≠ Finance Signer 2</td><td class="px-4 py-2">Harus orang yang berbeda</td></tr>
                             <tr><td class="px-4 py-2 font-medium">Executive Signer ≠ Finance Signer 1/2</td><td class="px-4 py-2">Tidak boleh orang yang sama</td></tr>
-                            <tr><td class="px-4 py-2 font-medium">Bundle Creator ≠ Executive Signer</td><td class="px-4 py-2">Untuk bundle bernilai tinggi (>Rp10.000.000)</td></tr>
-                            <tr><td class="px-4 py-2 font-medium">Finance Executor ≠ Finance Signer</td><td class="px-4 py-2">Untuk bundle bernilai tinggi</td></tr>
                         </tbody>
                     </table>
-                </div>
-                <div class="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
-                    <strong>ℹ️ Ambang batas nilai tinggi:</strong> Rp10.000.000 (dapat dikonfigurasi di Payment Authorization Settings).
                 </div>
             </div>
 

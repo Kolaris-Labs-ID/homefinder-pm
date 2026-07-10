@@ -18,7 +18,6 @@ class PaymentAuthorizationSetting extends Model
         'pr_rejecter_user_ids',
         'require_two_finance_signatures',
         'require_executive_signature',
-        'high_value_threshold',
         'allow_creator_to_sign',
         'allow_executor_to_sign',
     ];
@@ -28,7 +27,6 @@ class PaymentAuthorizationSetting extends Model
         'require_executive_signature' => 'boolean',
         'allow_creator_to_sign' => 'boolean',
         'allow_executor_to_sign' => 'boolean',
-        'high_value_threshold' => 'decimal:2',
         'pr_rejecter_user_ids' => 'array',
     ];
 
@@ -37,7 +35,6 @@ class PaymentAuthorizationSetting extends Model
         return static::firstOrCreate([], [
             'require_two_finance_signatures' => true,
             'require_executive_signature' => true,
-            'high_value_threshold' => '10000000.00',
             'allow_creator_to_sign' => false,
             'allow_executor_to_sign' => false,
         ]);

@@ -64,13 +64,15 @@ it('lets a different reconciler reconcile a high-value payment', function () {
     expect($fresh->reconciled_by)->toBe($this->reconciler->id);
 });
 
-it('forbids the executor reconciling their own high-value payment', function () {
+it('lets the executor reconcile their own payment (SoD removed)', function () {
     $pr = approvedHighValuePr();
     $this->service->markPaid($pr, $this->executor, 'TRX-1', payProof($pr, $this->executor));
 
-    expect(fn () => $this->service->reconcile($pr->fresh(), $this->executor, [
+    $this->service->reconcile($pr->fresh(), $this->executor, [
         'amount' => '50000000.00', 'payee_name' => 'PT Vendor', 'bank_account_last4' => '7890', 'reference' => 'BANK-REF',
-    ]))->toThrow(RuntimeException::class);
+    ]);
+
+    expect($pr->fresh()->status)->toBe(PaymentRequest::STATUS_RECONCILED);
 });
 
 it('fails reconciliation on an amount mismatch', function () {

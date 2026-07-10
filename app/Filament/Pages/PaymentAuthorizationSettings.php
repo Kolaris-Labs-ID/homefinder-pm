@@ -7,7 +7,6 @@ use App\Models\User;
 use App\Services\Hris\PaymentAuthorizationSettingsService;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -43,7 +42,6 @@ class PaymentAuthorizationSettings extends Page implements HasForms
             'pr_rejecter_user_ids' => $settings->pr_rejecter_user_ids ?? [],
             'require_two_finance_signatures' => $settings->require_two_finance_signatures,
             'require_executive_signature' => $settings->require_executive_signature,
-            'high_value_threshold' => $settings->high_value_threshold,
             'allow_creator_to_sign' => $settings->allow_creator_to_sign,
             'allow_executor_to_sign' => $settings->allow_executor_to_sign,
         ]);
@@ -94,15 +92,8 @@ class PaymentAuthorizationSettings extends Page implements HasForms
                             ->default(true),
                     ]),
 
-                Section::make('Threshold & Signing Restrictions')
-                    ->columns(2)
+                Section::make('Signing Restrictions')
                     ->schema([
-                        TextInput::make('high_value_threshold')
-                            ->label('High-value Threshold')
-                            ->numeric()
-                            ->minValue(0)
-                            ->prefix('Rp'),
-
                         Toggle::make('allow_creator_to_sign')
                             ->label('Allow Creator to Sign')
                             ->columnSpanFull(),

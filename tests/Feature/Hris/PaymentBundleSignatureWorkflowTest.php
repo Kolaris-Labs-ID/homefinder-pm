@@ -165,26 +165,14 @@ it('rejects an assigned signer who lacks the slot permission at submit', functio
         ->toThrow(RuntimeException::class);
 });
 
-// ─── 3. High-value SoD (creator != executive above threshold) ───────────────────
+// ─── 3. Creator may be the executive signer (SoD removed) ───────────────────────
 
-it('rejects creator-as-executive on a high-value bundle', function () {
-    // Creator holds the executive permission and is assigned as executive on a >= 10M bundle.
+it('allows creator-as-executive on any bundle (SoD removed)', function () {
+    // Creator holds the executive permission and is assigned as executive on a 10M bundle.
     $this->creator->assignRole('executive_signer');
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 
     $bundle = draftBundleWithItem(10000000);
-    $a = validAssignment();
-    $a[PaymentBundleSignatureSlot::EXECUTIVE_SIGNER->value] = $this->creator->id;
-
-    expect(fn () => $this->bundles->submitForSignature($bundle, $a, $this->creator))
-        ->toThrow(RuntimeException::class);
-});
-
-it('allows creator-as-executive on a low-value bundle (threshold gates the rule)', function () {
-    $this->creator->assignRole('executive_signer');
-    app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-    $bundle = draftBundleWithItem(5000000); // below 10M
     $a = validAssignment();
     $a[PaymentBundleSignatureSlot::EXECUTIVE_SIGNER->value] = $this->creator->id;
 

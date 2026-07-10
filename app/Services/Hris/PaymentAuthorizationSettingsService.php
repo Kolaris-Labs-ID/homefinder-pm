@@ -30,10 +30,6 @@ class PaymentAuthorizationSettingsService
             throw new RuntimeException('Executive Signer must be assigned.');
         }
 
-        if (bccomp((string) $s->high_value_threshold, '0', 2) < 0) {
-            throw new RuntimeException('The high-value threshold must be zero or greater.');
-        }
-
         $f1 = $s->finance_signer_1_user_id;
         $f2 = $s->finance_signer_2_user_id;
         $exec = $s->executive_signer_user_id;

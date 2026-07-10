@@ -65,9 +65,7 @@ it('save() persists valid settings to the singleton', function () {
         'finance_signer_2_user_id' => $this->f2->id,
         'executive_signer_user_id' => $this->exec->id,
         'require_two_finance_signatures' => true,
-        'require_executive_signature' => true,
-        'high_value_threshold' => '5000000',
-        'allow_creator_to_sign' => false,
+        'require_executive_signature' => true,        'allow_creator_to_sign' => false,
         'allow_executor_to_sign' => false,
     ];
 
@@ -92,9 +90,7 @@ it('save() does not persist when a finance signer lacks the required permission'
         'finance_signer_2_user_id' => $this->f2->id,
         'executive_signer_user_id' => $this->exec->id,
         'require_two_finance_signatures' => true,
-        'require_executive_signature' => true,
-        'high_value_threshold' => '5000000',
-        'allow_creator_to_sign' => false,
+        'require_executive_signature' => true,        'allow_creator_to_sign' => false,
         'allow_executor_to_sign' => false,
     ];
     $valid->save();
@@ -107,9 +103,7 @@ it('save() does not persist when a finance signer lacks the required permission'
         'finance_signer_2_user_id' => $this->f2->id,
         'executive_signer_user_id' => $this->exec->id,
         'require_two_finance_signatures' => true,
-        'require_executive_signature' => true,
-        'high_value_threshold' => '5000000',
-        'allow_creator_to_sign' => false,
+        'require_executive_signature' => true,        'allow_creator_to_sign' => false,
         'allow_executor_to_sign' => false,
     ];
     $invalid->save();

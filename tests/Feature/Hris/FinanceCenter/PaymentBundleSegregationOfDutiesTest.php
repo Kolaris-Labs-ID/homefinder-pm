@@ -191,21 +191,15 @@ it('blocks double-signing the same slot (slot no longer PENDING after first sign
     expect($f1sig->fresh()->status)->toBe(PaymentBundleSignature::STATUS_SIGNED);
 });
 
-// ─── 4. High-value SoD: finance_signer_2 (who signed) cannot pay ─────────────
-//
-// PaymentBundlePaymentProofTest covers financeA (slot 1) — this is orthogonal
-// coverage for financeB (slot 2) and verifies the full `pluck('signed_by')` list.
+// ─── 4. Payer identity unrestricted: a finance signer may pay (SoD removed) ──────
 
-it('blocks finance_signer_2 from paying a high-value bundle (SoD at markPaid)', function () {
-    $bundle = p8_draftBundle(10_000_000); // equals threshold
+it('lets finance_signer_2 pay a bundle they signed (SoD removed)', function () {
+    $bundle = p8_draftBundle(10_000_000);
 
     $bundle = F::authorize($this->bundles, $this->signatures, $bundle, $this->financeA, $this->financeB, $this->exec, $this->creator);
 
     expect($bundle->status)->toBe(PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT);
-    expect($bundle->total_amount)->toBe('10000000.00');
 
-    expect(fn () => $this->payments->markPaid($bundle->fresh(), $this->financeB, p8_fakePdf()))
-        ->toThrow(RuntimeException::class, 'Segregation of duties: the payer cannot be a finance signer on a high-value bundle.');
-
-    expect($bundle->fresh()->status)->toBe(PaymentBundle::STATUS_AUTHORIZED_FOR_PAYMENT);
+    $result = $this->payments->markPaid($bundle->fresh(), $this->financeB, p8_fakePdf());
+    expect($result->status)->toBe(PaymentBundle::STATUS_PAID);
 });
