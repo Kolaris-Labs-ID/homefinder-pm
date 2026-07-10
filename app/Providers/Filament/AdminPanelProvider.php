@@ -44,6 +44,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([])
+            ->renderHook('panels::head.end', fn () => view('filament.components.sidebar-styles')->render())
             ->renderHook('panels::global-search.before', fn () => view('filament.components.notification-bell-link')->render())
             ->renderHook('panels::scripts.after', fn () => view('filament.components.confetti')->render())
             ->middleware([
