@@ -190,7 +190,11 @@ class PaymentRequestService
             ];
             $this->applyBank($attrs, $data);
 
-            return PaymentRequest::create($attrs);
+            $pr = PaymentRequest::create($attrs);
+
+            $this->audit->log($pr, 'payment_request.created_manually', $creator);
+
+            return $pr;
         });
     }
 

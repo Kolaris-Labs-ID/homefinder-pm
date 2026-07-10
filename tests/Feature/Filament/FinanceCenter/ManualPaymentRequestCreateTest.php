@@ -80,3 +80,48 @@ it('finance_creator can create a manual PR without an invoice', function () {
     expect($pr)->not->toBeNull()
         ->and($pr->financeAttachments()->count())->toBe(0);
 })->group('manual-pr');
+
+it('writes an audit entry when a manual PR is created', function () {
+    $creator = FinanceCenterFlowFactory::financeCreator();
+    actingAs($creator);
+
+    $pr = app(PaymentRequestService::class)->createManual($creator, [
+        'payee_name' => 'PT Audit',
+        'amount' => 750000,
+        'currency' => 'IDR',
+    ]);
+
+    expect(\App\Models\Hris\FinanceAuditLog::query()
+        ->where('auditable_type', PaymentRequest::class)
+        ->where('auditable_id', $pr->id)
+        ->where('event_type', 'payment_request.created_manually')
+        ->exists())->toBeTrue();
+})->group('manual-pr');
+
+it('rolls back the PR when the invoice attachment fails (atomic)', function () {
+    $creator = FinanceCenterFlowFactory::financeCreator();
+    $invoice = UploadedFile::fake()->create('invoice.pdf', 10, 'application/pdf');
+
+    app()->bind(\App\Services\Hris\FinanceAttachmentService::class, function () {
+        return new class extends \App\Services\Hris\FinanceAttachmentService
+        {
+            public function __construct() {}
+
+            public function store(\Illuminate\Database\Eloquent\Model $attachable, \Illuminate\Http\UploadedFile $file, string $role, \App\Models\User $uploader): \App\Models\Hris\FinanceAttachment
+            {
+                throw new \RuntimeException('forced attachment failure');
+            }
+        };
+    });
+
+    Livewire::actingAs($creator)
+        ->test(ListPaymentRequests::class)
+        ->mountAction('createManual')
+        ->set('mountedActionsData.0.payee_name', 'PT Rollback')
+        ->set('mountedActionsData.0.amount', 300000)
+        ->set('mountedActionsData.0.currency', 'IDR')
+        ->set('mountedActionsData.0.invoice', $invoice)
+        ->callMountedAction();
+
+    expect(PaymentRequest::where('payee_name', 'PT Rollback')->exists())->toBeFalse();
+})->group('manual-pr');
