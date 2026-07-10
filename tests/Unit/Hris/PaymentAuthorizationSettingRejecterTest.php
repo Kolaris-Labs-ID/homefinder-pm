@@ -19,3 +19,11 @@ it('treats a null/empty allowlist as nobody', function () {
 
     expect($settings->isPrRejecter(1))->toBeFalse();
 })->group('pr-rejecter');
+
+it('normalizes string-stored IDs to ints', function () {
+    $settings = PaymentAuthorizationSetting::current();
+    $settings->update(['pr_rejecter_user_ids' => ['7', '42']]);
+
+    expect($settings->fresh()->isPrRejecter(7))->toBeTrue()
+        ->and($settings->fresh()->isPrRejecter(42))->toBeTrue();
+})->group('pr-rejecter');
