@@ -40,6 +40,7 @@ class PaymentAuthorizationSettings extends Page implements HasForms
             'finance_signer_1_user_id' => $settings->finance_signer_1_user_id,
             'finance_signer_2_user_id' => $settings->finance_signer_2_user_id,
             'executive_signer_user_id' => $settings->executive_signer_user_id,
+            'pr_rejecter_user_ids' => $settings->pr_rejecter_user_ids ?? [],
             'require_two_finance_signatures' => $settings->require_two_finance_signatures,
             'require_executive_signature' => $settings->require_executive_signature,
             'high_value_threshold' => $settings->high_value_threshold,
@@ -109,6 +110,16 @@ class PaymentAuthorizationSettings extends Page implements HasForms
                         Toggle::make('allow_executor_to_sign')
                             ->label('Allow Executor to Sign')
                             ->columnSpanFull(),
+                    ]),
+
+                Section::make('Payment Request Rejection')
+                    ->description('Specific users allowed to reject payment requests awaiting approval (in addition to the COO).')
+                    ->schema([
+                        Select::make('pr_rejecter_user_ids')
+                            ->label('PR Rejecters')
+                            ->multiple()
+                            ->searchable()
+                            ->options(fn () => User::orderBy('name')->pluck('name', 'id')->toArray()),
                     ]),
             ])
             ->statePath('data');
