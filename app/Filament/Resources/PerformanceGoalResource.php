@@ -35,7 +35,7 @@ class PerformanceGoalResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('employee_id')
                             ->label('Employee')
-                            ->relationship('employee', 'full_name')
+                            ->relationship('employee', 'full_name', fn ($query) => $query->active())
                             ->searchable()
                             ->preload()
                             ->required(),
@@ -71,7 +71,7 @@ class PerformanceGoalResource extends Resource
                                 $employeeId = $get('employee_id');
                                 $cycleId = $get('cycle_id');
 
-                                if (!$employeeId || !$cycleId) {
+                                if (! $employeeId || ! $cycleId) {
                                     return 'Select employee and cycle to see available weight';
                                 }
 
@@ -107,8 +107,7 @@ class PerformanceGoalResource extends Resource
                             ->disabled(),
                         Forms\Components\Placeholder::make('progress')
                             ->label('Progress')
-                            ->content(fn (?PerformanceGoal $record): string =>
-                                $record ? number_format($record->progress_percentage, 1) . '%' : '0%'
+                            ->content(fn (?PerformanceGoal $record): string => $record ? number_format($record->progress_percentage, 1).'%' : '0%'
                             ),
                     ])
                     ->visibleOn('edit'),
@@ -187,7 +186,7 @@ class PerformanceGoalResource extends Resource
                             ->minValue(0)
                             ->default(fn (PerformanceGoal $record): ?float => $record->actual_value),
                     ])
-                    ->visible(fn (PerformanceGoal $record): bool => !$record->cycle->isClosed())
+                    ->visible(fn (PerformanceGoal $record): bool => ! $record->cycle->isClosed())
                     ->action(function (PerformanceGoal $record, array $data): void {
                         $service = app(PerformanceService::class);
                         $service->updateGoalProgress($record, (float) $data['actual_value']);
@@ -200,7 +199,7 @@ class PerformanceGoalResource extends Resource
                     }),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make()
-                    ->visible(fn (PerformanceGoal $record): bool => !$record->cycle->isClosed()),
+                    ->visible(fn (PerformanceGoal $record): bool => ! $record->cycle->isClosed()),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

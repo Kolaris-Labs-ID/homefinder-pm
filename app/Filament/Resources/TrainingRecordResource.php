@@ -35,15 +35,15 @@ class TrainingRecordResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('employee_id')
                             ->label('Employee')
-                            ->relationship('employee', 'id')
+                            ->relationship('employee', 'id', fn ($query) => $query->active())
                             ->getOptionLabelFromRecordUsing(fn ($record) => $record->user?->name ?? "Employee #{$record->id}")
                             ->searchable(['user.name'])
                             ->preload()
                             ->required()
                             ->default(fn () => $employee?->id)
-                            ->disabled(fn () => !$canManageOthers)
+                            ->disabled(fn () => ! $canManageOthers)
                             ->dehydrated()
-                            ->helperText(fn () => !$canManageOthers ? 'Training record will be created for yourself' : null),
+                            ->helperText(fn () => ! $canManageOthers ? 'Training record will be created for yourself' : null),
                         Forms\Components\Select::make('status')
                             ->options([
                                 TrainingRecord::STATUS_PLANNED => 'Planned',
@@ -160,14 +160,12 @@ class TrainingRecordResource extends Resource
                     ->date()
                     ->sortable()
                     ->placeholder('No expiry')
-                    ->color(fn (?TrainingRecord $record): ?string =>
-                        $record?->isExpired() ? 'danger' :
+                    ->color(fn (?TrainingRecord $record): ?string => $record?->isExpired() ? 'danger' :
                         ($record?->isExpiringWithinDays(30) ? 'warning' : null)
                     ),
                 Tables\Columns\IconColumn::make('expiry_status')
                     ->label('Status')
-                    ->state(fn (TrainingRecord $record): string =>
-                        $record->isExpired() ? 'expired' :
+                    ->state(fn (TrainingRecord $record): string => $record->isExpired() ? 'expired' :
                         ($record->isExpiringWithinDays(30) ? 'expiring' : 'valid')
                     )
                     ->icon(fn (string $state): string => match ($state) {
@@ -180,8 +178,7 @@ class TrainingRecordResource extends Resource
                         'expiring' => 'warning',
                         'valid' => 'success',
                     })
-                    ->tooltip(fn (TrainingRecord $record): string =>
-                        $record->isExpired() ? 'Certification expired' :
+                    ->tooltip(fn (TrainingRecord $record): string => $record->isExpired() ? 'Certification expired' :
                         ($record->isExpiringWithinDays(30) ?
                             "Expiring in {$record->days_until_expiry} days" :
                             ($record->expiry_date ? 'Valid' : 'No expiry'))
@@ -236,8 +233,7 @@ class TrainingRecordResource extends Resource
                 ]),
             ])
             ->defaultSort('created_at', 'desc')
-            ->recordClasses(fn (TrainingRecord $record): string =>
-                $record->isExpired() ? 'bg-danger-50 dark:bg-danger-950' :
+            ->recordClasses(fn (TrainingRecord $record): string => $record->isExpired() ? 'bg-danger-50 dark:bg-danger-950' :
                 ($record->isExpiringWithinDays(30) ? 'bg-warning-50 dark:bg-warning-950' : '')
             );
     }

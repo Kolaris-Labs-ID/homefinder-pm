@@ -10,7 +10,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 
 class ClientVisitController extends Controller
 {
@@ -52,7 +51,7 @@ class ClientVisitController extends Controller
             'status_label' => $visit->status_label,
             'notes' => $visit->notes,
             'visit_report' => $visit->visit_report,
-            'has_photo' => !empty($visit->photo_path),
+            'has_photo' => ! empty($visit->photo_path),
             'created_at' => $visit->created_at,
         ]);
 
@@ -88,7 +87,7 @@ class ClientVisitController extends Controller
             'client_address' => ['required', 'string', 'max:500'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'purpose' => ['required', Rule::in(ClientVisit::getPurposes())],
+            'purpose' => ['required', 'string', 'max:255'],
             'purpose_detail' => ['nullable', 'string', 'max:255'],
             'visit_date' => ['required', 'date', 'after_or_equal:today'],
             'planned_start_time' => ['nullable', 'date_format:H:i'],
@@ -116,7 +115,7 @@ class ClientVisitController extends Controller
         $employee = $this->resolveEmployee($request);
 
         abort_if($clientVisit->employee_id !== $employee->id, 403, 'You cannot check in to this visit.');
-        abort_if(!$clientVisit->canCheckIn(), 422, 'This visit cannot be checked in.');
+        abort_if(! $clientVisit->canCheckIn(), 422, 'This visit cannot be checked in.');
 
         $data = $request->validate([
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
@@ -155,14 +154,14 @@ class ClientVisitController extends Controller
                 return $log->check_in_time !== null;
             }) ?? $attendanceCandidates->first();
 
-            if (!$attendanceLog) {
+            if (! $attendanceLog) {
                 $attendanceLog = new AttendanceLog([
                     'employee_id' => $employee->id,
                     'date' => $attendanceDate,
                 ]);
             }
 
-            $isNewAttendance = !$attendanceLog->exists;
+            $isNewAttendance = ! $attendanceLog->exists;
 
             $attendanceLog->client_visit_id = $clientVisit->id;
 
@@ -200,7 +199,7 @@ class ClientVisitController extends Controller
         $employee = $this->resolveEmployee($request);
 
         abort_if($clientVisit->employee_id !== $employee->id, 403, 'You cannot check out from this visit.');
-        abort_if(!$clientVisit->canCheckOut(), 422, 'This visit cannot be checked out.');
+        abort_if(! $clientVisit->canCheckOut(), 422, 'This visit cannot be checked out.');
 
         $data = $request->validate([
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
@@ -233,7 +232,7 @@ class ClientVisitController extends Controller
         $employee = $this->resolveEmployee($request);
 
         abort_if($clientVisit->employee_id !== $employee->id, 403, 'You cannot cancel this visit.');
-        abort_if(!$clientVisit->canCancel(), 422, 'This visit cannot be cancelled.');
+        abort_if(! $clientVisit->canCancel(), 422, 'This visit cannot be cancelled.');
 
         $data = $request->validate([
             'reason' => ['nullable', 'string', 'max:500'],
@@ -294,7 +293,7 @@ class ClientVisitController extends Controller
                 'status_label' => $clientVisit->status_label,
                 'notes' => $clientVisit->notes,
                 'visit_report' => $clientVisit->visit_report,
-                'has_photo' => !empty($clientVisit->photo_path),
+                'has_photo' => ! empty($clientVisit->photo_path),
                 'cancellation_reason' => $clientVisit->cancellation_reason,
                 'created_at' => $clientVisit->created_at,
             ],
@@ -305,7 +304,7 @@ class ClientVisitController extends Controller
     {
         $employee = optional($request->user())->employee;
 
-        abort_if(!$employee, 404, 'Employee profile not found.');
+        abort_if(! $employee, 404, 'Employee profile not found.');
 
         return $employee;
     }

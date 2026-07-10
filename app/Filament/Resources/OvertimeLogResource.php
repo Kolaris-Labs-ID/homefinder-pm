@@ -46,7 +46,7 @@ class OvertimeLogResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('user_id')
                             ->label('Employee')
-                            ->relationship('user', 'name')
+                            ->relationship('user', 'name', fn ($query) => $query->whereHas('employee', fn ($q) => $q->where('is_active', true)))
                             ->searchable()
                             ->required(),
                         Forms\Components\Select::make('manager_id')

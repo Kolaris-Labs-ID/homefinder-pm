@@ -36,7 +36,7 @@ class PerformanceReviewResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('employee_id')
                             ->label('Employee')
-                            ->relationship('employee', 'full_name')
+                            ->relationship('employee', 'full_name', fn ($query) => $query->active())
                             ->searchable()
                             ->preload()
                             ->required()
@@ -71,27 +71,26 @@ class PerformanceReviewResource extends Resource
                                 $employeeId = $get('employee_id');
                                 $cycleId = $get('cycle_id');
 
-                                if (!$employeeId || !$cycleId) {
+                                if (! $employeeId || ! $cycleId) {
                                     return 'Select employee and cycle to calculate score from goals';
                                 }
 
                                 $employee = Employee::find($employeeId);
                                 $cycle = PerformanceCycle::find($cycleId);
 
-                                if (!$employee || !$cycle) {
+                                if (! $employee || ! $cycle) {
                                     return 'Invalid employee or cycle';
                                 }
 
                                 $service = app(PerformanceService::class);
                                 $calculatedScore = $service->calculateOverallScore($employee, $cycle);
 
-                                return "Calculated from goals: " . number_format($calculatedScore, 2);
+                                return 'Calculated from goals: '.number_format($calculatedScore, 2);
                             })
                             ->live(debounce: 500),
                         Forms\Components\Placeholder::make('submitted_status')
                             ->label('Status')
-                            ->content(fn (?PerformanceReview $record): string =>
-                                $record?->isSubmitted() ? 'Submitted' : 'Pending'
+                            ->content(fn (?PerformanceReview $record): string => $record?->isSubmitted() ? 'Submitted' : 'Pending'
                             )
                             ->visibleOn('edit'),
                         Forms\Components\DateTimePicker::make('submitted_at')
@@ -182,8 +181,7 @@ class PerformanceReviewResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Submit Performance Review')
                     ->modalDescription('Are you sure you want to submit this review? This action cannot be undone.')
-                    ->visible(fn (PerformanceReview $record): bool =>
-                        !$record->isSubmitted() && !$record->cycle->isClosed()
+                    ->visible(fn (PerformanceReview $record): bool => ! $record->isSubmitted() && ! $record->cycle->isClosed()
                     )
                     ->action(function (PerformanceReview $record): void {
                         $service = app(PerformanceService::class);
@@ -198,8 +196,7 @@ class PerformanceReviewResource extends Resource
                     ->label('Calculate Score')
                     ->icon('heroicon-o-calculator')
                     ->color('info')
-                    ->visible(fn (PerformanceReview $record): bool =>
-                        !$record->isSubmitted() && !$record->cycle->isClosed()
+                    ->visible(fn (PerformanceReview $record): bool => ! $record->isSubmitted() && ! $record->cycle->isClosed()
                     )
                     ->action(function (PerformanceReview $record): void {
                         $service = app(PerformanceService::class);
@@ -209,14 +206,13 @@ class PerformanceReviewResource extends Resource
 
                         Notification::make()
                             ->title('Score calculated')
-                            ->body("Overall score: " . number_format($score, 2))
+                            ->body('Overall score: '.number_format($score, 2))
                             ->success()
                             ->send();
                     }),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make()
-                    ->visible(fn (PerformanceReview $record): bool =>
-                        !$record->isSubmitted() && !$record->cycle->isClosed()
+                    ->visible(fn (PerformanceReview $record): bool => ! $record->isSubmitted() && ! $record->cycle->isClosed()
                     ),
             ])
             ->bulkActions([

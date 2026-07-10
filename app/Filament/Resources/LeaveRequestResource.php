@@ -35,7 +35,7 @@ class LeaveRequestResource extends Resource
                 Forms\Components\Section::make('Leave Details')
                     ->schema([
                         Forms\Components\Select::make('employee_id')
-                            ->relationship('employee.user', 'name')
+                            ->relationship('employee.user', 'name', fn ($query) => $query->whereHas('employee', fn ($q) => $q->where('is_active', true)))
                             ->label('Employee')
                             ->searchable()
                             ->preload()

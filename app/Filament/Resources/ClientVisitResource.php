@@ -30,7 +30,7 @@ class ClientVisitResource extends Resource
                     ->columns(2)
                     ->schema([
                         Forms\Components\Select::make('employee_id')
-                            ->relationship('employee', 'id', fn ($query) => $query->with('user'))
+                            ->relationship('employee', 'id', fn ($query) => $query->active()->with('user'))
                             ->getOptionLabelFromRecordUsing(fn ($record) => $record->user?->name)
                             ->getSearchResultsUsing(fn (string $search) => \App\Models\Hris\Employee::whereHas('user', fn ($q) => $q->where('name', 'like', "%{$search}%"))->with('user')->limit(50)->get()->mapWithKeys(fn ($e) => [$e->id => $e->user?->name]))
                             ->label('Employee')
@@ -48,9 +48,9 @@ class ClientVisitResource extends Resource
                         Forms\Components\TextInput::make('client_address')
                             ->label('Client Address')
                             ->required(),
-                        Forms\Components\Select::make('purpose')
-                            ->options(ClientVisit::getPurposeLabels())
-                            ->required(),
+                        Forms\Components\TextInput::make('purpose')
+                            ->required()
+                            ->maxLength(255),
                         Forms\Components\TextInput::make('purpose_detail')
                             ->label('Purpose Detail'),
                         Forms\Components\TimePicker::make('planned_start_time')
@@ -124,7 +124,7 @@ class ClientVisitResource extends Resource
                     Forms\Components\DatePicker::make('visit_date'),
                     Forms\Components\TextInput::make('client_name'),
                     Forms\Components\TextInput::make('client_address'),
-                    Forms\Components\Select::make('purpose'),
+                    Forms\Components\TextInput::make('purpose'),
                     Forms\Components\TextInput::make('purpose_detail'),
                     Forms\Components\TimePicker::make('planned_start_time'),
                     Forms\Components\TimePicker::make('planned_end_time'),
