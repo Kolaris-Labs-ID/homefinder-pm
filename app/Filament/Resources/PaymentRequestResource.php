@@ -41,6 +41,9 @@ class PaymentRequestResource extends Resource
         return static::financeCan('payment_requests.view_all');
     }
 
+    // ponytail: manual create is a custom slide-over header action on ListPaymentRequests
+    // that routes through PaymentRequestService::createManual (number-gen + bank encryption +
+    // attachment). Filament's default create pipeline would bypass all of that, so it stays off.
     public static function canCreate(): bool
     {
         return false;
@@ -187,7 +190,7 @@ class PaymentRequestResource extends Resource
         ];
     }
 
-    protected static function financeCan(string $permission): bool
+    public static function financeCan(string $permission): bool
     {
         $user = auth()->user();
         if (! $user) {
