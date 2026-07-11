@@ -5,42 +5,16 @@ namespace App\Services\Hris;
 use App\Models\Hris\Employee;
 use App\Models\Hris\Reimbursement;
 use App\Models\User;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
 class ReimbursementService
 {
     /**
-     * Create a new reimbursement request.
-     */
-    public function create(Employee $employee, array $data, ?UploadedFile $receipt = null): Reimbursement
-    {
-        $receiptPath = null;
-
-        if ($receipt) {
-            $receiptPath = $receipt->store(
-                "reimbursements/{$employee->id}",
-                'private'
-            );
-        }
-
-        return Reimbursement::create([
-            'employee_id' => $employee->id,
-            'type' => $data['type'],
-            'amount' => $data['amount'],
-            'description' => $data['description'] ?? null,
-            'receipt_file_path' => $receiptPath,
-            'status' => Reimbursement::STATUS_PENDING,
-            'metadata' => $data['metadata'] ?? null,
-        ]);
-    }
-
-    /**
      * Cancel a pending reimbursement.
      */
     public function cancel(Reimbursement $reimbursement): void
     {
-        if (!$reimbursement->canCancel()) {
+        if (! $reimbursement->canCancel()) {
             throw new \Exception("Cannot cancel reimbursement with status: {$reimbursement->status}");
         }
 
@@ -57,7 +31,7 @@ class ReimbursementService
      */
     public function approve(Reimbursement $reimbursement): void
     {
-        if (!$reimbursement->canApprove()) {
+        if (! $reimbursement->canApprove()) {
             throw new \Exception("Cannot approve reimbursement with status: {$reimbursement->status}");
         }
 
@@ -71,7 +45,7 @@ class ReimbursementService
      */
     public function reject(Reimbursement $reimbursement, string $reason): void
     {
-        if (!$reimbursement->canReject()) {
+        if (! $reimbursement->canReject()) {
             throw new \Exception("Cannot reject reimbursement with status: {$reimbursement->status}");
         }
 
@@ -86,7 +60,7 @@ class ReimbursementService
      */
     public function markAsPaid(Reimbursement $reimbursement, User $paidBy): void
     {
-        if (!$reimbursement->canMarkAsPaid()) {
+        if (! $reimbursement->canMarkAsPaid()) {
             throw new \Exception("Cannot mark as paid reimbursement with status: {$reimbursement->status}");
         }
 

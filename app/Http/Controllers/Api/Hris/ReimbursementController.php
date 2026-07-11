@@ -7,7 +7,6 @@ use App\Models\Hris\Reimbursement;
 use App\Services\Hris\ReimbursementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class ReimbursementController extends Controller
 {
@@ -42,41 +41,6 @@ class ReimbursementController extends Controller
                 'created_at' => $r->created_at->toDateTimeString(),
             ]),
         ]);
-    }
-
-    /**
-     * Create a new reimbursement request.
-     */
-    public function store(Request $request): JsonResponse
-    {
-        $employee = $request->user()->employee;
-
-        if (! $employee) {
-            return response()->json([
-                'message' => 'Employee profile not found',
-            ], 404);
-        }
-
-        $validated = $request->validate([
-            'type' => ['required', Rule::in(Reimbursement::getTypes())],
-            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:1'],
-            'description' => ['nullable', 'string', 'max:1000'],
-            'receipt' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
-        ]);
-
-        $receipt = $request->file('receipt');
-
-        $reimbursement = $this->reimbursementService->create($employee, $validated, $receipt);
-
-        return response()->json([
-            'message' => 'Reimbursement request created successfully',
-            'data' => [
-                'id' => $reimbursement->id,
-                'type' => $reimbursement->type,
-                'amount' => $reimbursement->amount,
-                'status' => $reimbursement->status,
-            ],
-        ], 201);
     }
 
     /**

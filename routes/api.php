@@ -97,9 +97,8 @@ Route::middleware(['auth:sanctum'])
         Route::get('/payslips/{payrollRecord}', [PayslipController::class, 'show']);
         Route::get('/payslips/{id}/download', [PayslipController::class, 'download']);
 
-        // Reimbursement endpoints
+        // Reimbursement endpoints (legacy module — creation retired, use expense-requests; index/cancel kept for old records)
         Route::get('/reimbursements', [ReimbursementController::class, 'index']);
-        Route::post('/reimbursements', [ReimbursementController::class, 'store']);
         Route::put('/reimbursements/{reimbursement}/cancel', [ReimbursementController::class, 'cancel']);
 
         // Expense Requests (employee ESS)
