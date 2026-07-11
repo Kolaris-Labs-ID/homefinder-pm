@@ -316,6 +316,9 @@ server {
     server_name pm.partnershub.co;
     root /var/www/partnershub-pm/public;
 
+    # App upload rules allow up to 10MB (overtime evidence); without this nginx's 1MB default 413s uploads.
+    client_max_body_size 12m;
+
     add_header X-Frame-Options "SAMEORIGIN";
     add_header X-Content-Type-Options "nosniff";
 
