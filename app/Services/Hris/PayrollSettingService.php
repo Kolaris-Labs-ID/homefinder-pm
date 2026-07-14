@@ -8,14 +8,19 @@ class PayrollSettingService
 {
     // Default BPJS rates (used if not configured in database)
     const DEFAULT_BPJS_KESEHATAN_EMPLOYEE_RATE = 0.01;
+
     const DEFAULT_BPJS_KESEHATAN_COMPANY_RATE = 0.04;
+
     const DEFAULT_BPJS_KESEHATAN_CEILING = 12000000;
 
     const DEFAULT_BPJS_JHT_EMPLOYEE_RATE = 0.02;
+
     const DEFAULT_BPJS_JHT_COMPANY_RATE = 0.037;
 
     const DEFAULT_BPJS_JP_EMPLOYEE_RATE = 0.01;
+
     const DEFAULT_BPJS_JP_COMPANY_RATE = 0.02;
+
     const DEFAULT_BPJS_JP_CEILING = 10547400;
 
     const DEFAULT_BPJS_JKM_RATE = 0.003;
@@ -80,8 +85,6 @@ class PayrollSettingService
 
     /**
      * Get all BPJS rates.
-     *
-     * @return array
      */
     public function getBpjsRates(): array
     {
@@ -274,6 +277,20 @@ class PayrollSettingService
             'prorate_enabled',
             'enabled',
             true
+        );
+    }
+
+    /**
+     * F1/B-rollout gate: whether effective-date base-salary segmentation is enabled.
+     * Rollout flag (config), not a business rate — defaults OFF until parallel-run verified.
+     */
+    public function isSalarySegmentationEnabled(): bool
+    {
+        // DB toggle wins (clickable in Filament); config is the default fallback.
+        return (bool) PayrollSetting::getValueField(
+            'salary_effective_date_segmentation',
+            'enabled',
+            config('payroll.effective_date_salary_segmentation', false)
         );
     }
 

@@ -120,7 +120,7 @@ test('Property 14: Payrun recalculation idempotency', function () {
         // Property 2: Idempotency - same number of records after recalculation
         expect($recordCount2)->toBe(
             $recordCount1,
-            "Recalculation should result in same number of payroll records (no duplicates). " .
+            'Recalculation should result in same number of payroll records (no duplicates). '.
             "First: {$recordCount1}, Second: {$recordCount2}"
         );
 
@@ -223,7 +223,7 @@ test('Property 14: Payrun recalculation idempotency', function () {
 
         // Property 7: Batch calculated_at should be updated
         expect($batch->calculated_at)->not->toBeNull(
-            "Batch calculated_at should be set after recalculation"
+            'Batch calculated_at should be set after recalculation'
         );
 
         // Clean up for next iteration
@@ -232,7 +232,6 @@ test('Property 14: Payrun recalculation idempotency', function () {
         Employee::whereIn('id', $employeeIds)->forceDelete();
     }
 })->group('property-test', 'hris-payroll');
-
 
 /**
  * **Feature: hris-phase3-payroll, Property 14 Edge Cases: Recalculation boundary conditions**
@@ -397,6 +396,16 @@ test('Property 14 Edge Cases: Recalculation boundary conditions', function () {
 
     // Property: Still only one record (no duplicates)
     expect(PayrollRecord::where('payrun_batch_id', $batch->id)->count())->toBe(1);
+
+    // F8: with effective-date segmentation ON, the SAME mid-period change must produce a
+    // BLEND strictly between the two rates — never the whole-period newer rate. (Above
+    // assertions document the legacy flag-OFF behaviour.)
+    config()->set('payroll.effective_date_salary_segmentation', true);
+    $payrollService->recalculate($batch);
+    $blended = (float) PayrollRecord::where('payrun_batch_id', $batch->id)->first()->basic_salary;
+    config()->set('payroll.effective_date_salary_segmentation', false);
+    expect($blended)->toBeGreaterThan((float) $basicSalary1);
+    expect($blended)->toBeLessThan((float) $basicSalary2);
 
     $batch->forceDelete();
     Employee::query()->forceDelete();

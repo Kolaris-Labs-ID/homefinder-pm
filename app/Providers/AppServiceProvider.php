@@ -71,6 +71,7 @@ class AppServiceProvider extends ServiceProvider
 
         SalaryStructure::created(fn ($model) => $observer->salaryStructureCreated($model));
         SalaryStructure::updated(fn ($model) => $observer->salaryStructureUpdated($model));
+        SalaryStructure::observe(\App\Observers\Hris\SalaryStructureGuardObserver::class);
         PayrunBatch::updated(fn ($model) => $observer->payrunBatchUpdated($model));
         Reimbursement::updated(fn ($model) => $observer->reimbursementUpdated($model));
     }

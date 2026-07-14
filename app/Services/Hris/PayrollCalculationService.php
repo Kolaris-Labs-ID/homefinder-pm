@@ -9,6 +9,7 @@ use App\Models\Hris\PayrunBatch;
 use App\Models\Hris\SalaryStructure;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class PayrollCalculationService
@@ -25,6 +26,8 @@ class PayrollCalculationService
 
     protected CompensationResolver $compensationResolver;
 
+    protected SalarySegmentationService $salarySegmentationService;
+
     public function __construct(
         protected BpjsCalculationService $bpjsService,
         protected Pph21CalculationService $pph21Service,
@@ -33,7 +36,8 @@ class PayrollCalculationService
         ?WeeklyAllowanceService $weeklyAllowanceService = null,
         ?OvertimePayService $overtimePayService = null,
         ?AttendanceService $attendanceCalculationService = null,
-        ?CompensationResolver $compensationResolver = null
+        ?CompensationResolver $compensationResolver = null,
+        ?SalarySegmentationService $salarySegmentationService = null
     ) {
         $this->attendanceService = $attendanceService ?? app(AttendancePayrollService::class);
         $this->settingService = $settingService ?? app(PayrollSettingService::class);
@@ -41,6 +45,7 @@ class PayrollCalculationService
         $this->overtimePayService = $overtimePayService ?? app(OvertimePayService::class);
         $this->attendanceCalculationService = $attendanceCalculationService ?? app(AttendanceService::class);
         $this->compensationResolver = $compensationResolver ?? app(CompensationResolver::class);
+        $this->salarySegmentationService = $salarySegmentationService ?? app(SalarySegmentationService::class);
     }
 
     /**
@@ -57,6 +62,16 @@ class PayrollCalculationService
      */
     public function calculateEmployee(Employee $employee, PayrunBatch $batch): ?PayrollRecord
     {
+        // Missing-history preflight (F2/B5): a covered employee must resolve to a salary
+        // structure. No silent skip when segmentation is on — fail loudly instead.
+        if ($this->settingService->isSalarySegmentationEnabled()) {
+            app(SalaryCoverageValidator::class)->assert(
+                collect([$employee]),
+                $batch->period_start_date,
+                $batch->period_end_date
+            );
+        }
+
         $salaryStructure = $this->getActiveSalaryStructure($employee, $batch->period_end_date);
 
         if (! $salaryStructure) {
@@ -80,11 +95,31 @@ class PayrollCalculationService
             $prorateRatio = $this->attendanceService->calculateProrateRatio($actualDaysWorked, $totalWorkingDays);
         }
 
-        // Calculate basic salary (with prorate)
+        // Calculate basic salary. When effective-date segmentation is enabled, split the
+        // period at salary effective dates (F1/B1/B2); otherwise keep legacy behaviour.
+        // Fixed allowances/deductions still use $prorateRatio below (unchanged this phase).
         $fullBasicSalary = (float) $salaryStructure->basic_salary;
-        $proratedBasicSalary = $salaryStructure->prorate_enabled
-            ? $this->attendanceService->calculateProratedSalary($fullBasicSalary, $prorateRatio)
-            : $fullBasicSalary;
+        $segmentation = null;
+
+        if ($this->settingService->isSalarySegmentationEnabled()) {
+            $segmentation = $this->salarySegmentationService->compute(
+                $employee,
+                $batch->period_start_date,
+                $batch->period_end_date,
+                $salaryStructure->prorate_enabled
+            );
+            $proratedBasicSalary = (float) $segmentation['base_salary'];
+            // BPJS + fixed-allowance base ride the effective-date-corrected FULL monthly
+            // basic (segmentation with attendance proration OFF), per approved decision.
+            $segmentedFull = $salaryStructure->prorate_enabled
+                ? $this->salarySegmentationService->compute($employee, $batch->period_start_date, $batch->period_end_date, false)
+                : $segmentation;
+            $fullBasicSalary = (float) $segmentedFull['base_salary'];
+        } else {
+            $proratedBasicSalary = $salaryStructure->prorate_enabled
+                ? $this->attendanceService->calculateProratedSalary($fullBasicSalary, $prorateRatio)
+                : $fullBasicSalary;
+        }
 
         // Calculate fixed allowances (prorated if enabled)
         $totalFixedAllowances = $salaryStructure->total_fixed_allowances;
@@ -237,6 +272,18 @@ class PayrollCalculationService
             // Overtime pay (paid weekly, shown as informational on payslip)
             'total_overtime_pay' => $totalOvertimePay,
             'overtime_sessions' => $overtimeSessions,
+            // Effective-date base-salary segmentation snapshot (F1/Phase 4): reconstruct a
+            // finalized payslip's base without re-reading mutable salary_structures.
+            'base_salary_segmentation' => $segmentation === null ? null : [
+                'calc_version' => 1,
+                'enabled' => true,
+                'divisor' => $segmentation['divisor'],
+                'numerator' => $segmentation['numerator'],
+                'base_salary' => $segmentation['base_salary'],
+                'rounding' => 'half-up@2',
+                'prorate_enabled' => $salaryStructure->prorate_enabled,
+                'segments' => $segmentation['segments'],
+            ],
         ];
 
         // Create or update payroll record
@@ -287,45 +334,71 @@ class PayrollCalculationService
      */
     public function calculatePayrun(PayrunBatch $batch): array
     {
-        if (! $batch->canCalculate()) {
-            throw new \Exception("Cannot calculate payrun batch with status: {$batch->status}");
+        // F4: serialise calculation of a given batch. Two concurrent "Calculate"
+        // actions must not both compute (double work / double status flip).
+        $lock = Cache::lock("payrun:calculate:{$batch->id}", 300);
+
+        if (! $lock->get()) {
+            throw new \RuntimeException("Payrun batch {$batch->id} is already being calculated.");
         }
 
-        $results = [
-            'processed' => 0,
-            'skipped' => 0,
-            'errors' => [],
-        ];
-
-        // Get all active employees
-        $employees = Employee::active()->get();
-
-        DB::transaction(function () use ($batch, $employees, &$results) {
-            foreach ($employees as $employee) {
-                try {
-                    $record = $this->calculateEmployee($employee, $batch);
-
-                    if ($record) {
-                        $results['processed']++;
-                    } else {
-                        $results['skipped']++;
-                    }
-                } catch (\Exception $e) {
-                    $results['errors'][] = [
-                        'employee_id' => $employee->id,
-                        'error' => $e->getMessage(),
-                    ];
-                }
+        try {
+            // Re-read the authoritative row inside the lock and re-check status, guarding
+            // against a status change between the click and this run. refresh() mutates the
+            // caller's instance in place so callers (e.g. recalculate) see the new status.
+            $batch->refresh();
+            if (! $batch->canCalculate()) {
+                throw new \Exception("Cannot calculate payrun batch with status: {$batch->status}");
             }
 
-            // Update batch status
-            $batch->update([
-                'status' => PayrunBatch::STATUS_CALCULATED,
-                'calculated_at' => now(),
-            ]);
-        });
+            $results = [
+                'processed' => 0,
+                'skipped' => 0,
+                'errors' => [],
+            ];
 
-        return $results;
+            // Get all active employees
+            $employees = Employee::active()->get();
+
+            // Missing-history preflight (F2/B5): a coverage gap for ANY employee hard-aborts
+            // the whole run — no partial successful payroll.
+            if ($this->settingService->isSalarySegmentationEnabled()) {
+                app(SalaryCoverageValidator::class)->assert(
+                    $employees,
+                    $batch->period_start_date,
+                    $batch->period_end_date
+                );
+            }
+
+            DB::transaction(function () use ($batch, $employees, &$results) {
+                foreach ($employees as $employee) {
+                    try {
+                        $record = $this->calculateEmployee($employee, $batch);
+
+                        if ($record) {
+                            $results['processed']++;
+                        } else {
+                            $results['skipped']++;
+                        }
+                    } catch (\Exception $e) {
+                        $results['errors'][] = [
+                            'employee_id' => $employee->id,
+                            'error' => $e->getMessage(),
+                        ];
+                    }
+                }
+
+                // Update batch status
+                $batch->update([
+                    'status' => PayrunBatch::STATUS_CALCULATED,
+                    'calculated_at' => now(),
+                ]);
+            });
+
+            return $results;
+        } finally {
+            $lock->release();
+        }
     }
 
     /**
