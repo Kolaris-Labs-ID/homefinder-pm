@@ -286,7 +286,12 @@ class PayrollSettingService
      */
     public function isSalarySegmentationEnabled(): bool
     {
-        return (bool) config('payroll.effective_date_salary_segmentation', false);
+        // DB toggle wins (clickable in Filament); config is the default fallback.
+        return (bool) PayrollSetting::getValueField(
+            'salary_effective_date_segmentation',
+            'enabled',
+            config('payroll.effective_date_salary_segmentation', false)
+        );
     }
 
     /**
