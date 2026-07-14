@@ -23,12 +23,38 @@ class SalarySegmentationService
     {
         $structures = $this->compensationResolver->structuresAsOf($employee, $periodEnd);
 
-        // Boundary dates inside the period: the structure active at period start,
-        // plus every structure whose effective_date falls within (start, end].
-        $boundaries = collect([$periodStart->copy()->startOfDay()]);
+        // Clip accrual to the employment window within the period (I1). A mid-period
+        // joiner/leaver accrues only while employed; the DIVISOR stays the full period
+        // (B1), so their base is prorated by employed-days, not paid a full month.
+        $effectiveStart = $periodStart->copy()->startOfDay();
+        if ($employee->hire_date && $employee->hire_date->gt($effectiveStart)) {
+            $effectiveStart = $employee->hire_date->copy()->startOfDay();
+        }
+        $effectiveEnd = $periodEnd->copy()->endOfDay();
+        if ($employee->employment_end_date && $employee->employment_end_date->lt($periodEnd)) {
+            $effectiveEnd = $employee->employment_end_date->copy()->endOfDay();
+        }
+
+        // Full-period scheduled working days — the common denominator for every segment.
+        $divisor = (int) $this->attendanceService->getAttendanceSummary($employee, $periodStart, $periodEnd)['total_working_days'];
+
+        // Not employed on any day of the period → nothing to accrue.
+        if ($effectiveStart->gt($effectiveEnd)) {
+            return [
+                'base_salary' => bcadd('0', '0', Money::SCALE),
+                'divisor' => $divisor,
+                'scheduled_total' => 0,
+                'numerator' => bcadd('0', '0', Money::SCALE),
+                'segments' => [],
+            ];
+        }
+
+        // Boundary dates inside the employment window: the structure active at
+        // effectiveStart, plus every structure whose effective_date falls in (start, end].
+        $boundaries = collect([$effectiveStart->copy()]);
         foreach ($structures as $structure) {
             $eff = $structure->effective_date->copy()->startOfDay();
-            if ($eff->gt($periodStart) && $eff->lte($periodEnd)) {
+            if ($eff->gt($effectiveStart) && $eff->lte($effectiveEnd)) {
                 $boundaries->push($eff);
             }
         }
@@ -42,12 +68,12 @@ class SalarySegmentationService
         foreach ($boundaries as $i => $segStart) {
             $segEnd = isset($boundaries[$i + 1])
                 ? $boundaries[$i + 1]->copy()->subDay()->endOfDay()
-                : $periodEnd->copy()->endOfDay();
+                : $effectiveEnd->copy();
 
             $structure = $this->compensationResolver->resolveFrom($structures, $segStart);
             if (! $structure) {
-                // No salary structure covers this segment. A money function must never
-                // silently return an understated base — fail hard (defence-in-depth;
+                // No salary structure covers this employed segment. A money function must
+                // never silently return an understated base — fail hard (defence-in-depth;
                 // the coverage preflight is the first line, this is the second).
                 throw new PayrollCoverageException([[
                     'employee_id' => $employee->id,
@@ -81,14 +107,11 @@ class SalarySegmentationService
             ];
         }
 
-        $divisor = (int) $this->attendanceService->getAttendanceSummary($employee, $periodStart, $periodEnd)['total_working_days'];
-
-        // Invariant: segments tile the period, so the per-segment scheduled days must
-        // sum to the authoritative whole-period divisor. A mismatch means a boundary
-        // bug that could over/understate pay — refuse to return a wrong number.
-        if ($divisor !== $scheduledTotal) {
+        // Invariant: accrued (employed) scheduled days can never exceed the full-period
+        // divisor. Exceeding it means a boundary bug that would overstate pay.
+        if ($scheduledTotal > $divisor) {
             throw new \RuntimeException(
-                "Salary segmentation invariant violated: segment scheduled days {$scheduledTotal} != period divisor {$divisor}."
+                "Salary segmentation invariant violated: accrued scheduled days {$scheduledTotal} > period divisor {$divisor}."
             );
         }
 

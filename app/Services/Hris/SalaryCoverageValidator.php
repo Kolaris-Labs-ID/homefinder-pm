@@ -14,13 +14,24 @@ class SalaryCoverageValidator
     /** @return array<int,array{employee_id:int,employee_name:?string,first_working_day:string}> */
     public function validate(Collection $employees, Carbon $periodStart, Carbon $periodEnd): array
     {
-        $firstWorkingDay = $this->firstScheduledWorkingDay($periodStart, $periodEnd);
-        if (! $firstWorkingDay) {
-            return [];
-        }
-
         $gaps = [];
         foreach ($employees as $employee) {
+            // Check coverage from the employee's first EMPLOYED working day, not the
+            // period start (I1): a mid-period joiner only needs a structure from hire.
+            $windowStart = $periodStart->copy()->startOfDay();
+            if ($employee->hire_date && $employee->hire_date->gt($windowStart)) {
+                $windowStart = $employee->hire_date->copy()->startOfDay();
+            }
+            $windowEnd = $periodEnd->copy()->startOfDay();
+            if ($employee->employment_end_date && $employee->employment_end_date->lt($windowEnd)) {
+                $windowEnd = $employee->employment_end_date->copy()->startOfDay();
+            }
+
+            $firstWorkingDay = $this->firstScheduledWorkingDay($windowStart, $windowEnd);
+            if (! $firstWorkingDay) {
+                continue; // not employed on any working day in the period — nothing to cover
+            }
+
             if (! $this->compensationResolver->resolve($employee, $firstWorkingDay)) {
                 $gaps[] = [
                     'employee_id' => $employee->id,

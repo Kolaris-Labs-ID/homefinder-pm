@@ -39,3 +39,35 @@ it('throws PayrollCoverageException from assert() when coverage is incomplete', 
         collect([$e]), Carbon::parse('2026-07-01'), Carbon::parse('2026-07-31')
     );
 })->throws(PayrollCoverageException::class);
+
+it('passes a mid-period joiner whose structure starts on their hire date (I1)', function () {
+    $e = Employee::factory()->create(['hire_date' => '2026-07-15', 'is_active' => true]);
+    SalaryStructure::factory()->create(['employee_id' => $e->id, 'effective_date' => '2026-07-15', 'basic_salary' => 6000000]);
+
+    $gaps = app(SalaryCoverageValidator::class)->validate(
+        collect([$e]), Carbon::parse('2026-07-01'), Carbon::parse('2026-07-31')
+    );
+
+    expect($gaps)->toBeEmpty();
+});
+
+it('reports a mid-period joiner with no structure at all (gap at their hire day)', function () {
+    $e = Employee::factory()->create(['hire_date' => '2026-07-15', 'is_active' => true]);
+
+    $gaps = app(SalaryCoverageValidator::class)->validate(
+        collect([$e]), Carbon::parse('2026-07-01'), Carbon::parse('2026-07-31')
+    );
+
+    expect($gaps)->toHaveCount(1);
+    expect($gaps[0]['first_working_day'])->toBe('2026-07-15');
+});
+
+it('skips an employee not employed on any working day in the period (no false gap)', function () {
+    $e = Employee::factory()->create(['hire_date' => '2026-08-01', 'is_active' => true]); // joins after July
+
+    $gaps = app(SalaryCoverageValidator::class)->validate(
+        collect([$e]), Carbon::parse('2026-07-01'), Carbon::parse('2026-07-31')
+    );
+
+    expect($gaps)->toBeEmpty();
+});

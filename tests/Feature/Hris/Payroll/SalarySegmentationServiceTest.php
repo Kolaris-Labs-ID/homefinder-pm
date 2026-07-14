@@ -139,3 +139,55 @@ it('falls back to the full basic when the period has zero scheduled working days
     expect($result['divisor'])->toBe(0);
     expect($result['base_salary'])->toBe('6000000.00');
 });
+
+it('prorates a mid-period joiner by employed working days, full-period divisor (I1)', function () {
+    $e = Employee::factory()->create(['hire_date' => '2026-07-15', 'is_active' => true]); // Wed
+    segStructure($e, '2026-07-15', 6000000); // structure effective on hire date
+
+    $result = app(SalarySegmentationService::class)->compute(
+        $e, Carbon::parse('2026-07-01'), Carbon::parse('2026-07-31')
+    );
+
+    // Employed weekdays 15-31 Jul = 13; divisor = full July = 23 -> 6M*13/23 = 3,391,304.35
+    expect($result['divisor'])->toBe(23);
+    expect($result['scheduled_total'])->toBe(13);
+    expect($result['base_salary'])->toBe('3391304.35');
+    expect($result['segments'][0]['from'])->toBe('2026-07-15');
+});
+
+it('prorates a mid-period leaver up to their last day (I1)', function () {
+    $e = Employee::factory()->create(['hire_date' => '2024-01-01', 'employment_end_date' => '2026-07-20', 'is_active' => true]);
+    segStructure($e, '2026-06-01', 6000000);
+
+    $result = app(SalarySegmentationService::class)->compute(
+        $e, Carbon::parse('2026-07-01'), Carbon::parse('2026-07-31')
+    );
+
+    // Employed weekdays 1-20 Jul = 14; 6M*14/23 = 3,652,173.91
+    expect($result['scheduled_total'])->toBe(14);
+    expect($result['base_salary'])->toBe('3652173.91');
+    expect($result['segments'][0]['to'])->toBe('2026-07-20');
+});
+
+it('segments a joiner who also gets a mid-employment raise (I1 + F1)', function () {
+    $e = Employee::factory()->create(['hire_date' => '2026-07-15', 'is_active' => true]);
+    segStructure($e, '2026-07-15', 6000000);
+    segStructure($e, '2026-07-20', 7500000);
+
+    $result = app(SalarySegmentationService::class)->compute(
+        $e, Carbon::parse('2026-07-01'), Carbon::parse('2026-07-31')
+    );
+
+    // Jul15-19 weekdays=3 @6M, Jul20-31 weekdays=10 @7.5M; (18M+75M)/23 = 4,043,478.26
+    expect($result['segments'])->toHaveCount(2);
+    expect($result['base_salary'])->toBe('4043478.26');
+});
+
+it('still throws when a structure gap sits inside the employment window (real missing history)', function () {
+    $e = Employee::factory()->create(['hire_date' => '2026-07-10', 'is_active' => true]);
+    segStructure($e, '2026-07-15', 6000000); // hired 10th but no structure until 15th -> gap 10-14
+
+    app(SalarySegmentationService::class)->compute(
+        $e, Carbon::parse('2026-07-01'), Carbon::parse('2026-07-31')
+    );
+})->throws(\App\Exceptions\Hris\PayrollCoverageException::class);
