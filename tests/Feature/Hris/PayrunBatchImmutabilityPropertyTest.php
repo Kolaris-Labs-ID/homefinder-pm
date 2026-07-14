@@ -128,7 +128,6 @@ test('Property 6: Payrun batch immutability after approval', function () {
     $paidBy->forceDelete();
 })->group('property-test', 'hris-payroll');
 
-
 /**
  * **Feature: hris-phase3-payroll, Property 6 Edge Cases: Immutability enforcement**
  *
@@ -178,12 +177,15 @@ test('Property 6 Edge Cases: Immutability enforcement', function () {
             ->toThrow(Exception::class);
     }
 
-    // Edge case 2: Create a new employee for later testing
+    // Edge case 2: Create a new employee for later testing.
+    // withoutEvents: the batch is already locked (pending_finance) here, so the
+    // SalaryStructureGuardObserver would (correctly) block a structure dated inside a
+    // locked period — this is scaffolding, not the behaviour under test.
     $newEmployee = Employee::factory()->create();
-    SalaryStructure::factory()->create([
+    SalaryStructure::withoutEvents(fn () => SalaryStructure::factory()->create([
         'employee_id' => $newEmployee->id,
         'effective_date' => $batch->period_start_date,
-    ]);
+    ]));
 
     // Edge case 3: Mark batch as paid
     $payrollService->markAsPaid($batch, $paidBy);
@@ -217,7 +219,6 @@ test('Property 6 Edge Cases: Immutability enforcement', function () {
     $approver->forceDelete();
     $paidBy->forceDelete();
 })->group('property-test', 'hris-payroll');
-
 
 /**
  * **Feature: hris-phase3-payroll, Property 6 Additional: Batch-level immutability**
