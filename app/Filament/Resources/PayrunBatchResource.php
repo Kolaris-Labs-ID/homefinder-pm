@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Exceptions\Hris\PayrollCoverageException;
 use App\Exports\PayrollRecordsExport;
 use App\Filament\Resources\PayrunBatchResource\Pages;
 use App\Filament\Resources\PayrunBatchResource\RelationManagers;
@@ -108,7 +109,31 @@ class PayrunBatchResource extends Resource
                     ->requiresConfirmation()
                     ->action(function (PayrunBatch $record) {
                         $service = app(PayrollCalculationService::class);
-                        $results = $service->calculatePayrun($record);
+
+                        try {
+                            $results = $service->calculatePayrun($record);
+                        } catch (PayrollCoverageException $e) {
+                            $gaps = collect($e->gaps)
+                                ->map(fn (array $g) => ($g['employee_name'] ?? 'Employee')." (#{$g['employee_id']}, needs coverage from {$g['first_working_day']})")
+                                ->join(', ');
+
+                            Notification::make()
+                                ->title('Calculation Failed')
+                                ->body("No salary structure covers: {$gaps}. Add a salary structure effective on/before that date, or deactivate the employee.")
+                                ->danger()
+                                ->persistent()
+                                ->send();
+
+                            return;
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Calculation Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
 
                         Notification::make()
                             ->title('Payrun Calculated')
@@ -150,6 +175,7 @@ class PayrunBatchResource extends Resource
                     ->visible(fn (PayrunBatch $record) => $record->status !== 'draft')
                     ->action(function (PayrunBatch $record) {
                         $filename = "payroll_{$record->period_end_date->format('Y_m')}.xlsx";
+
                         return Excel::download(new PayrollRecordsExport($record), $filename);
                     }),
                 Tables\Actions\ViewAction::make(),
