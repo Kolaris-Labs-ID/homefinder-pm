@@ -91,6 +91,23 @@ class ClientVisitApiTest extends TestCase
     }
 
     #[Test]
+    public function authenticated_user_can_create_visit_with_free_text_purpose()
+    {
+        Sanctum::actingAs($this->user);
+
+        $response = $this->postJson('/api/hris/visits', [
+            'client_name' => 'KGTB Holdings',
+            'client_address' => 'Treasury Tower, District 8',
+            'purpose' => 'Accounting training, demo dan praktek',
+            'visit_date' => now()->addDay()->toDateString(),
+            'planned_start_time' => '08:00',
+            'planned_end_time' => '12:00',
+        ]);
+
+        $response->assertStatus(201);
+    }
+
+    #[Test]
     public function unauthenticated_user_cannot_access_visit_endpoints()
     {
         $response = $this->getJson('/api/hris/visits');
