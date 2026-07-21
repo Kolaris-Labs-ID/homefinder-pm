@@ -43,12 +43,16 @@ class ClientVisitController extends Controller
             'purpose_label' => $visit->purpose_label,
             'purpose_detail' => $visit->purpose_detail,
             'visit_date' => $visit->visit_date->format('Y-m-d'),
-            'planned_start_time' => $visit->planned_start_time,
-            'planned_end_time' => $visit->planned_end_time,
+            'visit_type' => $visit->visit_type,
+            'planned_start_time' => $this->clockTime($visit->planned_start_time),
+            'planned_end_time' => $this->clockTime($visit->planned_end_time),
             'actual_check_in' => $visit->actual_check_in,
             'actual_check_out' => $visit->actual_check_out,
             'status' => $visit->status,
             'status_label' => $visit->status_label,
+            // Authoritative: "today" must be the server's, not the device's.
+            'can_check_in' => $visit->canCheckIn(),
+            'can_check_out' => $visit->canCheckOut(),
             'notes' => $visit->notes,
             'visit_report' => $visit->visit_report,
             'has_photo' => ! empty($visit->photo_path),
@@ -277,8 +281,9 @@ class ClientVisitController extends Controller
                 'purpose_label' => $clientVisit->purpose_label,
                 'purpose_detail' => $clientVisit->purpose_detail,
                 'visit_date' => $clientVisit->visit_date->format('Y-m-d'),
-                'planned_start_time' => $clientVisit->planned_start_time,
-                'planned_end_time' => $clientVisit->planned_end_time,
+                'visit_type' => $clientVisit->visit_type,
+                'planned_start_time' => $this->clockTime($clientVisit->planned_start_time),
+                'planned_end_time' => $this->clockTime($clientVisit->planned_end_time),
                 'actual_check_in' => $clientVisit->actual_check_in,
                 'actual_check_out' => $clientVisit->actual_check_out,
                 'check_in_location' => $clientVisit->check_in_latitude ? [
@@ -291,6 +296,8 @@ class ClientVisitController extends Controller
                 ] : null,
                 'status' => $clientVisit->status,
                 'status_label' => $clientVisit->status_label,
+                'can_check_in' => $clientVisit->canCheckIn(),
+                'can_check_out' => $clientVisit->canCheckOut(),
                 'notes' => $clientVisit->notes,
                 'visit_report' => $clientVisit->visit_report,
                 'has_photo' => ! empty($clientVisit->photo_path),
@@ -307,5 +314,11 @@ class ClientVisitController extends Controller
         abort_if(! $employee, 404, 'Employee profile not found.');
 
         return $employee;
+    }
+
+    // MySQL TIME reads back as H:i:s; the API accepts H:i on write, so echo it back the same way.
+    protected function clockTime(?string $time): ?string
+    {
+        return $time ? substr($time, 0, 5) : null;
     }
 }

@@ -91,6 +91,91 @@ class ClientVisitApiTest extends TestCase
     }
 
     #[Test]
+    public function visit_list_and_detail_expose_visit_type_and_hhmm_planned_times()
+    {
+        Sanctum::actingAs($this->user);
+
+        $visit = ClientVisit::create([
+            'employee_id' => $this->employee->id,
+            'client_name' => 'PT ABC Company',
+            'client_address' => 'Jl. Sudirman No. 123, Jakarta',
+            'purpose' => ClientVisit::PURPOSE_AUDIT,
+            'visit_date' => today()->addDay(),
+            'status' => ClientVisit::STATUS_PLANNED,
+            'planned_start_time' => '09:00:00',
+            'planned_end_time' => '11:00:00',
+        ]);
+
+        $this->getJson('/api/hris/visits')
+            ->assertStatus(200)
+            ->assertJsonPath('data.0.visit_type', ClientVisit::TYPE_PLANNED)
+            ->assertJsonPath('data.0.planned_start_time', '09:00')
+            ->assertJsonPath('data.0.planned_end_time', '11:00');
+
+        $this->getJson("/api/hris/visits/{$visit->id}")
+            ->assertStatus(200)
+            ->assertJsonPath('data.visit_type', ClientVisit::TYPE_PLANNED)
+            ->assertJsonPath('data.planned_start_time', '09:00')
+            ->assertJsonPath('data.planned_end_time', '11:00');
+    }
+
+    #[Test]
+    public function visit_payload_reports_server_computed_check_in_eligibility()
+    {
+        Sanctum::actingAs($this->user);
+
+        $future = ClientVisit::create([
+            'employee_id' => $this->employee->id,
+            'client_name' => 'PT Tomorrow',
+            'client_address' => 'Jl. Gatot Subroto, Jakarta',
+            'purpose' => ClientVisit::PURPOSE_AUDIT,
+            'visit_date' => today()->addDay(),
+            'status' => ClientVisit::STATUS_PLANNED,
+        ]);
+
+        $todayVisit = ClientVisit::create([
+            'employee_id' => $this->employee->id,
+            'client_name' => 'PT Today',
+            'client_address' => 'Jl. Casablanca, Jakarta',
+            'purpose' => ClientVisit::PURPOSE_AUDIT,
+            'visit_date' => today(),
+            'status' => ClientVisit::STATUS_PLANNED,
+        ]);
+
+        $this->getJson("/api/hris/visits/{$future->id}")
+            ->assertStatus(200)
+            ->assertJsonPath('data.can_check_in', false)
+            ->assertJsonPath('data.can_check_out', false);
+
+        $this->getJson("/api/hris/visits/{$todayVisit->id}")
+            ->assertStatus(200)
+            ->assertJsonPath('data.can_check_in', true)
+            ->assertJsonPath('data.can_check_out', false);
+    }
+
+    #[Test]
+    public function visit_planned_times_stay_null_when_unset()
+    {
+        Sanctum::actingAs($this->user);
+
+        $visit = ClientVisit::create([
+            'employee_id' => $this->employee->id,
+            'client_name' => 'PT No Times',
+            'client_address' => 'Jl. Thamrin No. 1, Jakarta',
+            'purpose' => ClientVisit::PURPOSE_AUDIT,
+            'visit_date' => today()->addDay(),
+            'status' => ClientVisit::STATUS_PLANNED,
+            'planned_start_time' => null,
+            'planned_end_time' => null,
+        ]);
+
+        $this->getJson("/api/hris/visits/{$visit->id}")
+            ->assertStatus(200)
+            ->assertJsonPath('data.planned_start_time', null)
+            ->assertJsonPath('data.planned_end_time', null);
+    }
+
+    #[Test]
     public function authenticated_user_can_create_visit_with_free_text_purpose()
     {
         Sanctum::actingAs($this->user);

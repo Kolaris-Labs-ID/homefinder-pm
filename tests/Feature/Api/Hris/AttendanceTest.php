@@ -74,7 +74,19 @@ describe('Check-in endpoint', function () {
         ]);
 
         $response->assertUnprocessable()
-            ->assertJsonPath('message', 'Employee has already checked in for today.');
+            ->assertJsonPath('message', 'Employee has already checked in for today.')
+            // Offline replay keys on this code to settle the queued item as synced.
+            ->assertJsonPath('code', 'duplicate_attendance');
+    });
+
+    it('does not mark a non-duplicate business error as a duplicate', function () {
+        Sanctum::actingAs($this->employee->user);
+
+        $response = postJson('/api/hris/attendance/check-out', []);
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('message', 'Employee has not checked in for today.')
+            ->assertJsonMissingPath('code');
     });
 
     it('validates GPS coordinates range', function () {
@@ -100,7 +112,6 @@ describe('Check-in endpoint', function () {
             ->assertJsonValidationErrors(['mode']);
     });
 });
-
 
 describe('Check-out endpoint', function () {
     it('records check-out successfully', function () {
@@ -191,7 +202,7 @@ describe('Daily attendance endpoint', function () {
             'check_in_time' => $yesterday->copy()->setTime(9, 0),
         ]);
 
-        $response = getJson('/api/hris/attendance/daily?date=' . $yesterday->format('Y-m-d'));
+        $response = getJson('/api/hris/attendance/daily?date='.$yesterday->format('Y-m-d'));
 
         $response->assertOk()
             ->assertJsonPath('data.date', $yesterday->format('Y-m-d'));

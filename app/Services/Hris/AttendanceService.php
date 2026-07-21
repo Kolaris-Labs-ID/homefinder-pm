@@ -2,12 +2,14 @@
 
 namespace App\Services\Hris;
 
+use App\Exceptions\Hris\AttendanceBusinessException;
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\AttendanceSetting;
 use App\Models\Hris\Employee;
 use App\Models\Hris\LateNotice;
 use App\Models\Hris\LeaveRequest;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -110,7 +112,20 @@ class AttendanceService
      */
     public function checkIn(Employee $employee, array $data): AttendanceLog
     {
-        $today = Carbon::today('Asia/Jakarta');
+        $eventId = $data['client_event_id'] ?? null;
+
+        if ($eventId !== null) {
+            $replayed = $this->findEventReplay($employee, 'check_in_client_event_id', $eventId);
+            if ($replayed) {
+                return $replayed;
+            }
+        }
+
+        // Check-in time (and therefore the day it belongs to) is always the
+        // server clock — a client-reported captured_at is evidence only and
+        // must never move the effective time or the calendar date.
+        [$capturedAt, $checkInTime] = $this->resolveActionTimes($data);
+        $today = $checkInTime->copy()->startOfDay();
         $mode = $data['mode'] ?? AttendanceLog::MODE_OFFICE;
 
         // Validate employee not already checked in for today
@@ -120,6 +135,10 @@ class AttendanceService
             ->first();
 
         if ($existingLog) {
+            if ($eventId !== null && $existingLog->check_in_client_event_id === $eventId) {
+                return $existingLog;
+            }
+
             throw new \Exception('Employee has already checked in for today.');
         }
 
@@ -148,8 +167,6 @@ class AttendanceService
         // Process photo with timestamp overlay
         $photoPath = $data['photo_path'] ?? null;
         $photo = $data['photo'] ?? null;
-        $checkInTime = Carbon::now('Asia/Jakarta');
-
         \Log::info('Check-in photo processing', [
             'employee_id' => $employee->id,
             'has_photo' => $photo !== null,
@@ -189,20 +206,137 @@ class AttendanceService
             }
         }
 
-        return DB::transaction(function () use ($employee, $data, $today, $mode, $latitude, $longitude, $address, $photoPath, $checkInTime) {
-            return AttendanceLog::create([
-                'employee_id' => $employee->id,
-                'date' => $today,
-                'mode' => $mode,
-                'check_in_time' => $checkInTime,
-                'check_in_latitude' => $latitude,
-                'check_in_longitude' => $longitude,
-                'check_in_address' => $address,
-                'check_in_photo_path' => $photoPath,
-                'source' => $data['source'] ?? AttendanceLog::SOURCE_WEB,
-                'status' => AttendanceLog::STATUS_PRESENT,
-            ]);
-        });
+        try {
+            return DB::transaction(function () use ($employee, $data, $today, $mode, $latitude, $longitude, $address, $photoPath, $checkInTime, $capturedAt, $eventId) {
+                // Lock any same-day row (e.g. a sudden client-visit marker
+                // with no check-in yet) instead of blindly inserting, which
+                // would violate the unique(employee_id, date) index.
+                $lockedLog = AttendanceLog::forEmployee($employee->id)
+                    ->forDate($today)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($lockedLog && $lockedLog->check_in_time !== null) {
+                    if ($eventId !== null && $lockedLog->check_in_client_event_id === $eventId) {
+                        return $lockedLog;
+                    }
+
+                    throw new \Exception('Employee has already checked in for today.');
+                }
+
+                $attendanceLog = $lockedLog ?? new AttendanceLog([
+                    'employee_id' => $employee->id,
+                    'date' => $today,
+                ]);
+
+                $attendanceLog->fill([
+                    'mode' => $mode,
+                    'check_in_time' => $checkInTime,
+                    'check_in_captured_at' => $capturedAt,
+                    'check_in_client_event_id' => $eventId,
+                    'check_in_accuracy_meters' => $data['accuracy_meters'] ?? null,
+                    'check_in_source_platform' => $data['source_platform'] ?? AttendanceLog::PLATFORM_UNKNOWN,
+                    'check_in_location_provider' => $data['location_provider'] ?? AttendanceLog::PROVIDER_UNKNOWN,
+                    'check_in_latitude' => $latitude,
+                    'check_in_longitude' => $longitude,
+                    'check_in_address' => $address,
+                    'check_in_photo_path' => $photoPath,
+                    'source' => $data['source'] ?? AttendanceLog::SOURCE_WEB,
+                    'status' => AttendanceLog::STATUS_PRESENT,
+                ]);
+                $attendanceLog->save();
+                $attendanceLog->wasRecentlyCreated = true;
+
+                return $this->finalizeAttendanceStatus($attendanceLog, createLateNotice: true);
+            });
+        } catch (QueryException $e) {
+            // A concurrent retry may lose either the event-id or daily uniqueness race.
+            if ($eventId !== null) {
+                $replayed = $this->findEventReplay($employee, 'check_in_client_event_id', $eventId);
+                if ($replayed) {
+                    return $replayed;
+                }
+            }
+
+            $existingLog = AttendanceLog::forEmployee($employee->id)
+                ->forDate($today)
+                ->whereNotNull('check_in_time')
+                ->first();
+
+            if ($existingLog) {
+                throw new \Exception('Employee has already checked in for today.');
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Resolve the reported and effective action timestamps.
+     *
+     * The client-reported captured_at (first element) is always persisted
+     * as evidence, but it never drives business logic. The effective time
+     * (second element) is always the server clock.
+     *
+     * Both check-in and check-out derive a calendar day (check-in creates
+     * it; check-out selects the row to close) and a late/present/half_day
+     * status from this effective time, so a client claim must never be
+     * able to move it: a backdated captured_at could otherwise retarget a
+     * prior day's dangling check-in — including one already flagged by
+     * attendance:flag-missing-checkouts — and fabricate however many
+     * "worked" hours are most advantageous, silently clearing the flag.
+     * Only the server clock can create or target a calendar day or
+     * duration.
+     *
+     * @return array{0: Carbon|null, 1: Carbon}
+     */
+    protected function resolveActionTimes(array $data): array
+    {
+        $now = Carbon::now('Asia/Jakarta');
+
+        if (empty($data['captured_at'])) {
+            return [null, $now];
+        }
+
+        try {
+            $capturedAt = Carbon::parse($data['captured_at'])->setTimezone('Asia/Jakarta');
+        } catch (\Throwable) {
+            return [null, $now];
+        }
+
+        return [$capturedAt, $now];
+    }
+
+    /**
+     * Find an idempotent replay without crossing employee boundaries.
+     */
+    protected function findEventReplay(Employee $employee, string $column, string $eventId): ?AttendanceLog
+    {
+        return AttendanceLog::forEmployee($employee->id)
+            ->where($column, $eventId)
+            ->first();
+    }
+
+    /**
+     * Persist the computed attendance status before the row can be replayed.
+     */
+    protected function finalizeAttendanceStatus(AttendanceLog $attendanceLog, bool $createLateNotice = false): AttendanceLog
+    {
+        // computeStatus() can never derive a non-computable status (e.g.
+        // 'visit', 'holiday') on its own, so a check-in/check-out must
+        // leave one already on the row untouched rather than clobber it.
+        if (in_array($attendanceLog->status, AttendanceLog::getNonComputableStatuses(), true)) {
+            return $attendanceLog;
+        }
+
+        $attendanceLog->status = $this->computeStatus($attendanceLog);
+        $attendanceLog->save();
+
+        if ($createLateNotice && $attendanceLog->status === AttendanceLog::STATUS_LATE) {
+            $this->createLateNoticeIfAbsent($attendanceLog);
+        }
+
+        return $attendanceLog;
     }
 
     /**
@@ -214,11 +348,22 @@ class AttendanceService
      */
     public function checkOut(Employee $employee, array $data): AttendanceLog
     {
-        $today = Carbon::today('Asia/Jakarta');
+        $eventId = $data['client_event_id'] ?? null;
 
-        // Find today's attendance log with check-in
+        if ($eventId !== null) {
+            $replayed = $this->findEventReplay($employee, 'check_out_client_event_id', $eventId);
+            if ($replayed) {
+                return $replayed;
+            }
+        }
+
+        // Check-out time (and therefore which day's row it closes) is
+        // always the server clock — see resolveActionTimes().
+        [$capturedAt, $checkOutTime] = $this->resolveActionTimes($data);
+        $targetDate = $checkOutTime->copy()->startOfDay();
+
         $attendanceLog = AttendanceLog::forEmployee($employee->id)
-            ->forDate($today)
+            ->forDate($targetDate)
             ->whereNotNull('check_in_time')
             ->first();
 
@@ -227,13 +372,15 @@ class AttendanceService
         }
 
         if ($attendanceLog->hasCheckedOut()) {
+            if ($eventId !== null && $attendanceLog->check_out_client_event_id === $eventId) {
+                return $attendanceLog;
+            }
+
             throw new \Exception('Employee has already checked out for today.');
         }
 
-        // If employee is on break, end the break first
-        if ($attendanceLog->isOnBreak()) {
-            $this->endBreak($employee);
-            $attendanceLog->refresh();
+        if ($checkOutTime->lt($attendanceLog->check_in_time)) {
+            throw new AttendanceBusinessException('Check-out time cannot be earlier than check-in time.');
         }
 
         // Process GPS coordinates for reverse geocoding
@@ -253,8 +400,6 @@ class AttendanceService
         // Process photo with timestamp overlay
         $photoPath = $data['photo_path'] ?? null;
         $photo = $data['photo'] ?? null;
-        $checkOutTime = Carbon::now('Asia/Jakarta');
-
         \Log::info('Check-out photo processing', [
             'employee_id' => $attendanceLog->employee_id,
             'has_photo' => $photo !== null,
@@ -294,24 +439,68 @@ class AttendanceService
             }
         }
 
-        return DB::transaction(function () use ($attendanceLog, $latitude, $longitude, $address, $photoPath, $checkOutTime) {
-            $attendanceLog->update([
-                'check_out_time' => $checkOutTime,
-                'check_out_latitude' => $latitude,
-                'check_out_longitude' => $longitude,
-                'check_out_address' => $address,
-                'check_out_photo_path' => $photoPath,
-                'missing_checkout' => false,
-            ]);
+        try {
+            return DB::transaction(function () use ($employee, $attendanceLog, $data, $latitude, $longitude, $address, $photoPath, $checkOutTime, $capturedAt, $eventId) {
+                $lockedLog = AttendanceLog::forEmployee($employee->id)
+                    ->whereKey($attendanceLog->id)
+                    ->lockForUpdate()
+                    ->first();
 
-            return $attendanceLog->fresh();
-        });
+                if (! $lockedLog) {
+                    throw new \Exception('Employee has not checked in for today.');
+                }
+
+                if ($eventId !== null && $lockedLog->check_out_client_event_id === $eventId) {
+                    return $lockedLog;
+                }
+
+                if ($lockedLog->hasCheckedOut()) {
+                    throw new \Exception('Employee has already checked out for today.');
+                }
+
+                if ($checkOutTime->lt($lockedLog->check_in_time)) {
+                    throw new AttendanceBusinessException('Check-out time cannot be earlier than check-in time.');
+                }
+
+                $updates = [
+                    'check_out_time' => $checkOutTime,
+                    'check_out_captured_at' => $capturedAt,
+                    'check_out_client_event_id' => $eventId,
+                    'check_out_accuracy_meters' => $data['accuracy_meters'] ?? null,
+                    'check_out_source_platform' => $data['source_platform'] ?? AttendanceLog::PLATFORM_UNKNOWN,
+                    'check_out_location_provider' => $data['location_provider'] ?? AttendanceLog::PROVIDER_UNKNOWN,
+                    'check_out_latitude' => $latitude,
+                    'check_out_longitude' => $longitude,
+                    'check_out_address' => $address,
+                    'check_out_photo_path' => $photoPath,
+                    'missing_checkout' => false,
+                ];
+
+                if ($lockedLog->isOnBreak()) {
+                    $updates['break_end_time'] = $checkOutTime;
+                    $updates['total_break_minutes'] = $this->calculateBreakDuration($lockedLog, $checkOutTime);
+                }
+
+                $lockedLog->update($updates);
+
+                return $this->finalizeAttendanceStatus($lockedLog);
+            });
+        } catch (QueryException $e) {
+            if ($eventId !== null) {
+                $replayed = $this->findEventReplay($employee, 'check_out_client_event_id', $eventId);
+                if ($replayed) {
+                    return $replayed;
+                }
+            }
+
+            throw $e;
+        }
     }
 
     /**
      * Start employee break.
      *
-     * @throws \Exception If employee has not checked in or already on break
+     * @throws AttendanceBusinessException If employee has not checked in or already on break
      */
     public function startBreak(Employee $employee): AttendanceLog
     {
@@ -324,19 +513,19 @@ class AttendanceService
             ->first();
 
         if (! $attendanceLog) {
-            throw new \Exception('Employee has not checked in for today.');
+            throw new AttendanceBusinessException('Employee has not checked in for today.');
         }
 
         if ($attendanceLog->hasCheckedOut()) {
-            throw new \Exception('Employee has already checked out for today.');
+            throw new AttendanceBusinessException('Employee has already checked out for today.');
         }
 
         if ($attendanceLog->isOnBreak()) {
-            throw new \Exception('Employee is already on break.');
+            throw new AttendanceBusinessException('Employee is already on break.');
         }
 
         if ($attendanceLog->hasCompletedBreak()) {
-            throw new \Exception('Employee has already taken a break today.');
+            throw new AttendanceBusinessException('Employee has already taken a break today.');
         }
 
         return DB::transaction(function () use ($attendanceLog) {
@@ -351,7 +540,7 @@ class AttendanceService
     /**
      * End employee break.
      *
-     * @throws \Exception If employee is not on break
+     * @throws AttendanceBusinessException If employee is not on break
      */
     public function endBreak(Employee $employee): AttendanceLog
     {
@@ -364,15 +553,15 @@ class AttendanceService
             ->first();
 
         if (! $attendanceLog) {
-            throw new \Exception('Employee has not checked in for today.');
+            throw new AttendanceBusinessException('Employee has not checked in for today.');
         }
 
         if (! $attendanceLog->isOnBreak()) {
-            throw new \Exception('Employee is not currently on break.');
+            throw new AttendanceBusinessException('Employee is not currently on break.');
         }
 
         $breakEndTime = Carbon::now('Asia/Jakarta');
-        $totalBreakMinutes = $attendanceLog->break_start_time->diffInMinutes($breakEndTime);
+        $totalBreakMinutes = $this->calculateBreakDuration($attendanceLog, $breakEndTime);
 
         return DB::transaction(function () use ($attendanceLog, $breakEndTime, $totalBreakMinutes) {
             $attendanceLog->update([
@@ -382,6 +571,20 @@ class AttendanceService
 
             return $attendanceLog->fresh();
         });
+    }
+
+    /**
+     * Calculate break duration from the stored Jakarta wall-clock timestamp.
+     */
+    protected function calculateBreakDuration(AttendanceLog $attendanceLog, Carbon $breakEndTime): int
+    {
+        $breakStartTime = Carbon::createFromFormat(
+            $attendanceLog->getDateFormat(),
+            $attendanceLog->getRawOriginal('break_start_time'),
+            'Asia/Jakarta'
+        );
+
+        return max(0, (int) $breakStartTime->diffInMinutes($breakEndTime));
     }
 
     /**
@@ -427,6 +630,12 @@ class AttendanceService
      */
     public function computeStatus(AttendanceLog $log): string
     {
+        // A stored non-computable status (visit, holiday) comes from another
+        // source of truth and must survive unchanged through every caller.
+        if (in_array($log->status, AttendanceLog::getNonComputableStatuses(), true)) {
+            return $log->status;
+        }
+
         // First, check if employee has approved leave for this date
         if ($this->hasApprovedLeave($log->employee_id, $log->date)) {
             return AttendanceLog::STATUS_LEAVE;

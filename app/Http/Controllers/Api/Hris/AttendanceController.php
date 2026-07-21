@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api\Hris;
 
+use App\Exceptions\Hris\AttendanceBusinessException;
 use App\Http\Controllers\Controller;
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\AttendanceSetting;
 use App\Models\Hris\Employee;
+use App\Models\User;
 use App\Services\Hris\AttendanceService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -56,6 +58,11 @@ class AttendanceController extends Controller
                     AttendanceLog::MODE_WFA,
                 ])],
                 'photo' => ['nullable', 'image', 'max:5120'], // Max 5MB
+                'captured_at' => ['nullable', 'date'],
+                'client_event_id' => ['nullable', 'string', 'max:64'],
+                'accuracy_meters' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+                'source_platform' => ['nullable', Rule::in(AttendanceLog::getSourcePlatforms())],
+                'location_provider' => ['nullable', Rule::in(AttendanceLog::getLocationProviders())],
             ]);
 
             // Explicitly add the photo file from request (validation doesn't include files in array)
@@ -71,14 +78,12 @@ class AttendanceController extends Controller
 
             $attendanceLog = $this->attendanceService->checkIn($employee, $data);
 
-            // Compute and persist the attendance status
-            $status = $this->attendanceService->computeStatus($attendanceLog);
-            $attendanceLog->status = $status;
-            $attendanceLog->save();
-
-            // Auto-create a Late Notice report when employee checks in late
-            if ($status === AttendanceLog::STATUS_LATE) {
-                $this->attendanceService->createLateNoticeIfAbsent($attendanceLog);
+            // Exact replays are successful without repeating status side effects.
+            if (! $attendanceLog->wasRecentlyCreated) {
+                return response()->json([
+                    'message' => 'Check-in already recorded.',
+                    'data' => $this->formatAttendanceLog($attendanceLog),
+                ], 200);
             }
 
             return response()->json([
@@ -98,9 +103,14 @@ class AttendanceController extends Controller
             ];
 
             if (in_array($e->getMessage(), $businessErrors)) {
-                return response()->json([
+                return response()->json(array_filter([
                     'message' => $e->getMessage(),
-                ], 422);
+                    // Offline replay needs to tell "already recorded" apart from a real
+                    // rejection so it can settle the queued item as synced, not failed.
+                    'code' => $e->getMessage() === 'Employee has already checked in for today.'
+                        ? 'duplicate_attendance'
+                        : null,
+                ]), 422);
             }
 
             \Log::error('Attendance check-in failed', [
@@ -111,7 +121,7 @@ class AttendanceController extends Controller
             ]);
 
             return response()->json([
-                'message' => $e->getMessage(),
+                'message' => 'Failed to record check-in. Please try again.',
             ], 500);
         }
     }
@@ -157,7 +167,7 @@ class AttendanceController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Failed to fetch daily attendance: '.$e->getMessage(),
+                'message' => 'Failed to fetch daily attendance. Please try again.',
             ], 500);
         }
     }
@@ -190,7 +200,7 @@ class AttendanceController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Failed to fetch WFH quota: '.$e->getMessage(),
+                'message' => 'Failed to fetch WFH quota. Please try again.',
             ], 500);
         }
     }
@@ -240,7 +250,7 @@ class AttendanceController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'Failed to fetch attendance history: '.$e->getMessage(),
+                'message' => 'Failed to fetch attendance history. Please try again.',
             ], 500);
         }
     }
@@ -269,6 +279,11 @@ class AttendanceController extends Controller
                 'longitude' => ['nullable', 'numeric', 'between:-180,180'],
                 'address' => ['nullable', 'string', 'max:500'],
                 'photo' => ['nullable', 'image', 'max:5120'], // Max 5MB
+                'captured_at' => ['nullable', 'date'],
+                'client_event_id' => ['nullable', 'string', 'max:64'],
+                'accuracy_meters' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+                'source_platform' => ['nullable', Rule::in(AttendanceLog::getSourcePlatforms())],
+                'location_provider' => ['nullable', Rule::in(AttendanceLog::getLocationProviders())],
             ]);
 
             // Explicitly add the photo file from request (validation doesn't include files in array)
@@ -284,10 +299,6 @@ class AttendanceController extends Controller
 
             $attendanceLog = $this->attendanceService->checkOut($employee, $data);
 
-            // Compute status for the attendance log
-            $status = $this->attendanceService->computeStatus($attendanceLog);
-            $attendanceLog->status = $status;
-
             return response()->json([
                 'message' => 'Check-out recorded successfully.',
                 'data' => $this->formatAttendanceLog($attendanceLog),
@@ -297,6 +308,10 @@ class AttendanceController extends Controller
                 'message' => 'Validation failed.',
                 'errors' => $e->errors(),
             ], 422);
+        } catch (AttendanceBusinessException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
         } catch (\Exception $e) {
             // Business logic errors should return 422
             $businessErrors = [
@@ -305,9 +320,12 @@ class AttendanceController extends Controller
             ];
 
             if (in_array($e->getMessage(), $businessErrors)) {
-                return response()->json([
+                return response()->json(array_filter([
                     'message' => $e->getMessage(),
-                ], 422);
+                    'code' => $e->getMessage() === 'Employee has already checked out for today.'
+                        ? 'duplicate_attendance'
+                        : null,
+                ]), 422);
             }
 
             \Log::error('Attendance check-out failed', [
@@ -318,7 +336,7 @@ class AttendanceController extends Controller
             ]);
 
             return response()->json([
-                'message' => $e->getMessage(),
+                'message' => 'Failed to record check-out. Please try again.',
             ], 500);
         }
     }
@@ -343,6 +361,10 @@ class AttendanceController extends Controller
                 'message' => 'Break started successfully.',
                 'data' => $this->formatAttendanceLog($attendanceLog),
             ]);
+        } catch (AttendanceBusinessException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
         } catch (\Exception $e) {
             \Log::error('Start break failed', [
                 'user_id' => $request->user()?->id,
@@ -351,7 +373,7 @@ class AttendanceController extends Controller
             ]);
 
             return response()->json([
-                'message' => $e->getMessage(),
+                'message' => 'Failed to start break. Please try again.',
             ], 500);
         }
     }
@@ -376,6 +398,10 @@ class AttendanceController extends Controller
                 'message' => 'Break ended successfully.',
                 'data' => $this->formatAttendanceLog($attendanceLog),
             ]);
+        } catch (AttendanceBusinessException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
         } catch (\Exception $e) {
             \Log::error('End break failed', [
                 'user_id' => $request->user()?->id,
@@ -384,7 +410,7 @@ class AttendanceController extends Controller
             ]);
 
             return response()->json([
-                'message' => $e->getMessage(),
+                'message' => 'Failed to end break. Please try again.',
             ], 500);
         }
     }
@@ -445,12 +471,35 @@ class AttendanceController extends Controller
 
         $path = $request->query('path');
 
-        if (! $path || ! Storage::disk('local')->exists($path)) {
+        if (! $path) {
             abort(404, 'Photo not found.');
         }
 
-        // Ensure the path is within attendance-photos directory
-        if (! str_starts_with($path, 'attendance-photos/')) {
+        // Validate before any Storage call: Flysystem throws PathTraversalDetected
+        // (an unhandled 500) if a ../ traversal reaches exists()/get() first.
+        if (! $this->isSafeAttendancePhotoPath($path)) {
+            abort(403, 'Access denied.');
+        }
+
+        if (! Storage::disk('local')->exists($path)) {
+            abort(404, 'Photo not found.');
+        }
+
+        $user = $accessToken->tokenable;
+        $employee = $user instanceof User ? $user->employee : null;
+
+        if (! $employee) {
+            abort(403, 'Access denied.');
+        }
+
+        $ownsPhoto = AttendanceLog::forEmployee($employee->id)
+            ->where(function ($query) use ($path) {
+                $query->where('check_in_photo_path', $path)
+                    ->orWhere('check_out_photo_path', $path);
+            })
+            ->exists();
+
+        if (! $ownsPhoto) {
             abort(403, 'Access denied.');
         }
 
@@ -480,6 +529,11 @@ class AttendanceController extends Controller
                 'longitude' => $log->check_in_longitude,
                 'address' => $log->check_in_address,
                 'photo_path' => $this->resolvePhotoUrl($log->check_in_photo_path),
+                'captured_at' => $this->formatAsJakartaIso($log->check_in_captured_at),
+                'client_event_id' => $log->check_in_client_event_id,
+                'accuracy_meters' => $log->check_in_accuracy_meters,
+                'source_platform' => $log->check_in_source_platform,
+                'location_provider' => $log->check_in_location_provider,
             ],
             'check_out' => [
                 'time' => $this->formatAsJakartaIso($log->check_out_time),
@@ -487,6 +541,11 @@ class AttendanceController extends Controller
                 'longitude' => $log->check_out_longitude,
                 'address' => $log->check_out_address,
                 'photo_path' => $this->resolvePhotoUrl($log->check_out_photo_path),
+                'captured_at' => $this->formatAsJakartaIso($log->check_out_captured_at),
+                'client_event_id' => $log->check_out_client_event_id,
+                'accuracy_meters' => $log->check_out_accuracy_meters,
+                'source_platform' => $log->check_out_source_platform,
+                'location_provider' => $log->check_out_location_provider,
             ],
             'break' => [
                 'start_time' => $this->formatAsJakartaIso($log->break_start_time),
@@ -539,5 +598,20 @@ class AttendanceController extends Controller
 
         // Local path — generate API URL to serve it
         return url('/api/hris/attendance/photo').'?'.http_build_query(['path' => $path]);
+    }
+
+    /**
+     * Reject directory traversal (including percent-encoded/double-encoded
+     * variants) before the path ever reaches a Storage call.
+     */
+    protected function isSafeAttendancePhotoPath(string $path): bool
+    {
+        $normalized = rawurldecode(rawurldecode($path));
+
+        if (str_contains($normalized, "\0") || str_contains($normalized, '..') || str_contains($normalized, '\\')) {
+            return false;
+        }
+
+        return str_starts_with($normalized, 'attendance-photos/');
     }
 }

@@ -34,6 +34,24 @@ class AttendanceLog extends Model
 
     const MODE_WFA = 'wfa';
 
+    // Client source-platform constants
+    const PLATFORM_NATIVE_IOS = 'native_ios';
+
+    const PLATFORM_NATIVE_ANDROID = 'native_android';
+
+    const PLATFORM_MOBILE_WEB = 'mobile_web';
+
+    const PLATFORM_DESKTOP_WEB = 'desktop_web';
+
+    const PLATFORM_UNKNOWN = 'unknown';
+
+    // Client location-provider constants
+    const PROVIDER_EXPO_LOCATION = 'expo_location';
+
+    const PROVIDER_BROWSER_GEOLOCATION = 'browser_geolocation';
+
+    const PROVIDER_UNKNOWN = 'unknown';
+
     // Source constants
     const SOURCE_WEB = 'web';
 
@@ -60,6 +78,16 @@ class AttendanceLog extends Model
         'check_out_longitude',
         'check_out_address',
         'check_out_photo_path',
+        'check_in_captured_at',
+        'check_in_client_event_id',
+        'check_in_source_platform',
+        'check_in_location_provider',
+        'check_in_accuracy_meters',
+        'check_out_captured_at',
+        'check_out_client_event_id',
+        'check_out_source_platform',
+        'check_out_location_provider',
+        'check_out_accuracy_meters',
         'break_start_time',
         'break_end_time',
         'total_break_minutes',
@@ -82,6 +110,10 @@ class AttendanceLog extends Model
         'check_in_longitude' => 'decimal:8',
         'check_out_latitude' => 'decimal:8',
         'check_out_longitude' => 'decimal:8',
+        'check_in_captured_at' => 'datetime:Y-m-d H:i:s',
+        'check_out_captured_at' => 'datetime:Y-m-d H:i:s',
+        'check_in_accuracy_meters' => 'decimal:2',
+        'check_out_accuracy_meters' => 'decimal:2',
         'metadata' => 'array',
         'payroll_period_start' => 'date:Y-m-d',
         'payroll_period_end' => 'date:Y-m-d',
@@ -145,6 +177,46 @@ class AttendanceLog extends Model
         return [
             self::MODE_WFH,
             self::MODE_WFA,
+        ];
+    }
+
+    /**
+     * Statuses that AttendanceService::computeStatus() can never derive on
+     * its own (they come from another source of truth: a client visit, a
+     * company holiday, ...). A check-in/check-out must never silently
+     * clobber one of these with a computed present/late/half_day/absent.
+     */
+    public static function getNonComputableStatuses(): array
+    {
+        return [
+            self::STATUS_VISIT,
+            self::STATUS_HOLIDAY,
+        ];
+    }
+
+    /**
+     * Get the source platforms accepted from attendance clients.
+     */
+    public static function getSourcePlatforms(): array
+    {
+        return [
+            self::PLATFORM_NATIVE_IOS,
+            self::PLATFORM_NATIVE_ANDROID,
+            self::PLATFORM_MOBILE_WEB,
+            self::PLATFORM_DESKTOP_WEB,
+            self::PLATFORM_UNKNOWN,
+        ];
+    }
+
+    /**
+     * Get the location providers accepted from attendance clients.
+     */
+    public static function getLocationProviders(): array
+    {
+        return [
+            self::PROVIDER_EXPO_LOCATION,
+            self::PROVIDER_BROWSER_GEOLOCATION,
+            self::PROVIDER_UNKNOWN,
         ];
     }
 
