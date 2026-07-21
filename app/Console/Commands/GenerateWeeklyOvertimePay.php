@@ -20,17 +20,18 @@ class GenerateWeeklyOvertimePay extends Command
 
         if ($weekStart = $this->option('week-start')) {
             try {
-                $start   = \Carbon\Carbon::parse($weekStart)->startOfDay();
-                $end     = $start->copy()->endOfWeek(\Carbon\Carbon::SUNDAY);
+                $start = \Carbon\Carbon::parse($weekStart)->startOfDay();
+                $end = $start->copy()->endOfWeek(\Carbon\Carbon::SUNDAY);
                 $payment = $end->copy()->next(\Carbon\Carbon::TUESDAY);
             } catch (\Exception $e) {
                 $this->error('Invalid date format. Use Y-m-d (e.g., 2026-04-07)');
+
                 return Command::FAILURE;
             }
         } else {
-            $dates   = OvertimePayService::getPreviousWeekDates();
-            $start   = $dates['start'];
-            $end     = $dates['end'];
+            $dates = OvertimePayService::getPreviousWeekDates();
+            $start = $dates['start'];
+            $end = $dates['end'];
             $payment = $dates['payment'];
         }
 
@@ -38,9 +39,17 @@ class GenerateWeeklyOvertimePay extends Command
         $this->info("Payment Date: {$payment->format('d M Y')}");
 
         $existingBatch = OvertimePayBatch::forWeek($start)->first();
-        if ($existingBatch && !$this->option('force')) {
+        if ($existingBatch && ! $this->option('force')) {
             $this->warn("Batch already exists for this week (ID: {$existingBatch->id}, Status: {$existingBatch->status})");
             $this->warn('Use --force to regenerate');
+
+            return Command::FAILURE;
+        }
+
+        if ($existingBatch && $this->option('force') && $existingBatch->isLocked()) {
+            $this->error("Batch {$existingBatch->id} is {$existingBatch->status} and must not be regenerated.");
+            $this->error('Settle rate corrections for locked or paid batches as a separate adjustment.');
+
             return Command::FAILURE;
         }
 
@@ -66,7 +75,7 @@ class GenerateWeeklyOvertimePay extends Command
                     ['Week',                     $batch->week_label],
                     ['Total Employees',          $batch->total_employees],
                     ['Employees with Warnings',  $batch->employees_with_warnings],
-                    ['Total Amount',             'Rp ' . number_format($batch->total_amount, 0, ',', '.')],
+                    ['Total Amount',             'Rp '.number_format($batch->total_amount, 0, ',', '.')],
                     ['Status',                   $batch->status_label],
                 ]
             );
@@ -79,6 +88,7 @@ class GenerateWeeklyOvertimePay extends Command
             return Command::SUCCESS;
         } catch (\Exception $e) {
             $this->error("Failed to generate batch: {$e->getMessage()}");
+
             return Command::FAILURE;
         }
     }

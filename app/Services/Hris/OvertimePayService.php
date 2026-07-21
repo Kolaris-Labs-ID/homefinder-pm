@@ -2,6 +2,8 @@
 
 namespace App\Services\Hris;
 
+use App\Exceptions\Hris\OvertimeBatchLockedException;
+use App\Exceptions\Hris\OvertimeRateCoverageException;
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Employee;
 use App\Models\Hris\OvertimeLog;
@@ -9,6 +11,7 @@ use App\Models\Hris\OvertimePayBatch;
 use App\Models\Hris\OvertimePayment;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -58,6 +61,8 @@ class OvertimePayService
 
             $byEmployee = $logs->groupBy(fn (OvertimeLog $log) => $log->user->employee?->id);
 
+            $rateGaps = [];
+
             foreach ($byEmployee as $employeeId => $employeeLogs) {
                 if (! $employeeId) {
                     continue;
@@ -65,11 +70,30 @@ class OvertimePayService
 
                 $employee = $employeeLogs->first()->user->employee;
 
+                // Resolve the rate per log against the structure effective on that
+                // log's work date — the rate frozen at session start is a UI estimate
+                // and must never be the payable basis (a backdated raise never reaches it).
+                $structures = $this->compensationResolver->structuresAsOf($employee, $weekEnd);
+
                 $totalPay = 0;
                 $totalMinutes = 0;
                 $breakdown = [];
 
                 foreach ($employeeLogs as $log) {
+                    // A structure that resolves to a zero rate is as unpayable as a
+                    // missing one — both must fail loudly rather than pay Rp 0.
+                    $rate = $this->hourlyRateForLog($structures, $log);
+
+                    if ($rate <= 0) {
+                        $rateGaps[] = $this->rateGap($employee, $log);
+
+                        continue;
+                    }
+
+                    // Persist what was actually paid, so the log is an audit record
+                    // of the batch rather than of the estimate shown at start.
+                    $log->forceFill(['hourly_rate' => $rate])->save();
+
                     $pay = $log->calculateEstimatedPay();
                     $totalPay += $pay;
                     $totalMinutes += $log->duration_minutes;
@@ -79,7 +103,7 @@ class OvertimePayService
                         'start_time' => $log->start_time->toDateTimeString(),
                         'end_time' => $log->end_time?->toDateTimeString(),
                         'duration_minutes' => $log->duration_minutes,
-                        'hourly_rate' => (float) $log->hourly_rate,
+                        'hourly_rate' => $rate,
                         'pay' => round($pay, 2),
                     ];
                 }
@@ -107,11 +131,111 @@ class OvertimePayService
                     ->update(['overtime_payment_id' => $payment->id]);
             }
 
+            // Fail the whole batch rather than pay an unresolvable session at Rp 0.
+            // Every gap is reported at once so HR fixes them in one pass.
+            if (! empty($rateGaps)) {
+                throw new OvertimeRateCoverageException($rateGaps);
+            }
+
             // Append weekend and holiday attendance sessions to the batch
             $this->appendWeekendAttendanceSessions($batch, $weekStart, $weekEnd);
 
             // Recompute totals from all payments (including weekend sessions)
             $this->finalizeBatch($batch);
+
+            return $batch->fresh();
+        });
+    }
+
+    /**
+     * Re-resolve overtime rates on an existing, unpaid batch against the salary
+     * structure effective on each log's work date. Use after a backdated salary
+     * change so a draft/rejected batch can be corrected in place, keeping its
+     * identity and approval history.
+     *
+     * Weekend/holiday sessions are re-priced too, from the daily_allowance_rate
+     * effective on their own work date — the same resolution
+     * appendWeekendAttendanceSessions() uses at generation time — so a batch
+     * that was already generated agrees with a delete-then-regenerate.
+     */
+    public function recalculateBatch(OvertimePayBatch $batch): OvertimePayBatch
+    {
+        if ($batch->isLocked()) {
+            throw new OvertimeBatchLockedException($batch);
+        }
+
+        return DB::transaction(function () use ($batch) {
+            $rateGaps = [];
+
+            foreach ($batch->payments()->with('employee')->get() as $payment) {
+                $employee = $payment->employee;
+
+                if (! $employee) {
+                    continue;
+                }
+
+                $structures = $this->compensationResolver->structuresAsOf($employee, $batch->week_end_date);
+
+                $sessions = $payment->sessions_breakdown ?? [];
+                $totalPay = 0.0;
+
+                foreach ($sessions as $index => $session) {
+                    // appendWeekendAttendanceSessions() never sets overtime_log_id, so an
+                    // empty one is a weekend/holiday session, not an orphaned log — those
+                    // two cases must not collapse into the same branch.
+                    if (empty($session['overtime_log_id'])) {
+                        $workDate = Carbon::parse($session['date']);
+                        $dailyRate = $this->compensationResolver->dailyRateFrom($structures, $workDate);
+
+                        if ($dailyRate <= 0) {
+                            $rateGaps[] = $this->weekendRateGap($employee, $session);
+
+                            continue;
+                        }
+
+                        $sessions[$index]['pay'] = round($dailyRate, 2);
+                        $totalPay += $dailyRate;
+
+                        continue;
+                    }
+
+                    $log = OvertimeLog::find($session['overtime_log_id']);
+
+                    // The id was set but the log row is gone — nothing left to
+                    // re-resolve against, so carry the recorded amount forward.
+                    if (! $log) {
+                        $totalPay += (float) ($session['pay'] ?? 0);
+
+                        continue;
+                    }
+
+                    $rate = $this->hourlyRateForLog($structures, $log);
+
+                    if ($rate <= 0) {
+                        $rateGaps[] = $this->rateGap($employee, $log);
+
+                        continue;
+                    }
+
+                    $log->forceFill(['hourly_rate' => $rate])->save();
+
+                    $pay = $log->calculateEstimatedPay();
+                    $sessions[$index]['hourly_rate'] = $rate;
+                    $sessions[$index]['pay'] = round($pay, 2);
+                    $totalPay += $pay;
+                }
+
+                $payment->update([
+                    'sessions_breakdown' => $sessions,
+                    'total_amount' => round($totalPay, 2),
+                ]);
+            }
+
+            if (! empty($rateGaps)) {
+                throw new OvertimeRateCoverageException($rateGaps);
+            }
+
+            $batch->recalculateSummary();
 
             return $batch->fresh();
         });
@@ -162,6 +286,55 @@ class OvertimePayService
             'start' => $start,
             'end' => $end,
             'payment' => $payment,
+        ];
+    }
+
+    /**
+     * THE authoritative overtime rate. Every path — generation, --force
+     * regeneration and recalculateBatch — resolves through here.
+     *
+     * basic_salary of the structure effective on the log's work date / 173.
+     * Returns 0.0 when unresolvable (no structure, or one with no basic salary);
+     * callers must treat that as a coverage gap, never as free work.
+     */
+    private function hourlyRateForLog(Collection $structures, OvertimeLog $log): float
+    {
+        $structure = $this->compensationResolver->resolveFrom(
+            $structures,
+            $log->start_time->copy()->startOfDay()
+        );
+
+        return $structure ? $structure->overtime_hourly_rate : 0.0;
+    }
+
+    /**
+     * @return array{employee_id:int,employee_name:?string,work_date:string,overtime_log_id:int,attendance_log_id:null}
+     */
+    private function rateGap(Employee $employee, OvertimeLog $log): array
+    {
+        return [
+            'employee_id' => $employee->id,
+            'employee_name' => $employee->user?->name,
+            'work_date' => $log->start_time->toDateString(),
+            'overtime_log_id' => $log->id,
+            'attendance_log_id' => null,
+        ];
+    }
+
+    /**
+     * Same as rateGap(), for a weekend/holiday attendance session instead of
+     * an OvertimeLog — there is no log to report, only the attendance day.
+     *
+     * @return array{employee_id:int,employee_name:?string,work_date:string,overtime_log_id:null,attendance_log_id:?int}
+     */
+    private function weekendRateGap(Employee $employee, array $session): array
+    {
+        return [
+            'employee_id' => $employee->id,
+            'employee_name' => $employee->user?->name,
+            'work_date' => $session['date'],
+            'overtime_log_id' => null,
+            'attendance_log_id' => $session['attendance_log_id'] ?? null,
         ];
     }
 

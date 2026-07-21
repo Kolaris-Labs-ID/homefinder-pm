@@ -33,6 +33,7 @@ class OvertimePayBatchResource extends Resource
     public static function getNavigationBadge(): ?string
     {
         $count = static::getModel()::pending()->count();
+
         return $count > 0 ? (string) $count : null;
     }
 
@@ -134,7 +135,7 @@ class OvertimePayBatchResource extends Resource
                                 \Carbon\Carbon::parse($data['payment_date'])
                             );
                             Notification::make()
-                                ->title("Batch generated: {$batch->total_employees} employee(s), Rp " . number_format($batch->total_amount, 0, ',', '.'))
+                                ->title("Batch generated: {$batch->total_employees} employee(s), Rp ".number_format($batch->total_amount, 0, ',', '.'))
                                 ->success()
                                 ->send();
                         } catch (\Exception $e) {
@@ -161,6 +162,31 @@ class OvertimePayBatchResource extends Resource
                             Notification::make()->title('Failed')->body($e->getMessage())->danger()->send();
                         }
                     }),
+                Tables\Actions\Action::make('recalculate')
+                    ->label('Recalculate')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->visible(fn (OvertimePayBatch $record) => ! $record->isLocked())
+                    ->requiresConfirmation()
+                    ->modalHeading('Recalculate Overtime Pay')
+                    ->modalDescription('Re-price every overtime session in this batch from the salary structure effective on each session\'s work date. Use after a backdated salary change. Batches in finance approval or already paid cannot be recalculated.')
+                    ->action(function (OvertimePayBatch $record) {
+                        try {
+                            app(OvertimePayService::class)->recalculateBatch($record);
+
+                            Notification::make()
+                                ->title('Batch Recalculated')
+                                ->body('Every session was re-priced from the salary structure effective on its work date.')
+                                ->success()
+                                ->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()
+                                ->title('Recalculation Failed')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make()
                     ->visible(fn (OvertimePayBatch $record) => $record->isEditable()),
@@ -182,10 +208,10 @@ class OvertimePayBatchResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListOvertimePayBatches::route('/'),
+            'index' => Pages\ListOvertimePayBatches::route('/'),
             'create' => Pages\CreateOvertimePayBatch::route('/create'),
-            'view'   => Pages\ViewOvertimePayBatch::route('/{record}'),
-            'edit'   => Pages\EditOvertimePayBatch::route('/{record}/edit'),
+            'view' => Pages\ViewOvertimePayBatch::route('/{record}'),
+            'edit' => Pages\EditOvertimePayBatch::route('/{record}/edit'),
         ];
     }
 }

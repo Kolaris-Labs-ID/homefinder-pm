@@ -13,20 +13,31 @@ class SalaryStructure extends Model
 
     // PPh 21 Method constants
     const PPH21_METHOD_NETTO = 'netto';
+
     const PPH21_METHOD_GROSS = 'gross';
+
     const PPH21_METHOD_GROSS_UP = 'gross_up';
 
     // JKK Risk Level constants
     const JKK_RISK_VERY_LOW = 'very_low';
+
     const JKK_RISK_LOW = 'low';
+
     const JKK_RISK_MEDIUM = 'medium';
+
     const JKK_RISK_HIGH = 'high';
+
     const JKK_RISK_VERY_HIGH = 'very_high';
 
     // BPJS Paid By constants
     const BPJS_PAID_BY_EMPLOYEE = 'employee';
+
     const BPJS_PAID_BY_COMPANY = 'company';
+
     const BPJS_PAID_BY_SHARED = 'shared';
+
+    // Statutory divisor for the overtime hourly rate (Indonesian labour law)
+    const OVERTIME_HOURS_PER_MONTH = 173;
 
     // Default BPJS config when none is set
     const DEFAULT_BPJS_CONFIG = [
@@ -140,7 +151,7 @@ class SalaryStructure extends Model
      */
     public function isBpjsComponentEnabled(string $component): bool
     {
-        if (!$this->isBpjsEnabled()) {
+        if (! $this->isBpjsEnabled()) {
             return false;
         }
 
@@ -191,6 +202,16 @@ class SalaryStructure extends Model
     public function scopeForEmployee(Builder $query, $employeeId): Builder
     {
         return $query->where('employee_id', $employeeId);
+    }
+
+    /**
+     * Statutory overtime hourly base: monthly basic salary / 173.
+     *
+     * Fixed allowances are deliberately excluded — see OvertimePayService.
+     */
+    public function getOvertimeHourlyRateAttribute(): float
+    {
+        return round((float) $this->basic_salary / self::OVERTIME_HOURS_PER_MONTH, 2);
     }
 
     /**
@@ -264,9 +285,9 @@ class SalaryStructure extends Model
         $basicPlusFixed = (float) $this->basic_salary + $this->total_fixed_allowances;
         $minBasic = $basicPlusFixed * 0.75;
 
-        return "Basic salary must be at least 75% of (basic salary + fixed allowances). " .
-            "Current: " . number_format($this->basic_salary, 0) . " / " . number_format($basicPlusFixed, 0) . " = " .
-            number_format(($this->basic_salary / $basicPlusFixed) * 100, 1) . "%. " .
-            "Minimum basic salary required: " . number_format($minBasic, 0);
+        return 'Basic salary must be at least 75% of (basic salary + fixed allowances). '.
+            'Current: '.number_format($this->basic_salary, 0).' / '.number_format($basicPlusFixed, 0).' = '.
+            number_format(($this->basic_salary / $basicPlusFixed) * 100, 1).'%. '.
+            'Minimum basic salary required: '.number_format($minBasic, 0);
     }
 }

@@ -254,8 +254,11 @@ describe('Weekend attendance merged with regular OvertimeLog sessions', function
         $payment = $payments->first();
         // 2 sessions: 1 OvertimeLog + 1 weekend attendance
         expect($payment->total_sessions)->toBe(2);
-        // OT pay: first hour 1.5× + second hour 2× = (30,000×1.5) + (30,000×2.0) = 105,000
-        $otPay = 30_000 * 1.5 + 30_000 * 2.0;
+        // The rate on the log is a UI estimate; the payable rate is re-resolved from
+        // the structure effective on the work date (5,000,000 / 173).
+        $rate = round(5_000_000 / 173, 2);
+        // OT pay: first hour 1.5× + second hour 2×
+        $otPay = $rate * 1.5 + $rate * 2.0;
         $expectedTotal = round($otPay + DAILY_RATE, 2);
         expect((float) $payment->total_amount)->toBe($expectedTotal);
     });
