@@ -23,37 +23,47 @@ class TeamController extends Controller
         try {
             $today = Carbon::today();
 
-            // Get all active employees with their user info and position
-            $employees = Employee::with(['user', 'primaryPosition.position'])
+            // Get all active employees with their user info, position and department
+            $employees = Employee::with(['user', 'primaryPosition.position', 'primaryPosition.department'])
                 ->active()
                 ->get();
 
-            $teamMembers = $employees->map(function (Employee $employee) use ($today) {
-                // Get today's attendance
-                $attendance = AttendanceLog::where('employee_id', $employee->id)
-                    ->whereDate('date', $today)
-                    ->first();
+            $employeeIds = $employees->pluck('id');
 
-                // Get active leave request for today
-                $leaveRequest = LeaveRequest::where('employee_id', $employee->id)
-                    ->where('status', LeaveRequest::STATUS_APPROVED)
-                    ->whereDate('start_date', '<=', $today)
-                    ->whereDate('end_date', '>=', $today)
-                    ->with('leaveType')
-                    ->first();
+            // Batch today's attendance, leave and client visit lookups to avoid an N+1 per employee
+            $attendanceByEmployee = AttendanceLog::whereIn('employee_id', $employeeIds)
+                ->whereDate('date', $today)
+                ->get()
+                ->unique('employee_id')
+                ->keyBy('employee_id');
 
-                // Get active client visit for today (only if table exists)
-                $clientVisit = null;
-                if (Schema::hasTable('client_visits')) {
-                    try {
-                        $clientVisit = ClientVisit::where('employee_id', $employee->id)
-                            ->whereDate('visit_date', $today)
-                            ->whereIn('status', [ClientVisit::STATUS_PLANNED, ClientVisit::STATUS_IN_PROGRESS])
-                            ->first();
-                    } catch (\Exception $e) {
-                        // Silently ignore if table doesn't exist or has issues
-                    }
+            $leaveByEmployee = LeaveRequest::whereIn('employee_id', $employeeIds)
+                ->where('status', LeaveRequest::STATUS_APPROVED)
+                ->whereDate('start_date', '<=', $today)
+                ->whereDate('end_date', '>=', $today)
+                ->with('leaveType')
+                ->get()
+                ->unique('employee_id')
+                ->keyBy('employee_id');
+
+            $clientVisitByEmployee = collect();
+            if (Schema::hasTable('client_visits')) {
+                try {
+                    $clientVisitByEmployee = ClientVisit::whereIn('employee_id', $employeeIds)
+                        ->whereDate('visit_date', $today)
+                        ->whereIn('status', [ClientVisit::STATUS_PLANNED, ClientVisit::STATUS_IN_PROGRESS])
+                        ->get()
+                        ->unique('employee_id')
+                        ->keyBy('employee_id');
+                } catch (\Exception $e) {
+                    // Silently ignore if table doesn't exist or has issues
                 }
+            }
+
+            $teamMembers = $employees->map(function (Employee $employee) use ($attendanceByEmployee, $leaveByEmployee, $clientVisitByEmployee) {
+                $attendance = $attendanceByEmployee->get($employee->id);
+                $leaveRequest = $leaveByEmployee->get($employee->id);
+                $clientVisit = $clientVisitByEmployee->get($employee->id);
 
                 // Determine current status
                 $status = $this->determineStatus($attendance, $leaveRequest, $clientVisit);
@@ -65,14 +75,14 @@ class TeamController extends Controller
                     'phone' => $employee->phone ?? null,
                     'avatar_url' => $employee->user->avatar_url ?? null,
                     'position' => $employee->primaryPosition?->position?->title ?? null,
-                    'department' => null, // Position model doesn't have department relationship
+                    'department' => $employee->primaryPosition?->department?->name,
                     'status' => $status['status'],
                     'status_label' => $status['label'],
                     'status_detail' => $status['detail'],
                     'certificate_status' => $status['certificate_status'] ?? null,
                     'work_mode' => $attendance?->check_in_time ? $attendance->mode : null,
                     'check_in_time' => $attendance?->check_in_time ? Carbon::parse($attendance->check_in_time)->format('H:i:s') : null,
-                    'is_on_break' => $attendance && $attendance->break_start_time && !$attendance->break_end_time,
+                    'is_on_break' => $attendance && $attendance->break_start_time && ! $attendance->break_end_time,
                     'mood_emoji' => $employee->user->mood_emoji ?? null,
                     'mood_text' => $employee->user->mood_text ?? null,
                 ];
@@ -130,7 +140,7 @@ class TeamController extends Controller
             return [
                 'status' => 'visiting',
                 'label' => 'Visiting Client',
-                'detail' => $visit->client_name . ' - ' . ($visit->purpose_label ?? $visit->purpose),
+                'detail' => $visit->client_name.' - '.($visit->purpose_label ?? $visit->purpose),
             ];
         }
 
@@ -141,16 +151,16 @@ class TeamController extends Controller
                 return [
                     'status' => 'offline',
                     'label' => 'Checked Out',
-                    'detail' => 'Left at ' . Carbon::parse($attendance->check_out_time)->format('H:i'),
+                    'detail' => 'Left at '.Carbon::parse($attendance->check_out_time)->format('H:i'),
                 ];
             }
 
             // On break
-            if ($attendance->break_start_time && !$attendance->break_end_time) {
+            if ($attendance->break_start_time && ! $attendance->break_end_time) {
                 return [
                     'status' => 'on_break',
                     'label' => 'On Break',
-                    'detail' => 'Since ' . Carbon::parse($attendance->break_start_time)->format('H:i'),
+                    'detail' => 'Since '.Carbon::parse($attendance->break_start_time)->format('H:i'),
                 ];
             }
 
@@ -158,7 +168,7 @@ class TeamController extends Controller
             return [
                 'status' => 'on_duty',
                 'label' => 'On Duty',
-                'detail' => 'Since ' . Carbon::parse($attendance->check_in_time)->format('H:i'),
+                'detail' => 'Since '.Carbon::parse($attendance->check_in_time)->format('H:i'),
             ];
         }
 

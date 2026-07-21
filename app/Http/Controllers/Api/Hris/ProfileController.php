@@ -93,19 +93,17 @@ class ProfileController extends Controller
 
         $data = $request->validate([
             'mood_emoji' => ['nullable', 'string', 'max:10'],
-            'mood_text'  => ['nullable', 'string', 'max:60'],
+            'mood_text' => ['nullable', 'string', 'max:60'],
         ]);
 
-        $user->update([
-            'mood_emoji' => $data['mood_emoji'] ?? null,
-            'mood_text'  => $data['mood_text'] ?? null,
-        ]);
+        // Only touch what the caller actually sent: validate() omits absent nullable
+        // keys, so an omitted field is left alone and an explicit null still clears it.
+        $user->update($data);
 
         return response()->json([
-            'message'    => 'Mood updated successfully.',
+            'message' => 'Mood updated successfully.',
             'mood_emoji' => $user->mood_emoji,
-            'mood_text'  => $user->mood_text,
+            'mood_text' => $user->mood_text,
         ]);
     }
 }
-

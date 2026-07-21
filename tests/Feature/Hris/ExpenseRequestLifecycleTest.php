@@ -150,6 +150,19 @@ it('allows revision only when needs_revision, and resets finance verification', 
     expect($fresh->finance_reviewed_at)->toBeNull();
 });
 
+it('refuses to revise an ER whose evidence finance has stripped', function () {
+    $er = makeErDraft();
+    $attachment = attachErEvidence($er);
+    $this->service->submit($er);
+    $this->service->requestRevision($er, $this->finance, 'receipt is unreadable');
+
+    app(FinanceAttachmentService::class)->delete($attachment, $this->finance);
+
+    expect(fn () => $this->service->revise($er->fresh(), ['amount' => 200000]))
+        ->toThrow(RuntimeException::class);
+    expect($er->fresh()->status)->toBe(ExpenseRequest::STATUS_NEEDS_REVISION);
+});
+
 it('resets finance verification when a verified ER amount changes', function () {
     $er = makeErDraft();
     attachErEvidence($er);

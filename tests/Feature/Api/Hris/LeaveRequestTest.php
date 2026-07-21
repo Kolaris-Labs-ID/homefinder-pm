@@ -66,6 +66,57 @@ it('creates leave request via api', function () {
     expect($approvalStep->status)->toBe('pending');
 });
 
+it('accepts an optional blank reason in json leave requests', function () {
+    Sanctum::actingAs($this->employee->user);
+
+    $response = postJson('/api/hris/leave-requests', [
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => now()->addDays(2)->toDateString(),
+        'end_date' => now()->addDays(4)->toDateString(),
+        'reason' => '',
+    ]);
+
+    $response->assertCreated()
+        ->assertJsonPath('data.reason', null);
+
+    expect(LeaveRequest::sole()->reason)->toBeNull();
+});
+
+it('accepts an omitted optional reason in multipart leave requests', function () {
+    Storage::fake('private');
+    Sanctum::actingAs($this->employee->user);
+
+    $response = $this->post('/api/hris/leave-requests', [
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => now()->addDays(2)->toDateString(),
+        'end_date' => now()->addDays(4)->toDateString(),
+        'attachment' => UploadedFile::fake()->image('supporting-document.jpg'),
+    ]);
+
+    $response->assertCreated()
+        ->assertJsonPath('data.reason', null);
+
+    $leaveRequest = LeaveRequest::sole();
+    expect($leaveRequest->reason)->toBeNull();
+    Storage::disk('private')->assertExists($leaveRequest->attachment_path);
+});
+
+it('rejects a non-string optional reason', function () {
+    Sanctum::actingAs($this->employee->user);
+
+    $response = postJson('/api/hris/leave-requests', [
+        'leave_type_id' => $this->leaveType->id,
+        'start_date' => now()->addDays(2)->toDateString(),
+        'end_date' => now()->addDays(4)->toDateString(),
+        'reason' => ['not', 'a', 'string'],
+    ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors('reason');
+
+    expect(LeaveRequest::count())->toBe(0);
+});
+
 it('requires authentication to create leave request', function () {
     $response = postJson('/api/hris/leave-requests', [
         'leave_type_id' => $this->leaveType->id,

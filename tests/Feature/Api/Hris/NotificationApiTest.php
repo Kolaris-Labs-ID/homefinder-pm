@@ -51,10 +51,38 @@ class NotificationApiTest extends TestCase
             'leaveUpdates' => true,
             'reimbursementUpdates' => false,
             'payslipNotifications' => true,
+            'ticketUpdates' => false,
+            'activityUpdates' => false,
         ]);
 
         $response->assertStatus(200)
             ->assertJsonStructure(['message']);
+    }
+
+    #[Test]
+    public function updating_notification_settings_persists_ticket_and_activity_updates()
+    {
+        Sanctum::actingAs($this->user);
+
+        $this->putJson('/api/hris/notifications/settings', [
+            'enabled' => true,
+            'checkInReminder' => true,
+            'checkOutReminder' => false,
+            'breakReminder' => true,
+            'announcements' => true,
+            'leaveUpdates' => true,
+            'reimbursementUpdates' => true,
+            'payslipNotifications' => true,
+            'ticketUpdates' => false,
+            'activityUpdates' => false,
+        ])->assertStatus(200);
+
+        $this->assertDatabaseHas('hris_notification_settings', [
+            'employee_id' => $this->employee->id,
+            'check_out_reminder' => false,
+            'ticket_updates' => false,
+            'activity_updates' => false,
+        ]);
     }
 
     #[Test]

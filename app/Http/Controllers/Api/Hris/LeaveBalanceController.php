@@ -15,16 +15,25 @@ class LeaveBalanceController extends Controller
 
         abort_if(! $employee, 404, 'Employee profile not found.');
 
-        $balances = $employee->leaveBalances()->with('leaveType')->get()->map(function ($balance) {
-            return [
-                'id' => $balance->id,
-                'leave_type' => $balance->leaveType->only(['id', 'code', 'name']),
-                'year' => $balance->year,
-                'starting_balance' => $balance->starting_balance,
-                'used_days' => $balance->used_days,
-                'remaining_days' => $balance->remaining_days,
-            ];
-        });
+        $validated = $request->validate([
+            'year' => ['sometimes', 'integer'],
+        ]);
+        $year = $validated['year'] ?? now()->year;
+
+        $balances = $employee->leaveBalances()
+            ->where('year', $year)
+            ->with('leaveType')
+            ->get()
+            ->map(function ($balance) {
+                return [
+                    'id' => $balance->id,
+                    'leave_type' => $balance->leaveType->only(['id', 'code', 'name']),
+                    'year' => $balance->year,
+                    'starting_balance' => $balance->starting_balance,
+                    'used_days' => $balance->used_days,
+                    'remaining_days' => $balance->remaining_days,
+                ];
+            });
 
         return response()->json([
             'data' => $balances,
@@ -43,4 +52,3 @@ class LeaveBalanceController extends Controller
         ]);
     }
 }
-

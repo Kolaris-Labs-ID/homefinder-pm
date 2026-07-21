@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api\Hris;
 
 use App\Http\Controllers\Controller;
-use App\Models\Hris\PushToken;
 use App\Models\Hris\NotificationSetting;
+use App\Models\Hris\PushToken;
 use App\Models\Hris\UserNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,7 +26,7 @@ class NotificationController extends Controller
         $user = $request->user();
         $employee = $user->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json([
                 'message' => 'Employee record not found.',
             ], 404);
@@ -59,7 +59,7 @@ class NotificationController extends Controller
         $user = $request->user();
         $employee = $user->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json([
                 'message' => 'Employee record not found.',
             ], 404);
@@ -77,6 +77,8 @@ class NotificationController extends Controller
                     'leave_updates' => true,
                     'reimbursement_updates' => true,
                     'payslip_notifications' => true,
+                    'ticket_updates' => true,
+                    'activity_updates' => true,
                 ]
             );
 
@@ -90,11 +92,13 @@ class NotificationController extends Controller
                     'leaveUpdates' => $settings->leave_updates,
                     'reimbursementUpdates' => $settings->reimbursement_updates,
                     'payslipNotifications' => $settings->payslip_notifications,
+                    'ticketUpdates' => $settings->ticket_updates,
+                    'activityUpdates' => $settings->activity_updates,
                 ],
             ]);
         } catch (\Exception $e) {
             // If table doesn't exist, return default settings
-            \Log::warning('Notification settings fetch error: ' . $e->getMessage());
+            \Log::warning('Notification settings fetch error: '.$e->getMessage());
 
             return response()->json([
                 'data' => [
@@ -106,6 +110,8 @@ class NotificationController extends Controller
                     'leaveUpdates' => true,
                     'reimbursementUpdates' => true,
                     'payslipNotifications' => true,
+                    'ticketUpdates' => true,
+                    'activityUpdates' => true,
                 ],
             ]);
         }
@@ -127,12 +133,14 @@ class NotificationController extends Controller
             'leaveUpdates' => ['required', 'boolean'],
             'reimbursementUpdates' => ['required', 'boolean'],
             'payslipNotifications' => ['required', 'boolean'],
+            'ticketUpdates' => ['required', 'boolean'],
+            'activityUpdates' => ['required', 'boolean'],
         ]);
 
         $user = $request->user();
         $employee = $user->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json([
                 'message' => 'Employee record not found.',
             ], 404);
@@ -149,6 +157,8 @@ class NotificationController extends Controller
                 'leave_updates' => $request->leaveUpdates,
                 'reimbursement_updates' => $request->reimbursementUpdates,
                 'payslip_notifications' => $request->payslipNotifications,
+                'ticket_updates' => $request->ticketUpdates,
+                'activity_updates' => $request->activityUpdates,
             ]
         );
 
@@ -167,7 +177,7 @@ class NotificationController extends Controller
         $user = $request->user();
         $employee = $user->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json([
                 'message' => 'Employee record not found.',
             ], 404);
@@ -198,7 +208,7 @@ class NotificationController extends Controller
             ]);
         } catch (\Exception $e) {
             // If table doesn't exist or other error, return empty array
-            \Log::warning('Notification fetch error: ' . $e->getMessage());
+            \Log::warning('Notification fetch error: '.$e->getMessage());
 
             return response()->json([
                 'data' => [],
@@ -221,7 +231,7 @@ class NotificationController extends Controller
         $user = $request->user();
         $employee = $user->employee;
 
-        if (!$employee || $notification->employee_id !== $employee->id) {
+        if (! $employee || $notification->employee_id !== $employee->id) {
             return response()->json([
                 'message' => 'Notification not found.',
             ], 404);
@@ -244,7 +254,7 @@ class NotificationController extends Controller
         $user = $request->user();
         $employee = $user->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json([
                 'message' => 'Employee record not found.',
             ], 404);
@@ -269,7 +279,7 @@ class NotificationController extends Controller
         $user = $request->user();
         $employee = $user->employee;
 
-        if (!$employee) {
+        if (! $employee) {
             return response()->json([
                 'count' => 0,
             ]);

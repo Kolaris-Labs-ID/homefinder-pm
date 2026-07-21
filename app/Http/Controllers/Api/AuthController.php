@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
-use Spatie\Permission\Models\Role;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -136,7 +136,7 @@ class AuthController extends Controller
         // Verify the ID token with Google
         $googleUser = $this->verifyGoogleIdToken($request->id_token);
 
-        if (!$googleUser) {
+        if (! $googleUser) {
             return response()->json([
                 'message' => 'Invalid or expired Google token.',
             ], 401);
@@ -147,14 +147,14 @@ class AuthController extends Controller
             ->orWhere('email', $googleUser['email'])
             ->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'message' => 'No employee account found for this Google account.',
             ], 404);
         }
 
         // Update Google ID if not set
-        if (!$user->google_id) {
+        if (! $user->google_id) {
             $user->update([
                 'google_id' => $googleUser['sub'],
                 'avatar_url' => $googleUser['picture'] ?? $user->avatar_url,
@@ -165,7 +165,7 @@ class AuthController extends Controller
         $user->load('employee');
 
         // Check if user has employee record (required for HRIS mobile app)
-        if (!$user->employee) {
+        if (! $user->employee) {
             return response()->json([
                 'message' => 'No employee account found for this Google account.',
             ], 404);
@@ -212,7 +212,7 @@ class AuthController extends Controller
         $user = $request->user();
 
         // Verify current password
-        if (!Hash::check($request->current_password, $user->password)) {
+        if (! Hash::check($request->current_password, $user->password)) {
             throw ValidationException::withMessages([
                 'current_password' => ['The current password is incorrect.'],
             ]);
@@ -223,6 +223,14 @@ class AuthController extends Controller
             'password' => $request->new_password,
         ]);
 
+        $currentToken = $user->currentAccessToken();
+        $user->tokens()
+            ->when(
+                $currentToken instanceof PersonalAccessToken,
+                fn ($tokens) => $tokens->whereKeyNot($currentToken->getKey()),
+            )
+            ->delete();
+
         return response()->json([
             'message' => 'Password changed successfully.',
         ]);
@@ -231,7 +239,6 @@ class AuthController extends Controller
     /**
      * Verify Google ID token using Google's tokeninfo endpoint.
      *
-     * @param string $idToken
      * @return array|null Returns user info if valid, null if invalid
      */
     protected function verifyGoogleIdToken(string $idToken): ?array
@@ -242,11 +249,12 @@ class AuthController extends Controller
                 'id_token' => $idToken,
             ]);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 \Log::warning('Google token verification failed', [
                     'status' => $response->status(),
                     'body' => $response->body(),
                 ]);
+
                 return null;
             }
 
@@ -264,8 +272,9 @@ class AuthController extends Controller
             }
 
             // Verify email is verified
-            if (!isset($data['email_verified']) || $data['email_verified'] !== 'true') {
+            if (! isset($data['email_verified']) || $data['email_verified'] !== 'true') {
                 \Log::warning('Google email not verified', ['data' => $data]);
+
                 return null;
             }
 
@@ -274,6 +283,7 @@ class AuthController extends Controller
             \Log::error('Google token verification error', [
                 'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }

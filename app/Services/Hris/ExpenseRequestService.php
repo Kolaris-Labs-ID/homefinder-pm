@@ -149,6 +149,11 @@ class ExpenseRequestService
             throw new ExpenseRequestException('An expense request can only be revised after a revision is requested.');
         }
 
+        // revise() is the second door into STATUS_SUBMITTED — it must gate on evidence exactly as submit() does.
+        if (! $er->hasEvidence()) {
+            throw new ExpenseRequestException('An expense request requires evidence before it can be submitted.');
+        }
+
         DB::transaction(function () use ($er, $data, $actor) {
             $attrs = $this->details($data) + [
                 'status' => ExpenseRequest::STATUS_SUBMITTED,

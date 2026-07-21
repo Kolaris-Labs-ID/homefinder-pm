@@ -16,6 +16,7 @@ class LeaveApiTest extends TestCase
     use RefreshDatabase;
 
     public $user;
+
     public LeaveType $leaveType;
 
     protected function setUp(): void
@@ -65,6 +66,58 @@ class LeaveApiTest extends TestCase
                     ],
                 ],
             ]);
+    }
+
+    #[Test]
+    public function leave_balances_are_filtered_to_the_requested_year()
+    {
+        $requestedYear = now()->subYear()->year;
+        LeaveBalance::factory()->create([
+            'employee_id' => $this->employee->id,
+            'leave_type_id' => $this->leaveType->id,
+            'year' => $requestedYear,
+            'starting_balance' => 10,
+            'used_days' => 4,
+            'remaining_days' => 6,
+        ]);
+
+        Sanctum::actingAs($this->user);
+
+        $response = $this->getJson("/api/hris/leave-balances?year={$requestedYear}");
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.year', $requestedYear)
+            ->assertJsonPath('data.0.remaining_days', 6);
+    }
+
+    #[Test]
+    public function leave_balances_default_to_the_current_year()
+    {
+        LeaveBalance::factory()->create([
+            'employee_id' => $this->employee->id,
+            'leave_type_id' => $this->leaveType->id,
+            'year' => now()->subYear()->year,
+        ]);
+
+        Sanctum::actingAs($this->user);
+
+        $response = $this->getJson('/api/hris/leave-balances');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.year', now()->year);
+    }
+
+    #[Test]
+    public function leave_balance_year_must_be_an_integer()
+    {
+        Sanctum::actingAs($this->user);
+
+        $response = $this->getJson('/api/hris/leave-balances?year=not-a-year');
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('year');
     }
 
     #[Test]

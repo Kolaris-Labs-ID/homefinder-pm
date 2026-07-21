@@ -68,6 +68,47 @@ test('user can login with changed password', function () {
         ->assertJsonStructure(['token', 'user', 'message']);
 });
 
+test('successful password change revokes other API tokens but keeps the current session', function () {
+    $originalPassword = 'original-password-123';
+    $newPassword = 'new-password-456';
+
+    $user = User::factory()->create([
+        'password' => $originalPassword,
+    ]);
+
+    $currentToken = $user->createToken('current-device');
+    $otherToken = $user->createToken('other-device');
+    $unrelatedUser = User::factory()->create();
+    $unrelatedToken = $unrelatedUser->createToken('unrelated-device');
+
+    $this->withToken($currentToken->plainTextToken)
+        ->postJson('/api/auth/change-password', [
+            'current_password' => $originalPassword,
+            'new_password' => $newPassword,
+            'new_password_confirmation' => $newPassword,
+        ])
+        ->assertOk();
+
+    expect($user->tokens()->pluck('id')->all())
+        ->toBe([$currentToken->accessToken->id]);
+
+    app('auth')->forgetGuards();
+    $this->withToken($currentToken->plainTextToken)
+        ->getJson('/api/auth/me')
+        ->assertOk();
+
+    app('auth')->forgetGuards();
+    $this->withToken($otherToken->plainTextToken)
+        ->getJson('/api/auth/me')
+        ->assertUnauthorized();
+
+    app('auth')->forgetGuards();
+    $this->withToken($unrelatedToken->plainTextToken)
+        ->getJson('/api/auth/me')
+        ->assertOk()
+        ->assertJsonPath('user.id', $unrelatedUser->id);
+});
+
 test('password is not double-hashed when saved', function () {
     $plainPassword = 'test-password-123';
 
@@ -93,16 +134,23 @@ test('user cannot change password with wrong current password', function () {
         'password' => 'correct-password',
     ]);
 
-    Sanctum::actingAs($user);
+    $currentToken = $user->createToken('current-device');
+    $otherToken = $user->createToken('other-device');
 
-    $response = $this->postJson('/api/auth/change-password', [
-        'current_password' => 'wrong-password',
-        'new_password' => 'new-password-123',
-        'new_password_confirmation' => 'new-password-123',
-    ]);
+    $response = $this->withToken($currentToken->plainTextToken)
+        ->postJson('/api/auth/change-password', [
+            'current_password' => 'wrong-password',
+            'new_password' => 'new-password-123',
+            'new_password_confirmation' => 'new-password-123',
+        ]);
 
     $response->assertUnprocessable()
         ->assertJsonValidationErrors(['current_password']);
+
+    expect($user->tokens()->pluck('id')->all())->toBe([
+        $currentToken->accessToken->id,
+        $otherToken->accessToken->id,
+    ]);
 });
 
 test('password update via model attribute assignment works correctly', function () {
