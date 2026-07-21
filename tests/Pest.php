@@ -44,3 +44,24 @@ function projectMemberWith(\App\Models\Project $project, array $permissions = []
 
     return $user;
 }
+
+// Lives here, not in a test file: it is used from more than one file, and under
+// --parallel those files can land in different processes.
+function createAttendance(\App\Models\Hris\Employee $employee, int $days, string $startDate = '2025-10-01'): void
+{
+    $daysCreated = 0;
+    $date = \Carbon\Carbon::parse($startDate);
+    while ($daysCreated < $days) {
+        if (! $date->isWeekend()) {
+            \App\Models\Hris\AttendanceLog::create([
+                'employee_id' => $employee->id,
+                'date' => $date->copy(),
+                'status' => \App\Models\Hris\AttendanceLog::STATUS_PRESENT,
+                'mode' => \App\Models\Hris\AttendanceLog::MODE_OFFICE,
+                'source' => \App\Models\Hris\AttendanceLog::SOURCE_WEB,
+            ]);
+            $daysCreated++;
+        }
+        $date->addDay();
+    }
+}

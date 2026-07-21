@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Employee;
 use App\Models\Hris\PayrollRecord;
 use App\Models\Hris\PayrunBatch;
@@ -41,25 +40,6 @@ function createEmployeeWithSalary(array $salaryOverrides = []): Employee
     ], $salaryOverrides));
 
     return $employee;
-}
-
-function createAttendance(Employee $employee, int $days, string $startDate = '2025-10-01'): void
-{
-    $daysCreated = 0;
-    $date = Carbon::parse($startDate);
-    while ($daysCreated < $days) {
-        if (! $date->isWeekend()) {
-            AttendanceLog::create([
-                'employee_id' => $employee->id,
-                'date' => $date->copy(),
-                'status' => AttendanceLog::STATUS_PRESENT,
-                'mode' => AttendanceLog::MODE_OFFICE,
-                'source' => AttendanceLog::SOURCE_WEB,
-            ]);
-            $daysCreated++;
-        }
-        $date->addDay();
-    }
 }
 
 describe('PayrollCalculationService calculatePayrun', function () {

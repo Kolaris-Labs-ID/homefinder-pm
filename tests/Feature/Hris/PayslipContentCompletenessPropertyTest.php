@@ -33,7 +33,23 @@ function ensureContentSalaryStructure(array $attrs): SalaryStructure
     ]));
 }
 
+// Replay a failing run with: PROPERTY_TEST_SEED=<seed> ./vendor/bin/pest <file>
+function payslipPropertySeed(?int $set = null): int
+{
+    static $seed = 0;
+    if ($set !== null) {
+        $seed = $set;
+    }
+
+    return $seed;
+}
+
 beforeEach(function () {
+    $seed = (int) (getenv('PROPERTY_TEST_SEED') ?: random_int(1, PHP_INT_MAX));
+    payslipPropertySeed($seed);
+    fake()->seed($seed);
+    app(\Faker\Generator::class)->seed($seed);
+
     // Clean up before each test
     PayrunBatch::query()->delete();
     PayrollRecord::query()->delete();
@@ -42,6 +58,9 @@ beforeEach(function () {
 });
 
 afterEach(function () {
+    if (! $this->status()->isSuccess()) {
+        fwrite(STDERR, "\n  Replay: PROPERTY_TEST_SEED=".payslipPropertySeed()."\n");
+    }
     Carbon::setTestNow();
 });
 
@@ -273,8 +292,10 @@ test('Property 18 Edge Cases: Payslip content with edge case values', function (
     $approver = User::factory()->create();
     $paidBy = User::factory()->create();
 
+    // batch1 is still alive and PAID (locked) when batch2's salary structure is created,
+    // so the two batches must occupy distinct periods or the payroll lock guard rejects it.
     // Edge case 1: Minimum salary (no allowances)
-    $batch1 = PayrunBatch::factory()->draft()->create();
+    $batch1 = PayrunBatch::factory()->draft()->previousMonth()->create();
     $employee1 = Employee::factory()->create();
     ensureContentSalaryStructure([
         'employee_id' => $employee1->id,
@@ -301,7 +322,7 @@ test('Property 18 Edge Cases: Payslip content with edge case values', function (
     expect($html1)->toContain('NET INCOME');
 
     // Edge case 2: High salary (above BPJS ceilings)
-    $batch2 = PayrunBatch::factory()->draft()->create();
+    $batch2 = PayrunBatch::factory()->draft()->currentMonth()->create();
     $employee2 = Employee::factory()->create();
     ensureContentSalaryStructure([
         'employee_id' => $employee2->id,

@@ -127,7 +127,6 @@ test('Property 5: Payrun batch status workflow', function () {
     $paidBy->forceDelete();
 })->group('property-test', 'hris-payroll');
 
-
 /**
  * **Feature: hris-phase3-payroll, Property 5 Edge Cases: Status workflow boundary conditions**
  *
@@ -146,8 +145,10 @@ test('Property 5 Edge Cases: Status workflow boundary conditions', function () {
     $approver = User::factory()->create();
     $paidBy = User::factory()->create();
 
+    // $batch is still alive and PAID (locked) when $batch2's salary structures are created,
+    // so the two batches must occupy distinct periods or the payroll lock guard rejects them.
     // Edge case 1: Cannot approve a draft batch (must calculate first)
-    $batch = PayrunBatch::factory()->draft()->create();
+    $batch = PayrunBatch::factory()->draft()->previousMonth()->create();
 
     expect(fn () => $payrollService->approve($batch, $approver))
         ->toThrow(Exception::class);
@@ -211,7 +212,7 @@ test('Property 5 Edge Cases: Status workflow boundary conditions', function () {
     expect($batch->status)->toBe(PayrunBatch::STATUS_PAID);
 
     // Edge case 7: Timestamps are only set during their respective transitions
-    $batch2 = PayrunBatch::factory()->draft()->create();
+    $batch2 = PayrunBatch::factory()->draft()->currentMonth()->create();
 
     // At draft, no timestamps should be set
     expect($batch2->calculated_at)->toBeNull();
@@ -267,7 +268,6 @@ test('Property 5 Edge Cases: Status workflow boundary conditions', function () {
     $approver->forceDelete();
     $paidBy->forceDelete();
 })->group('property-test', 'hris-payroll');
-
 
 /**
  * **Feature: hris-phase3-payroll, Property 5 Additional: User tracking in status transitions**
