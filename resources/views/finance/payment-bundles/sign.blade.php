@@ -197,10 +197,8 @@
 </script>
 @endif
 
-{{-- signature_pad (CDN) --}}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/signature_pad/4.1.7/signature_pad.umd.min.js"
-        integrity="sha384-dPowQo9uxJU703klzvnG+vzLHQDNmO/zREXw6BhCMupB54CE70wj6SWOGVPySK3s"
-        crossorigin="anonymous"></script>
+{{-- signature_pad (vendored locally) --}}
+<script src="{{ asset('vendor/signature_pad/signature_pad.umd.min.js') }}"></script>
 <script>
     (function () {
         const canvas = document.getElementById('sig-canvas');
