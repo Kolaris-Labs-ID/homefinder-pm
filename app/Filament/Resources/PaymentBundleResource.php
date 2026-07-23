@@ -449,6 +449,13 @@ class PaymentBundleResource extends Resource
                                 ->placeholder('—'),
                             TextEntry::make('status')->badge(),
                             TextEntry::make('signed_at')->dateTime()->placeholder('—'),
+                            TextEntry::make('signing_link')
+                                ->label('Signing link')
+                                ->visible(fn () => static::financeCan('payment_bundles.manage_signers'))
+                                ->getStateUsing(fn (\App\Models\Hris\PaymentBundleSignature $record) => static::signingLinkDisplay($record))
+                                ->copyable(fn (\App\Models\Hris\PaymentBundleSignature $record) => static::signingLinkIsLive($record))
+                                ->copyMessage('Signing link copied')
+                                ->columnSpanFull(),
                         ])
                         ->columns(5),
                 ]),
@@ -479,6 +486,28 @@ class PaymentBundleResource extends Resource
     public static function currentAssignee(PaymentBundle $bundle, \App\Enums\PaymentBundleSignatureSlot $slot): ?int
     {
         return $bundle->signatures()->where('signature_slot', $slot->value)->first()?->assigned_user_id;
+    }
+
+    public static function signingLinkIsLive(\App\Models\Hris\PaymentBundleSignature $signature): bool
+    {
+        return in_array($signature->bundle->status, PaymentBundle::signaturePendingStatuses(), true)
+            && $signature->token_revoked_at === null
+            && $signature->token_used_at === null
+            && ! ($signature->token_expires_at !== null && $signature->token_expires_at->isPast());
+    }
+
+    public static function signingLinkDisplay(\App\Models\Hris\PaymentBundleSignature $signature): string
+    {
+        if (static::signingLinkIsLive($signature)) {
+            return $signature->bundle->metadata['signing_links'][$signature->signature_slot->value] ?? 'Not available';
+        }
+
+        return match (true) {
+            $signature->token_revoked_at !== null => 'Revoked',
+            $signature->token_used_at !== null => 'Used',
+            $signature->token_expires_at !== null && $signature->token_expires_at->isPast() => 'Expired',
+            default => 'Not available',
+        };
     }
 
     public static function financeCan(string $permission): bool
