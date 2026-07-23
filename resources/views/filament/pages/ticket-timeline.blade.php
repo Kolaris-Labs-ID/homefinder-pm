@@ -359,20 +359,29 @@
 
                         gantt.parse(processedData);
 
-                        // ✨ Add today marker line
-                        const today = new Date();
-                        gantt.addMarker({
-                            start_date: today,
-                            css: "today",
-                            text: "Today"
-                        });
-
                         console.log('dhtmlxGantt initialized successfully with', processedData.data.length,
-                            'tasks and today marker');
+                            'tasks');
 
                     } catch (parseError) {
                         console.error('Error parsing gantt data:', parseError);
                         throw new Error('Failed to load Gantt data');
+                    }
+
+                    // Today marker line: the marker extension is a PRO-only dhtmlxGantt
+                    // feature and is absent from the MIT/community CDN bundle, so guard it
+                    // instead of letting a missing addMarker() take down the whole chart.
+                    try {
+                        if (typeof gantt.addMarker === 'function') {
+                            gantt.addMarker({
+                                start_date: new Date(),
+                                css: "today",
+                                text: "Today"
+                            });
+                        } else {
+                            console.warn('dhtmlxGantt marker plugin unavailable; skipping today marker.');
+                        }
+                    } catch (markerError) {
+                        console.warn('Error adding today marker:', markerError);
                     }
 
                 } catch (error) {
