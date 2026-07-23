@@ -46,6 +46,8 @@ it('adopts a sudden client-visit attendance marker instead of colliding on the d
     // regular attendance endpoint — this must not 500 on the pre-existing
     // unique(employee_id, date) row.
     $response = postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
     ]);
 
@@ -69,6 +71,8 @@ it('still rejects a genuine duplicate check-in with the duplicate_attendance cod
     ]);
 
     $response = postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
     ]);
 
@@ -89,6 +93,8 @@ it('does not leak database internals when check-in fails unexpectedly', function
     });
 
     $response = postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
     ]);
 
@@ -107,7 +113,10 @@ it('does not leak database internals when check-out fails unexpectedly', functio
             ));
     });
 
-    $response = postJson('/api/hris/attendance/check-out', []);
+    $response = postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
+    ]);
 
     $response->assertStatus(500);
     expect($response->json('message'))

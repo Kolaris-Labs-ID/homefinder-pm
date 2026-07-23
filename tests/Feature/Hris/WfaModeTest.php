@@ -56,6 +56,8 @@ describe('WFA check-in', function () {
             ->assertJsonPath('data.remaining_quota', 0);
 
         postJson('/api/hris/attendance/check-in', [
+            'latitude' => -6.2088,
+            'longitude' => 106.8456,
             'source' => AttendanceLog::SOURCE_MOBILE,
             'mode' => AttendanceLog::MODE_WFH,
         ])->assertStatus(422)
@@ -74,6 +76,8 @@ describe('WFA check-in', function () {
         ]);
 
         postJson('/api/hris/attendance/check-in', [
+            'latitude' => -6.2088,
+            'longitude' => 106.8456,
             'source' => AttendanceLog::SOURCE_MOBILE,
             'mode' => AttendanceLog::MODE_WFA,
         ])->assertStatus(422)

@@ -48,6 +48,8 @@ it('never lets a backdated captured_at retarget or fabricate a prior day from a 
 
     Carbon::setTestNow(Carbon::parse('2026-07-18 08:00:00', 'Asia/Jakarta'));
     postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
     ])->assertCreated();
 
@@ -60,6 +62,8 @@ it('never lets a backdated captured_at retarget or fabricate a prior day from a 
     Carbon::setTestNow(Carbon::parse('2026-07-19 20:00:00', 'Asia/Jakarta'));
 
     $response = postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'captured_at' => '2026-07-18T11:00:00.000Z', // 2026-07-18 18:00 WIB
     ]);
 
@@ -87,6 +91,8 @@ it('derives check-out time and status from the server clock, not a same-day capt
 
     Carbon::setTestNow(Carbon::parse('2026-07-20 08:00:00', 'Asia/Jakarta'));
     postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
     ])->assertCreated();
 
@@ -97,6 +103,8 @@ it('derives check-out time and status from the server clock, not a same-day capt
     Carbon::setTestNow(Carbon::parse('2026-07-20 14:00:00', 'Asia/Jakarta'));
 
     $response = postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'captured_at' => '2026-07-20T03:00:00.000Z', // 2026-07-20 10:00 WIB — claimed
     ]);
 

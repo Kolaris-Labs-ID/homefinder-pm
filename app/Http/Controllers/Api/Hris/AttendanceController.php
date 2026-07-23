@@ -44,8 +44,8 @@ class AttendanceController extends Controller
             ]);
 
             $data = $request->validate([
-                'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-                'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+                'latitude' => ['required', 'numeric', 'between:-90,90'],
+                'longitude' => ['required', 'numeric', 'between:-180,180'],
                 'address' => ['nullable', 'string', 'max:500'],
                 'source' => ['nullable', Rule::in([
                     AttendanceLog::SOURCE_WEB,
@@ -275,8 +275,8 @@ class AttendanceController extends Controller
             ]);
 
             $data = $request->validate([
-                'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-                'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+                'latitude' => ['required', 'numeric', 'between:-90,90'],
+                'longitude' => ['required', 'numeric', 'between:-180,180'],
                 'address' => ['nullable', 'string', 'max:500'],
                 'photo' => ['nullable', 'image', 'max:5120'], // Max 5MB
                 'captured_at' => ['nullable', 'date'],

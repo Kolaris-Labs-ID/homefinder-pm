@@ -30,7 +30,10 @@ it('does not overwrite a visit status when the employee checks out', function ()
         'source' => AttendanceLog::SOURCE_VISIT,
     ]);
 
-    $response = postJson('/api/hris/attendance/check-out', []);
+    $response = postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
+    ]);
 
     $response->assertOk()
         ->assertJsonPath('data.status', AttendanceLog::STATUS_VISIT);
@@ -52,7 +55,10 @@ it('does not overwrite a holiday status when the employee checks out', function 
         'status' => AttendanceLog::STATUS_HOLIDAY,
     ]);
 
-    $response = postJson('/api/hris/attendance/check-out', []);
+    $response = postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
+    ]);
 
     $response->assertOk()
         ->assertJsonPath('data.status', AttendanceLog::STATUS_HOLIDAY);
@@ -68,7 +74,10 @@ it('still computes a normal status on checkout when the log was never a protecte
         'status' => AttendanceLog::STATUS_PRESENT,
     ]);
 
-    $response = postJson('/api/hris/attendance/check-out', []);
+    $response = postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
+    ]);
 
     // check-in 08:00, check-out 14:00 (server now) = 6h => half_day.
     $response->assertOk()

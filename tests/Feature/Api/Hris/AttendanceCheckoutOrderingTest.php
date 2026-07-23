@@ -45,7 +45,10 @@ it('rejects a check-out reported earlier than check-in with a 422, not a 500', f
     // (e.g. a Filament correction or import), not a client claim.
     Carbon::setTestNow(Carbon::parse('2026-07-20 08:00:00', 'Asia/Jakarta'));
 
-    $response = postJson('/api/hris/attendance/check-out', []);
+    $response = postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
+    ]);
 
     $response->assertStatus(422)
         ->assertJsonPath('message', 'Check-out time cannot be earlier than check-in time.');
@@ -65,7 +68,10 @@ it('never persists a negative worked-minutes attendance record', function () {
 
     Carbon::setTestNow(Carbon::parse('2026-07-20 08:00:00', 'Asia/Jakarta'));
 
-    postJson('/api/hris/attendance/check-out', [])->assertStatus(422);
+    postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
+    ])->assertStatus(422);
 
     $attendanceLog->refresh();
 
@@ -84,7 +90,10 @@ it('allows a check-out reported at the exact same instant as check-in', function
 
     Carbon::setTestNow(Carbon::parse('2026-07-20 12:00:00', 'Asia/Jakarta'));
 
-    $response = postJson('/api/hris/attendance/check-out', []);
+    $response = postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
+    ]);
 
     $response->assertOk();
 
@@ -104,6 +113,8 @@ it('ignores a captured_at claim entirely when ordering check-out against check-i
     Carbon::setTestNow(Carbon::parse('2026-07-20 18:00:00', 'Asia/Jakarta'));
 
     $response = postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'captured_at' => '2026-07-20T01:00:00.000Z', // 2026-07-20 08:00 WIB — before check-in
     ]);
 

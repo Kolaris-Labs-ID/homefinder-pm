@@ -142,6 +142,8 @@ it('routes a late Saturday check-in to overtime only, with no late notice', func
     Carbon::setTestNow(Carbon::create(2026, 4, 11, 9, 30, 0, 'Asia/Jakarta'));
 
     $response = postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'source' => AttendanceLog::SOURCE_MOBILE,
         'mode' => AttendanceLog::MODE_OFFICE,
     ]);

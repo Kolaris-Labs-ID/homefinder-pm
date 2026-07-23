@@ -30,6 +30,8 @@ it('never lets a trusted-window client captured_at improve check-in time or stat
     // from the server clock (14:00 => late), never from this claim; the
     // claim itself must still be persisted verbatim as evidence.
     $response = postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
         'captured_at' => '2026-07-20T01:00:00.000Z',
         'client_event_id' => '11111111-1111-4111-8111-111111111111',
@@ -65,6 +67,8 @@ it('never lets a stale client captured_at fabricate a prior day of attendance', 
     // of yesterday 08:00 — inside the old 48h trust window. This must not
     // create (or target) a 2026-07-19 row; the date is always today.
     $response = postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
         'captured_at' => '2026-07-19T01:00:00.000Z',
         'client_event_id' => 'ffffffff-ffff-4fff-8fff-ffffffffffff',
@@ -87,6 +91,8 @@ it('never lets a stale client captured_at fabricate a prior day of attendance', 
 
 it('returns the same check-in for an exact client event replay', function () {
     $payload = [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
         'captured_at' => '2026-07-20T01:00:00.000Z',
         'client_event_id' => '22222222-2222-4222-8222-222222222222',
@@ -110,6 +116,8 @@ it('returns the same check-in for an exact client event replay', function () {
 it('scopes client event replay to the authenticated employee', function () {
     $sharedEventId = '33333333-3333-4333-8333-333333333333';
     $payload = [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
         'captured_at' => '2026-07-20T01:00:00.000Z',
         'client_event_id' => $sharedEventId,
@@ -148,6 +156,8 @@ it('closes today\'s check-in using server check-out time, keeps a differing capt
     // server) differs from check_out.captured_at (11:00, the client's
     // claim) — the claim is stored evidence only.
     $checkIn = postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
         'captured_at' => '2026-07-20T01:00:00.000Z',
         'client_event_id' => '44444444-4444-4444-8444-444444444444',
@@ -160,6 +170,8 @@ it('closes today\'s check-in using server check-out time, keeps a differing capt
     Carbon::setTestNow(Carbon::parse('2026-07-20 18:00:00', 'Asia/Jakarta'));
 
     $payload = [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'captured_at' => '2026-07-20T04:00:00.000Z', // 2026-07-20 11:00 WIB — evidence only
         'client_event_id' => '55555555-5555-4555-8555-555555555555',
         'accuracy_meters' => 7.75,
@@ -197,6 +209,8 @@ it('closes today\'s check-in using server check-out time, keeps a differing capt
 
 it('validates check-in evidence instead of silently discarding it', function () {
     postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
         'captured_at' => 'not-a-date',
         'client_event_id' => str_repeat('x', 65),
@@ -221,6 +235,8 @@ it('validates check-out evidence instead of silently discarding it', function ()
     ]);
 
     postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'captured_at' => 'not-a-date',
         'client_event_id' => str_repeat('x', 65),
         'accuracy_meters' => -0.01,
@@ -238,6 +254,8 @@ it('validates check-out evidence instead of silently discarding it', function ()
 
 it('preserves an untrusted reported captured time but uses server time for attendance calculations', function () {
     $response = postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
         'captured_at' => '2026-07-10T01:00:00.000Z',
         'client_event_id' => '66666666-6666-4666-8666-666666666666',
@@ -280,6 +298,8 @@ it('finalizes late status and notice before a check-in becomes replayable', func
 
 it('closes an open break using the server check-out time', function () {
     postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
         'captured_at' => '2026-07-20T01:00:00.000Z',
         'client_event_id' => '88888888-8888-4888-8888-888888888888',
@@ -296,6 +316,8 @@ it('closes an open break using the server check-out time', function () {
     Carbon::setTestNow(Carbon::parse('2026-07-20 19:00:00', 'Asia/Jakarta'));
 
     postJson('/api/hris/attendance/check-out', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'client_event_id' => '99999999-9999-4999-8999-999999999999',
         'source_platform' => 'native_android',
         'location_provider' => 'expo_location',
@@ -312,6 +334,8 @@ it('closes an open break using the server check-out time', function () {
 
 it('persists checkout status derived from the server check-out time and preserves it on replay', function () {
     postJson('/api/hris/attendance/check-in', [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'mode' => AttendanceLog::MODE_OFFICE,
         'captured_at' => '2026-07-20T01:00:00.000Z',
         'client_event_id' => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -326,6 +350,8 @@ it('persists checkout status derived from the server check-out time and preserve
     Carbon::setTestNow(Carbon::parse('2026-07-20 18:00:00', 'Asia/Jakarta'));
 
     $payload = [
+        'latitude' => -6.2088,
+        'longitude' => 106.8456,
         'captured_at' => '2026-07-20T04:00:00.000Z',
         'client_event_id' => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         'source_platform' => 'mobile_web',

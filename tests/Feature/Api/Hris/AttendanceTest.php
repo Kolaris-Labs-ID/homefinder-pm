@@ -53,6 +53,8 @@ describe('Check-in endpoint', function () {
 
     it('requires authentication', function () {
         $response = postJson('/api/hris/attendance/check-in', [
+            'latitude' => -6.2088,
+            'longitude' => 106.8456,
             'mode' => AttendanceLog::MODE_OFFICE,
         ]);
 
@@ -70,6 +72,8 @@ describe('Check-in endpoint', function () {
         ]);
 
         $response = postJson('/api/hris/attendance/check-in', [
+            'latitude' => -6.2088,
+            'longitude' => 106.8456,
             'mode' => AttendanceLog::MODE_OFFICE,
         ]);
 
@@ -82,7 +86,10 @@ describe('Check-in endpoint', function () {
     it('does not mark a non-duplicate business error as a duplicate', function () {
         Sanctum::actingAs($this->employee->user);
 
-        $response = postJson('/api/hris/attendance/check-out', []);
+        $response = postJson('/api/hris/attendance/check-out', [
+            'latitude' => -6.2088,
+            'longitude' => 106.8456,
+        ]);
 
         $response->assertUnprocessable()
             ->assertJsonPath('message', 'Employee has not checked in for today.')
@@ -105,6 +112,8 @@ describe('Check-in endpoint', function () {
         Sanctum::actingAs($this->employee->user);
 
         $response = postJson('/api/hris/attendance/check-in', [
+            'latitude' => -6.2088,
+            'longitude' => 106.8456,
             'mode' => 'invalid_mode',
         ]);
 
@@ -145,7 +154,10 @@ describe('Check-out endpoint', function () {
     });
 
     it('requires authentication', function () {
-        $response = postJson('/api/hris/attendance/check-out', []);
+        $response = postJson('/api/hris/attendance/check-out', [
+            'latitude' => -6.2088,
+            'longitude' => 106.8456,
+        ]);
 
         $response->assertUnauthorized();
     });
@@ -153,7 +165,10 @@ describe('Check-out endpoint', function () {
     it('rejects check-out without check-in', function () {
         Sanctum::actingAs($this->employee->user);
 
-        $response = postJson('/api/hris/attendance/check-out', []);
+        $response = postJson('/api/hris/attendance/check-out', [
+            'latitude' => -6.2088,
+            'longitude' => 106.8456,
+        ]);
 
         $response->assertUnprocessable()
             ->assertJsonPath('message', 'Employee has not checked in for today.');
