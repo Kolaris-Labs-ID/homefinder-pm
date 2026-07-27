@@ -3,7 +3,9 @@
 namespace App\Services\Hris;
 
 use App\Models\Hris\AttendanceLog;
+use App\Models\Hris\ClientVisit;
 use App\Models\Hris\Employee;
+use App\Models\Hris\LateNotice;
 use App\Models\Hris\WeeklyAllowanceBatch;
 use App\Models\Hris\WeeklyAllowancePayment;
 use App\Models\User;
@@ -185,10 +187,23 @@ class WeeklyAllowanceService
      */
     public function getDaysBreakdown(Employee $employee, Carbon $weekStart, Carbon $weekEnd): array
     {
-        $logs = AttendanceLog::forEmployee($employee->id)
+        $logs = AttendanceLog::with('clientVisit')
+            ->forEmployee($employee->id)
             ->forDateRange($weekStart, $weekEnd)
             ->get()
             ->keyBy(fn ($log) => $log->date->format('Y-m-d'));
+
+        $needsLateNotices = $logs->contains(
+            fn (AttendanceLog $log) => $log->status === AttendanceLog::STATUS_VISIT
+        );
+
+        $lateNotices = $needsLateNotices
+            ? LateNotice::forEmployee($employee->id)
+                ->whereDate('date', '>=', $weekStart->toDateString())
+                ->whereDate('date', '<=', $weekEnd->toDateString())
+                ->get()
+                ->keyBy(fn (LateNotice $notice) => $notice->date->format('Y-m-d'))
+            : collect();
 
         $emptyDay = ['present' => false, 'late' => false, 'has_late_notice' => false, 'penalty_percent' => 0];
 
@@ -218,23 +233,45 @@ class WeeklyAllowanceService
                 $log = $logs->get($dateKey);
 
                 if ($log) {
-                    // Count as present if: present, late, or WFH mode.
+                    $lateNotice = $lateNotices->get($dateKey);
+                    $isVerifiedVisit = $this->isVerifiedClientVisitAttendance($log);
+
+                    // Count as present if: present, late, quota-based remote
+                    // work, or a client visit backed by real check-in evidence.
                     //
                     // Business rule:
                     // HALF_DAY intentionally does NOT receive Daily Allowance.
                     // This behavior is defined by HR policy, not by a technical limitation.
                     // If HR policy changes in the future, revisit this calculation together with
                     // Monthly Payroll and Overtime to keep compensation rules consistent.
-                    $isPresent = in_array($log->status, [
-                        AttendanceLog::STATUS_PRESENT,
-                        AttendanceLog::STATUS_LATE,
-                    ]) || in_array($log->mode, AttendanceLog::getQuotaModes(), true);
+                    $isPresent = $log->status === AttendanceLog::STATUS_VISIT
+                        ? $isVerifiedVisit
+                        : in_array($log->status, [
+                            AttendanceLog::STATUS_PRESENT,
+                            AttendanceLog::STATUS_LATE,
+                        ], true)
+                            || in_array($log->mode, AttendanceLog::getQuotaModes(), true);
 
-                    $isLate = $log->status === AttendanceLog::STATUS_LATE;
-                    $penaltyPercent = $isPresent ? $this->attendanceService->calculateLatePenalty($log) : 0;
-                    $hasLateNotice = $isLate
-                        ? $this->attendanceService->hasApprovedLateNotice($log->employee_id, $log->date)
-                        : false;
+                    $isLate = $log->status === AttendanceLog::STATUS_LATE
+                        || ($isVerifiedVisit && $lateNotice !== null);
+
+                    if (! $isPresent) {
+                        $penaltyPercent = 0;
+                    } elseif ($log->status === AttendanceLog::STATUS_LATE) {
+                        $penaltyPercent = $this->attendanceService->calculateLatePenalty($log);
+                    } elseif ($isVerifiedVisit) {
+                        $penaltyPercent = $this->getVerifiedVisitLatePenalty($lateNotice);
+                    } else {
+                        $penaltyPercent = 0;
+                    }
+
+                    if ($log->status === AttendanceLog::STATUS_LATE) {
+                        $hasLateNotice = $this->attendanceService->hasApprovedLateNotice($log->employee_id, $log->date);
+                    } elseif ($isVerifiedVisit) {
+                        $hasLateNotice = (bool) $lateNotice?->isApproved();
+                    } else {
+                        $hasLateNotice = false;
+                    }
 
                     $breakdown[$dayMap[$dayOfWeek]] = [
                         'present' => $isPresent,
@@ -250,6 +287,43 @@ class WeeklyAllowanceService
         }
 
         return $breakdown;
+    }
+
+    /**
+     * A visit marker is not proof of attendance by itself. Count it only after
+     * either the daily attendance or the linked client visit has checked in.
+     */
+    private function isVerifiedClientVisitAttendance(AttendanceLog $log): bool
+    {
+        if ($log->status !== AttendanceLog::STATUS_VISIT) {
+            return false;
+        }
+
+        if ($log->check_in_time !== null) {
+            return true;
+        }
+
+        $visit = $log->clientVisit;
+
+        return $visit !== null
+            && (int) $visit->employee_id === (int) $log->employee_id
+            && $visit->visit_date?->toDateString() === $log->date->toDateString()
+            && $visit->status !== ClientVisit::STATUS_CANCELLED
+            && $visit->actual_check_in !== null;
+    }
+
+    /**
+     * Visit status can replace a previously computed late status. Preserve the
+     * reviewed LateNotice snapshot so rejected/pending notices still deduct and
+     * approved notices remain waived.
+     */
+    private function getVerifiedVisitLatePenalty(?LateNotice $lateNotice): int
+    {
+        if ($lateNotice === null || $lateNotice->isApproved()) {
+            return 0;
+        }
+
+        return max(0, min(100, (int) ($lateNotice->penalty_percent ?? 0)));
     }
 
     /**

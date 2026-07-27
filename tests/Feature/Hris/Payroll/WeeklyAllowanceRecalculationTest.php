@@ -2,7 +2,9 @@
 
 use App\Filament\Resources\WeeklyAllowanceBatchResource\Pages\ListWeeklyAllowanceBatches;
 use App\Models\Hris\AttendanceLog;
+use App\Models\Hris\ClientVisit;
 use App\Models\Hris\Employee;
+use App\Models\Hris\LateNotice;
 use App\Models\Hris\SalaryStructure;
 use App\Models\Hris\WeeklyAllowanceBatch;
 use App\Models\User;
@@ -61,6 +63,165 @@ beforeEach(function () {
 });
 
 describe('WeeklyAllowanceService::recalculateBatch', function () {
+
+    it('recalculates a verified client visit with its rejected late-notice penalty', function () {
+        $employee = recalcEmployee(['daily_allowance_rate' => 70_000]);
+
+        recalcPresent($employee, '2025-10-06'); // Mon
+        recalcPresent($employee, '2025-10-07'); // Tue
+
+        foreach (['2025-10-08', '2025-10-09'] as $date) {
+            $log = AttendanceLog::create([
+                'employee_id' => $employee->id,
+                'date' => $date,
+                'status' => AttendanceLog::STATUS_LATE,
+                'mode' => AttendanceLog::MODE_OFFICE,
+                'source' => AttendanceLog::SOURCE_WEB,
+                'check_in_time' => "{$date} 09:53:00",
+                'check_out_time' => "{$date} 19:00:00",
+            ]);
+
+            LateNotice::create([
+                'employee_id' => $employee->id,
+                'attendance_log_id' => $log->id,
+                'date' => $date,
+                'minutes_late' => 53,
+                'penalty_percent' => 25,
+                'status' => LateNotice::STATUS_REJECTED,
+            ]);
+        }
+
+        $batch = recalcGenerate();
+        $payment = $batch->payments()->where('employee_id', $employee->id)->sole();
+
+        expect((float) $payment->total_amount)->toBe(245_000.0)
+            ->and($payment->days_present)->toBe(4);
+
+        $visit = ClientVisit::withoutEvents(fn () => ClientVisit::create([
+            'employee_id' => $employee->id,
+            'client_name' => 'Owner Pakubowo',
+            'client_address' => 'The Pakubuwono House',
+            'purpose' => 'Meeting',
+            'visit_date' => R_WEEK_END,
+            'actual_check_in' => R_WEEK_END.' 16:51:35',
+            'actual_check_out' => R_WEEK_END.' 19:58:45',
+            'status' => ClientVisit::STATUS_COMPLETED,
+            'visit_type' => ClientVisit::TYPE_SUDDEN,
+        ]));
+
+        $fridayLog = AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'client_visit_id' => $visit->id,
+            'date' => R_WEEK_END,
+            'status' => AttendanceLog::STATUS_VISIT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_VISIT,
+            'check_in_time' => R_WEEK_END.' 09:53:23',
+            'check_out_time' => R_WEEK_END.' 19:58:07',
+        ]);
+
+        LateNotice::create([
+            'employee_id' => $employee->id,
+            'attendance_log_id' => $fridayLog->id,
+            'date' => R_WEEK_END,
+            'minutes_late' => 53,
+            'penalty_percent' => 25,
+            'status' => LateNotice::STATUS_REJECTED,
+        ]);
+
+        $this->service->recalculateBatch($batch);
+
+        $payment->refresh();
+        expect((float) $payment->total_amount)->toBe(297_500.0)
+            ->and($payment->days_present)->toBe(5)
+            ->and($payment->days_breakdown['fri']['present'])->toBeTrue()
+            ->and($payment->days_breakdown['fri']['late'])->toBeTrue()
+            ->and($payment->days_breakdown['fri']['has_late_notice'])->toBeFalse()
+            ->and($payment->days_breakdown['fri']['penalty_percent'])->toBe(25)
+            ->and($payment->days_breakdown_label)->toBe('Sen, Sel, Rab (-25%), Kam (-25%), Jum (-25%)')
+            ->and((float) $batch->fresh()->total_amount)->toBe(297_500.0);
+    });
+
+    it('does not count an unverified client-visit marker as attendance', function () {
+        $employee = recalcEmployee(['daily_allowance_rate' => 70_000]);
+
+        $visit = ClientVisit::withoutEvents(fn () => ClientVisit::create([
+            'employee_id' => $employee->id,
+            'client_name' => 'Scheduled Client',
+            'client_address' => 'Jakarta',
+            'purpose' => 'Meeting',
+            'visit_date' => R_WEEK_END,
+            'status' => ClientVisit::STATUS_PLANNED,
+            'visit_type' => ClientVisit::TYPE_SUDDEN,
+        ]));
+
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'client_visit_id' => $visit->id,
+            'date' => R_WEEK_END,
+            'status' => AttendanceLog::STATUS_VISIT,
+            'mode' => AttendanceLog::MODE_WFH,
+            'source' => AttendanceLog::SOURCE_VISIT,
+        ]);
+
+        $batch = recalcGenerate();
+        $payment = $batch->payments()->where('employee_id', $employee->id)->sole();
+
+        expect((float) $payment->total_amount)->toBe(0.0)
+            ->and($payment->days_present)->toBe(0)
+            ->and($payment->days_breakdown['fri']['present'])->toBeFalse();
+    });
+
+    it('does not let a visit source override the half-day exclusion', function () {
+        $employee = recalcEmployee(['daily_allowance_rate' => 70_000]);
+
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'date' => R_WEEK_END,
+            'status' => AttendanceLog::STATUS_HALF_DAY,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_VISIT,
+            'check_in_time' => R_WEEK_END.' 09:00:00',
+            'check_out_time' => R_WEEK_END.' 13:00:00',
+        ]);
+
+        $batch = recalcGenerate();
+        $payment = $batch->payments()->where('employee_id', $employee->id)->sole();
+
+        expect((float) $payment->total_amount)->toBe(0.0)
+            ->and($payment->days_present)->toBe(0)
+            ->and($payment->days_breakdown['fri']['present'])->toBeFalse();
+    });
+
+    it('does not trust a completed visit status without actual check-in evidence', function () {
+        $employee = recalcEmployee(['daily_allowance_rate' => 70_000]);
+
+        $visit = ClientVisit::withoutEvents(fn () => ClientVisit::create([
+            'employee_id' => $employee->id,
+            'client_name' => 'Unverified Client',
+            'client_address' => 'Jakarta',
+            'purpose' => 'Meeting',
+            'visit_date' => R_WEEK_END,
+            'status' => ClientVisit::STATUS_COMPLETED,
+            'visit_type' => ClientVisit::TYPE_SUDDEN,
+        ]));
+
+        AttendanceLog::create([
+            'employee_id' => $employee->id,
+            'client_visit_id' => $visit->id,
+            'date' => R_WEEK_END,
+            'status' => AttendanceLog::STATUS_VISIT,
+            'mode' => AttendanceLog::MODE_OFFICE,
+            'source' => AttendanceLog::SOURCE_VISIT,
+        ]);
+
+        $batch = recalcGenerate();
+        $payment = $batch->payments()->where('employee_id', $employee->id)->sole();
+
+        expect((float) $payment->total_amount)->toBe(0.0)
+            ->and($payment->days_present)->toBe(0)
+            ->and($payment->days_breakdown['fri']['present'])->toBeFalse();
+    });
 
     it('recomputes payment totals after attendance is added', function () {
         $employee = recalcEmployee(['daily_allowance_rate' => 70_000]);
