@@ -14,21 +14,29 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::rename('notifications', 'pm_notifications');
+        // Each guard makes an interrupted run resumable: MySQL DDL
+        // auto-commits, so rename and create cannot share a transaction.
+        if (Schema::hasTable('notifications') && ! Schema::hasTable('pm_notifications')) {
+            Schema::rename('notifications', 'pm_notifications');
+        }
 
-        Schema::create('notifications', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('type');
-            $table->morphs('notifiable');
-            $table->text('data');
-            $table->timestamp('read_at')->nullable();
-            $table->timestamps();
-        });
+        if (! Schema::hasTable('notifications')) {
+            Schema::create('notifications', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('type');
+                $table->morphs('notifiable');
+                $table->text('data');
+                $table->timestamp('read_at')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::drop('notifications');
+        // Archive rather than drop: native notifications written after the
+        // up-migration have no pm_notifications original to fall back to.
+        Schema::rename('notifications', 'notifications_rolled_back_' . now()->format('YmdHis'));
         Schema::rename('pm_notifications', 'notifications');
     }
 };
