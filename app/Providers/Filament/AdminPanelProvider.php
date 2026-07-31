@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use AlexSyvolap\FilamentConfetti\FilamentConfettiPlugin;
 use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\Login;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
@@ -67,6 +68,7 @@ class AdminPanelProvider extends PanelProvider
                         ['code' => 'id', 'name' => 'Indonesia', 'flag' => 'id'],
                     ]),
                 ApprovalsPlugin::make(),
+                FilamentConfettiPlugin::make(),
             ])
             ->authMiddleware([
                 Authenticate::class,

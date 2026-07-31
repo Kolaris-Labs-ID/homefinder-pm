@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use AlexSyvolap\FilamentConfetti\Confetti;
 use App\Exports\TicketsExport;
 use App\Filament\Actions\DownloadTicketTemplateAction;
 use App\Filament\Actions\ExportTicketsAction;
@@ -440,6 +441,8 @@ class ProjectBoard extends Page
             }
 
             try {
+                $wasCompleted = $ticket->isCompleted();
+
                 $ticket->update([
                     'ticket_status_id' => $newStatusId,
                 ]);
@@ -447,6 +450,11 @@ class ProjectBoard extends Page
                 $this->loadTicketStatuses();
 
                 $this->dispatch('ticket-updated');
+
+                // status() re-queries with the just-written FK; $ticket->status is still the old one
+                if (! $wasCompleted && $ticket->status()->first()?->is_completed) {
+                    Confetti::disableForReducedMotion()->realistic()->shoot();
+                }
 
                 Notification::make()
                     ->title('Ticket Updated')

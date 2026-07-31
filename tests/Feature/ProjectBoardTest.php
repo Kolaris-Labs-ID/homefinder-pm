@@ -45,6 +45,64 @@ test('can move ticket', function () {
     expect(TicketHistory::where('ticket_id', $ticket->id)->count())->toBeGreaterThan(0);
 });
 
+test('moving ticket to a completed status fires confetti', function () {
+    $done = TicketStatus::factory()->create([
+        'project_id' => $this->project->id,
+        'sort_order' => 3,
+        'is_completed' => true,
+    ]);
+
+    $ticket = Ticket::factory()->create([
+        'project_id' => $this->project->id,
+        'ticket_status_id' => $this->status1->id,
+    ]);
+
+    auth()->login($this->user);
+
+    Livewire::test(ProjectBoard::class, ['project_id' => $this->project->id])
+        ->call('moveTicket', $ticket->id, $done->id)
+        ->assertDispatched(\AlexSyvolap\FilamentConfetti\Confetti::EVENT);
+});
+
+test('re-dropping a ticket already in a completed status does not re-fire confetti', function () {
+    $done = TicketStatus::factory()->create([
+        'project_id' => $this->project->id,
+        'sort_order' => 3,
+        'is_completed' => true,
+    ]);
+    $deployed = TicketStatus::factory()->create([
+        'project_id' => $this->project->id,
+        'sort_order' => 4,
+        'is_completed' => true,
+    ]);
+
+    $ticket = Ticket::factory()->create([
+        'project_id' => $this->project->id,
+        'ticket_status_id' => $done->id,
+    ]);
+
+    auth()->login($this->user);
+
+    Livewire::test(ProjectBoard::class, ['project_id' => $this->project->id])
+        ->call('moveTicket', $ticket->id, $done->id)
+        ->assertNotDispatched(\AlexSyvolap\FilamentConfetti\Confetti::EVENT)
+        ->call('moveTicket', $ticket->id, $deployed->id)
+        ->assertNotDispatched(\AlexSyvolap\FilamentConfetti\Confetti::EVENT);
+});
+
+test('moving ticket to a non-completed status does not fire confetti', function () {
+    $ticket = Ticket::factory()->create([
+        'project_id' => $this->project->id,
+        'ticket_status_id' => $this->status1->id,
+    ]);
+
+    auth()->login($this->user);
+
+    Livewire::test(ProjectBoard::class, ['project_id' => $this->project->id])
+        ->call('moveTicket', $ticket->id, $this->status2->id)
+        ->assertNotDispatched(\AlexSyvolap\FilamentConfetti\Confetti::EVENT);
+});
+
 test('cannot move ticket without permission', function () {
     $user = User::factory()->create(); // Regular user without permission
     $ticket = Ticket::factory()->create([
