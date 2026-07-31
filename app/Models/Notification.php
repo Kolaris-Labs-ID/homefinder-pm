@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Filament\Notifications\Actions\Action;
+use Filament\Notifications\Notification as FilamentNotification;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
@@ -11,6 +13,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Notification extends Model
 {
     use HasFactory;
+
+    protected $table = 'pm_notifications';
+
     protected $fillable = [
         'user_id',
         'type',
@@ -24,6 +29,30 @@ class Notification extends Model
         'data' => 'array',
         'read_at' => 'datetime'
     ];
+
+    /**
+     * Mirror every notification into Laravel's database notifications so the
+     * browser-push plugin (which listens on DatabaseNotification::created)
+     * delivers it as a native browser notification.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (self $notification) {
+            if (! $notification->user) {
+                return;
+            }
+
+            $filament = FilamentNotification::make()
+                ->title($notification->title)
+                ->body($notification->human_message);
+
+            if ($url = $notification->action_buttons[0]['url'] ?? null) {
+                $filament->actions([Action::make('view')->url($url)]);
+            }
+
+            $filament->sendToDatabase($notification->user);
+        });
+    }
 
     protected $appends = [
         'human_message',
