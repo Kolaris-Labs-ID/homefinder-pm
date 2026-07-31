@@ -7,10 +7,11 @@
     "license": "GPL-3.0-or-later",
     "require": {
         "php": "^8.2",
+        "alexsyvolap/filament-confetti": "^1.0",
         "barryvdh/laravel-dompdf": "^3.1",
         "bezhansalleh/filament-shield": "^3.3",
         "craft-forge/filament-language-switcher": "^1.0",
-        "endroid/qr-code": "^6.1",
+        "endroid/qr-code": "^6.0.9",
         "ffhs/filament-package_ffhs_approvals": "^1.0",
         "filament/filament": "^3.2",
         "intervention/image": "^3.11",
@@ -21,7 +22,7 @@
         "laravel/tinker": "^2.10.1",
         "maatwebsite/excel": "^3.1",
         "solution-forest/tab-layout-plugin": "2.1",
-        "spatie/pdf-to-text": "^1.55"
+        "spatie/pdf-to-text": "^1.54.1"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -83,6 +84,9 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
+        },
+        "platform": {
+            "php": "8.3.28"
         }
     },
     "minimum-stability": "stable",
