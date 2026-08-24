@@ -139,7 +139,14 @@ class OvertimeLogResource extends Resource
                         Infolists\Components\TextEntry::make('estimated_pay')
                             ->label('Est. Pay')
                             ->money('IDR')
-                            ->state(fn (OvertimeLog $record): float => $record->calculateEstimatedPay()),
+                            ->state(fn (OvertimeLog $record): float => $record->calculateEstimatedPay())
+                            ->helperText(fn (OvertimeLog $record): ?string => $record->isCapped()
+                                ? sprintf(
+                                    'Capped at 4h (PP 35/2021) — %dm logged, %dm unpaid. The weekly 18h ceiling may reduce this further in the pay run.',
+                                    $record->duration_minutes,
+                                    $record->duration_minutes - OvertimeLog::MAX_DAILY_PAYABLE_MINUTES,
+                                )
+                                : null),
                     ]),
 
                 Infolists\Components\Section::make('Evidence')
@@ -236,7 +243,9 @@ class OvertimeLogResource extends Resource
                 Tables\Columns\TextColumn::make('estimated_pay')
                     ->label('Est. Pay')
                     ->money('IDR')
-                    ->getStateUsing(fn (OvertimeLog $record): float => $record->calculateEstimatedPay()),
+                    ->getStateUsing(fn (OvertimeLog $record): float => $record->calculateEstimatedPay())
+                    ->description(fn (OvertimeLog $record): ?string => $record->isCapped() ? 'capped at 4h' : null)
+                    ->color(fn (OvertimeLog $record): ?string => $record->isCapped() ? 'warning' : null),
                 Tables\Columns\ImageColumn::make('evidence_path')
                     ->label('Evidence')
                     ->size(50)

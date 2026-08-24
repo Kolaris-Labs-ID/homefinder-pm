@@ -19,6 +19,12 @@ class OvertimeLog extends Model
     const STATUS_REJECTED = 'rejected';
     const STATUS_FLAGGED  = 'flagged';
 
+    // PP 35/2021 art. 26: overtime is capped at 4 hours per day and 18 hours per
+    // week. Rest-day and public-holiday work is excluded from both ceilings and
+    // is priced through the weekend/holiday attendance path instead.
+    const MAX_DAILY_PAYABLE_MINUTES  = 240;
+    const MAX_WEEKLY_PAYABLE_MINUTES = 1080;
+
     protected $fillable = [
         'user_id',
         'manager_id',
@@ -98,16 +104,43 @@ class OvertimeLog extends Model
     // -------------------------------------------------------------------------
 
     /**
+     * Payable minutes for this session: the logged duration clamped to the
+     * statutory 4-hour daily ceiling. The full duration stays on the record —
+     * only what money is computed from is clamped.
+     *
+     * Callers that already know the session's day/week allocation (the pay run)
+     * pass it in; the clamp here is idempotent, so passing a smaller allocation
+     * is preserved rather than re-expanded.
+     */
+    public function payableMinutes(?int $minutes = null): int
+    {
+        $mins = (int) ($minutes ?? $this->duration_minutes);
+
+        return max(0, min($mins, self::MAX_DAILY_PAYABLE_MINUTES));
+    }
+
+    /**
+     * Whether the statutory daily ceiling trims this session's logged duration.
+     */
+    public function isCapped(): bool
+    {
+        return (int) $this->duration_minutes > self::MAX_DAILY_PAYABLE_MINUTES;
+    }
+
+    /**
      * Compute estimated overtime pay based on Indonesian Labor Law:
      *   - First 60 minutes (1 hour): 1.5 × hourly_rate
      *   - Each subsequent 60 minutes: 2.0 × hourly_rate
+     *
+     * Minutes beyond the statutory daily ceiling are not priced — see
+     * payableMinutes().
      *
      * @param  int|null $minutes  Override duration; defaults to stored duration_minutes.
      * @return float
      */
     public function calculateEstimatedPay(?int $minutes = null): float
     {
-        $mins = $minutes ?? $this->duration_minutes;
+        $mins = $this->payableMinutes($minutes);
         $rate = (float) $this->hourly_rate;
 
         if ($rate <= 0 || $mins <= 0) {

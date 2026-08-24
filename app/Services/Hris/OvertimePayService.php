@@ -79,6 +79,11 @@ class OvertimePayService
                 $totalMinutes = 0;
                 $breakdown = [];
 
+                // Statutory ceilings are per employee-day and per employee-week,
+                // so they can only be applied once the whole week's sessions are
+                // in hand — never per log in isolation.
+                $payable = $this->allocatePayableMinutes($employeeLogs);
+
                 foreach ($employeeLogs as $log) {
                     // A structure that resolves to a zero rate is as unpayable as a
                     // missing one — both must fail loudly rather than pay Rp 0.
@@ -94,7 +99,8 @@ class OvertimePayService
                     // of the batch rather than of the estimate shown at start.
                     $log->forceFill(['hourly_rate' => $rate])->save();
 
-                    $pay = $log->calculateEstimatedPay();
+                    $payableMinutes = $payable[$log->id] ?? 0;
+                    $pay = $log->calculateEstimatedPay($payableMinutes);
                     $totalPay += $pay;
                     $totalMinutes += $log->duration_minutes;
                     $breakdown[] = [
@@ -103,6 +109,8 @@ class OvertimePayService
                         'start_time' => $log->start_time->toDateTimeString(),
                         'end_time' => $log->end_time?->toDateTimeString(),
                         'duration_minutes' => $log->duration_minutes,
+                        'payable_minutes' => $payableMinutes,
+                        'excess_minutes' => max(0, (int) $log->duration_minutes - $payableMinutes),
                         'hourly_rate' => $rate,
                         'pay' => round($pay, 2),
                     ];
@@ -179,6 +187,13 @@ class OvertimePayService
                 $sessions = $payment->sessions_breakdown ?? [];
                 $totalPay = 0.0;
 
+                // Re-derive the ceilings from the live logs so a recalculation
+                // agrees with a delete-then-regenerate, rather than trusting the
+                // payable_minutes frozen into the stored breakdown.
+                $payable = $this->allocatePayableMinutes(
+                    OvertimeLog::whereIn('id', collect($sessions)->pluck('overtime_log_id')->filter())->get()
+                );
+
                 foreach ($sessions as $index => $session) {
                     // appendWeekendAttendanceSessions() never sets overtime_log_id, so an
                     // empty one is a weekend/holiday session, not an orphaned log — those
@@ -219,8 +234,11 @@ class OvertimePayService
 
                     $log->forceFill(['hourly_rate' => $rate])->save();
 
-                    $pay = $log->calculateEstimatedPay();
+                    $payableMinutes = $payable[$log->id] ?? 0;
+                    $pay = $log->calculateEstimatedPay($payableMinutes);
                     $sessions[$index]['hourly_rate'] = $rate;
+                    $sessions[$index]['payable_minutes'] = $payableMinutes;
+                    $sessions[$index]['excess_minutes'] = max(0, (int) $log->duration_minutes - $payableMinutes);
                     $sessions[$index]['pay'] = round($pay, 2);
                     $totalPay += $pay;
                 }
@@ -287,6 +305,40 @@ class OvertimePayService
             'end' => $end,
             'payment' => $payment,
         ];
+    }
+
+    /**
+     * THE authoritative payable-minutes allocation, applying the PP 35/2021
+     * ceilings of 4 h/day and 18 h/week across a single employee's week.
+     *
+     * Sessions are consumed oldest-first so the allocation is deterministic and
+     * the hours an employee worked earliest are the ones that get paid. A
+     * session's day is its start date — the same attribution hourlyRateForLog()
+     * uses — so an overnight session belongs to the day it began on.
+     *
+     * @param  Collection<int,OvertimeLog>  $logs
+     * @return array<int,int> overtime_log_id => payable minutes
+     */
+    private function allocatePayableMinutes(Collection $logs): array
+    {
+        $perDayUsed = [];
+        $weekUsed = 0;
+        $allocated = [];
+
+        foreach ($logs->sortBy('start_time') as $log) {
+            $day = $log->start_time->toDateString();
+
+            $dailyRemaining = max(0, OvertimeLog::MAX_DAILY_PAYABLE_MINUTES - ($perDayUsed[$day] ?? 0));
+            $weeklyRemaining = max(0, OvertimeLog::MAX_WEEKLY_PAYABLE_MINUTES - $weekUsed);
+
+            $minutes = (int) min((int) $log->duration_minutes, $dailyRemaining, $weeklyRemaining);
+
+            $allocated[$log->id] = $minutes;
+            $perDayUsed[$day] = ($perDayUsed[$day] ?? 0) + $minutes;
+            $weekUsed += $minutes;
+        }
+
+        return $allocated;
     }
 
     /**
