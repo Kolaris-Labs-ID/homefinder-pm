@@ -1,7 +1,10 @@
-# Deploy: Browser Push Notifications (`feat/browser-push`)
+# Deploy: Browser Push Notifications
 
 Data-safety runbook for the `notifications` → `pm_notifications` rename and the
 browser-push rollout. Every step is loud-fail: nothing here silently discards rows.
+
+The code landed on `main` (`b4b9ff9` → `f73a7ad` → `93f010b`). It has never been
+deployed to production.
 
 ## Why this is safe
 
@@ -14,12 +17,28 @@ browser-push rollout. Every step is loud-fail: nothing here silently discards ro
 - The 2026_07_20 attendance migrations only ADD nullable columns / WIDEN enums —
   no destructive DDL anywhere in this deploy.
 
-## Before resuming this branch (still WIP)
+## Code prerequisites — all done
 
-```bash
-composer require emuniq/filament-browser-notifications:^1.2   # restores plugin + lock entries
-# plugin self-registers on every panel via Panel::configureUsing — no provider edit needed
-```
+`b4b9ff9` carried a "WIP, do not deploy" warning. Every hazard it listed is fixed;
+ignore that commit message and trust this section.
+
+- Plugin present: `emuniq/filament-browser-notifications ^1.2` in `composer.json`,
+  lock and vendor (`93f010b`). It self-registers on every panel via
+  `Panel::configureUsing`, so its absence from `AdminPanelProvider` is correct —
+  do not add it there.
+- Rename migration is resumable, and `down()` archives instead of drops (`f73a7ad`).
+
+Still coupled by design: `Notification::$table = 'pm_notifications'` only agrees
+with the schema after the migration runs. The `artisan down` / `up` bracket in the
+deploy order below is what closes that window — do not skip it.
+
+## Operator prerequisites — not done
+
+- **VAPID keys are unset.** `.env.example` declares `VAPID_PUBLIC_KEY`,
+  `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` empty. Prod generates its own at step 5.
+  Without them the rollout succeeds and delivers no push, silently.
+- **`attendance_logs` drift is unverified on prod.** See the preflight below;
+  a half-migrated table aborts the migrate run mid-deploy.
 
 ## Preflight (on prod, read-only)
 
