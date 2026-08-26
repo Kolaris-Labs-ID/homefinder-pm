@@ -323,7 +323,7 @@ class OvertimeController extends Controller
             'end_time' => $log->end_time?->toIso8601String(),
             'duration_minutes' => $durationMinutes,
             'payable_minutes' => $log->payableMinutes($durationMinutes),
-            'capped' => $durationMinutes > OvertimeLog::MAX_DAILY_PAYABLE_MINUTES,
+            'capped' => $log->isCapped($durationMinutes),
             'hourly_rate' => (float) $log->hourly_rate,
             'estimated_pay' => $log->calculateEstimatedPay($durationMinutes),
             'evidence_path' => $log->evidence_path,

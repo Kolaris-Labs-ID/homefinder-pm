@@ -211,3 +211,117 @@ test('recalculateBatch applies the same ceilings as generateBatch', function () 
     expect($after)->toBe($generated);
     expect($after)->toBe(round(capPay(240) * 2, 2));
 });
+
+// -----------------------------------------------------------------------------
+// Rest days and holidays sit outside both ceilings
+// -----------------------------------------------------------------------------
+
+test('weekend overtime is paid in full and never eats the weekday budget', function () {
+    [$user, $employee] = capEmployee();
+
+    foreach (['2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09', '2026-04-10'] as $date) {
+        capLog($user, $date, 240);
+    }
+    capLog($user, '2026-04-11', 240); // Saturday
+
+    $batch = capGenerate();
+    $payment = $batch->payments()->where('employee_id', $employee->id)->first();
+
+    $saturday = collect($payment->sessions_breakdown)
+        ->firstWhere('overtime_log_id', OvertimeLog::where('task_name', 'like', '%2026-04-11%')->value('id'));
+
+    expect($saturday['payable_minutes'])->toBe(240);
+    expect($saturday['excess_minutes'])->toBe(0);
+
+    // Weekdays still get exactly 18h between them — the Saturday took nothing.
+    $weekdayMinutes = collect($payment->sessions_breakdown)
+        ->reject(fn ($s) => $s['overtime_log_id'] === $saturday['overtime_log_id'])
+        ->sum('payable_minutes');
+    expect($weekdayMinutes)->toBe(OvertimeLog::MAX_WEEKLY_PAYABLE_MINUTES);
+});
+
+test('a public holiday on a weekday is exempt from the ceilings', function () {
+    [$user, $employee] = capEmployee();
+
+    \App\Models\Hris\MasterHoliday::create([
+        'date' => '2026-04-08',
+        'name' => 'Test Holiday',
+        'is_active' => true,
+    ]);
+
+    foreach (['2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09', '2026-04-10'] as $date) {
+        capLog($user, $date, 240);
+    }
+
+    $batch = capGenerate();
+    $payment = $batch->payments()->where('employee_id', $employee->id)->first();
+
+    // The holiday is free, so the four remaining weekdays fit inside 18h untrimmed.
+    expect(collect($payment->sessions_breakdown)->sum('payable_minutes'))->toBe(240 * 5);
+    expect(collect($payment->sessions_breakdown)->sum('excess_minutes'))->toBe(0);
+});
+
+// -----------------------------------------------------------------------------
+// Capped-away hours are deferred, not forfeited
+// -----------------------------------------------------------------------------
+
+test('a session left zero payable minutes stays unpaid instead of being settled', function () {
+    [$user, $employee] = capEmployee();
+
+    capLog($user, CAP_WEEK_START, 240, startHour: 9);
+    $squeezed = capLog($user, CAP_WEEK_START, 240, startHour: 18);
+
+    $batch = capGenerate();
+    $payment = $batch->payments()->where('employee_id', $employee->id)->first();
+
+    expect($squeezed->fresh()->overtime_payment_id)->toBeNull();
+    expect(OvertimeLog::unpaid()->pluck('id'))->toContain($squeezed->id);
+    expect(collect($payment->sessions_breakdown)->pluck('overtime_log_id'))
+        ->not->toContain($squeezed->id);
+});
+
+// -----------------------------------------------------------------------------
+// The weekly ceiling is a calendar-week quantity, not a batch-window one
+// -----------------------------------------------------------------------------
+
+test('splitting the week into two batches does not hand out the 18h budget twice', function () {
+    [$user, $employee] = capEmployee();
+
+    foreach (['2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09', '2026-04-10'] as $date) {
+        capLog($user, $date, 240);
+    }
+
+    $service = app(OvertimePayService::class);
+    $first = $service->generateBatch(
+        Carbon::parse('2026-04-06'), Carbon::parse('2026-04-08'), Carbon::parse(CAP_PAYMENT_DT)
+    );
+    $second = $service->generateBatch(
+        Carbon::parse('2026-04-09'), Carbon::parse('2026-04-12'), Carbon::parse(CAP_PAYMENT_DT)
+    );
+
+    $minutes = collect($first->payments()->where('employee_id', $employee->id)->first()->sessions_breakdown)
+        ->sum('payable_minutes')
+        + collect($second->payments()->where('employee_id', $employee->id)->first()->sessions_breakdown)
+            ->sum('payable_minutes');
+
+    expect($minutes)->toBe(OvertimeLog::MAX_WEEKLY_PAYABLE_MINUTES);
+});
+
+test('deleting a log does not free its minutes for the surviving sessions', function () {
+    [$user, $employee] = capEmployee();
+
+    $monday = capLog($user, '2026-04-06', 240);
+    foreach (['2026-04-07', '2026-04-08', '2026-04-09', '2026-04-10'] as $date) {
+        capLog($user, $date, 240);
+    }
+
+    $batch = capGenerate();
+    $monday->delete();
+
+    $recalculated = app(OvertimePayService::class)->recalculateBatch($batch->fresh());
+    $sessions = collect($recalculated->payments()->where('employee_id', $employee->id)->first()->sessions_breakdown);
+
+    // Monday's ghost still reserves its 240, so Friday keeps its trim to 120.
+    expect($sessions->where('overtime_log_id', '!=', $monday->id)->sum('payable_minutes'))
+        ->toBe(OvertimeLog::MAX_WEEKLY_PAYABLE_MINUTES - 240);
+});

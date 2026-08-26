@@ -103,15 +103,7 @@ class OvertimeLog extends Model
     // Business Logic
     // -------------------------------------------------------------------------
 
-    /**
-     * Payable minutes for this session: the logged duration clamped to the
-     * statutory 4-hour daily ceiling. The full duration stays on the record —
-     * only what money is computed from is clamped.
-     *
-     * Callers that already know the session's day/week allocation (the pay run)
-     * pass it in; the clamp here is idempotent, so passing a smaller allocation
-     * is preserved rather than re-expanded.
-     */
+    // Idempotent, so a narrower allocation from the pay run survives the clamp.
     public function payableMinutes(?int $minutes = null): int
     {
         $mins = (int) ($minutes ?? $this->duration_minutes);
@@ -119,12 +111,9 @@ class OvertimeLog extends Model
         return max(0, min($mins, self::MAX_DAILY_PAYABLE_MINUTES));
     }
 
-    /**
-     * Whether the statutory daily ceiling trims this session's logged duration.
-     */
-    public function isCapped(): bool
+    public function isCapped(?int $minutes = null): bool
     {
-        return (int) $this->duration_minutes > self::MAX_DAILY_PAYABLE_MINUTES;
+        return (int) ($minutes ?? $this->duration_minutes) > self::MAX_DAILY_PAYABLE_MINUTES;
     }
 
     /**

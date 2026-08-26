@@ -6,6 +6,7 @@ use App\Exceptions\Hris\OvertimeBatchLockedException;
 use App\Exceptions\Hris\OvertimeRateCoverageException;
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Employee;
+use App\Models\Hris\MasterHoliday;
 use App\Models\Hris\OvertimeLog;
 use App\Models\Hris\OvertimePayBatch;
 use App\Models\Hris\OvertimePayment;
@@ -63,6 +64,12 @@ class OvertimePayService
 
             $rateGaps = [];
 
+            // The ceilings are calendar-week quantities, so they must be measured over
+            // whole ISO weeks and over already-paid sessions too — otherwise generating
+            // two half-week batches hands out the 18h budget twice.
+            [$isoStart, $isoEnd] = $this->isoWeekSpan($weekStart, $weekEnd);
+            $holidays = $this->holidayDates($isoStart, $isoEnd);
+
             foreach ($byEmployee as $employeeId => $employeeLogs) {
                 if (! $employeeId) {
                     continue;
@@ -79,10 +86,12 @@ class OvertimePayService
                 $totalMinutes = 0;
                 $breakdown = [];
 
-                // Statutory ceilings are per employee-day and per employee-week,
-                // so they can only be applied once the whole week's sessions are
-                // in hand — never per log in isolation.
-                $payable = $this->allocatePayableMinutes($employeeLogs);
+                // Allocate over every approved session in the ISO weeks this batch
+                // touches, paid ones included, then read off only this batch's logs.
+                $payable = $this->allocatePayableMinutes(
+                    $this->weekLogsFor($employee, $isoStart, $isoEnd),
+                    $holidays
+                );
 
                 foreach ($employeeLogs as $log) {
                     // A structure that resolves to a zero rate is as unpayable as a
@@ -100,9 +109,18 @@ class OvertimePayService
                     $log->forceFill(['hourly_rate' => $rate])->save();
 
                     $payableMinutes = $payable[$log->id] ?? 0;
+
+                    // A session the ceilings leave nothing for is deferred, not written
+                    // off: leaving it unlinked keeps it unpaid() so a later batch can
+                    // still pay it. ponytail: a session permanently squeezed out by a
+                    // busy day resurfaces every run until HR trims or splits it.
+                    if ($payableMinutes <= 0) {
+                        continue;
+                    }
+
                     $pay = $log->calculateEstimatedPay($payableMinutes);
                     $totalPay += $pay;
-                    $totalMinutes += $log->duration_minutes;
+                    $totalMinutes += $payableMinutes;
                     $breakdown[] = [
                         'overtime_log_id' => $log->id,
                         'task_name' => $log->task_name,
@@ -134,8 +152,10 @@ class OvertimePayService
                     'status' => OvertimePayment::STATUS_PENDING,
                 ]);
 
-                // Link OvertimeLogs to this payment to prevent double-counting
-                OvertimeLog::whereIn('id', $employeeLogs->pluck('id'))
+                // Link OvertimeLogs to this payment to prevent double-counting.
+                // Only sessions this batch actually paid — linking a zero-pay one
+                // would settle it forever.
+                OvertimeLog::whereIn('id', array_column($breakdown, 'overtime_log_id'))
                     ->update(['overtime_payment_id' => $payment->id]);
             }
 
@@ -190,8 +210,22 @@ class OvertimePayService
                 // Re-derive the ceilings from the live logs so a recalculation
                 // agrees with a delete-then-regenerate, rather than trusting the
                 // payable_minutes frozen into the stored breakdown.
+                [$isoStart, $isoEnd] = $this->isoWeekSpan($batch->week_start_date, $batch->week_end_date);
+                $logs = $this->weekLogsFor($employee, $isoStart, $isoEnd)->keyBy('id');
+
+                // A deleted log still keeps the pay it was recorded with below, so it
+                // has to keep reserving its budget too — otherwise its minutes are
+                // handed to a surviving session and the week is paid twice.
+                $ghosts = collect($sessions)
+                    ->filter(fn ($s) => ! empty($s['overtime_log_id']) && ! $logs->has($s['overtime_log_id']))
+                    ->map(fn ($s) => tap(new OvertimeLog([
+                        'start_time' => $s['start_time'],
+                        'duration_minutes' => $s['payable_minutes'] ?? $s['duration_minutes'] ?? 0,
+                    ]), fn ($log) => $log->id = $s['overtime_log_id']));
+
                 $payable = $this->allocatePayableMinutes(
-                    OvertimeLog::whereIn('id', collect($sessions)->pluck('overtime_log_id')->filter())->get()
+                    $logs->values()->concat($ghosts),
+                    $this->holidayDates($isoStart, $isoEnd)
                 );
 
                 foreach ($sessions as $index => $session) {
@@ -214,7 +248,7 @@ class OvertimePayService
                         continue;
                     }
 
-                    $log = OvertimeLog::find($session['overtime_log_id']);
+                    $log = $logs->get($session['overtime_log_id']);
 
                     // The id was set but the log row is gone — nothing left to
                     // re-resolve against, so carry the recorded amount forward.
@@ -307,38 +341,70 @@ class OvertimePayService
         ];
     }
 
-    /**
-     * THE authoritative payable-minutes allocation, applying the PP 35/2021
-     * ceilings of 4 h/day and 18 h/week across a single employee's week.
-     *
-     * Sessions are consumed oldest-first so the allocation is deterministic and
-     * the hours an employee worked earliest are the ones that get paid. A
-     * session's day is its start date — the same attribution hourlyRateForLog()
-     * uses — so an overnight session belongs to the day it began on.
-     *
-     * @param  Collection<int,OvertimeLog>  $logs
-     * @return array<int,int> overtime_log_id => payable minutes
-     */
-    private function allocatePayableMinutes(Collection $logs): array
+    // THE authoritative payable-minutes allocation (id => minutes): PP 35/2021
+    // art. 26's 4h/day and 18h/week ceilings, keyed by ISO week so an odd batch
+    // window cannot reset or stretch them. Oldest session first. A session's day
+    // is its start date, the same attribution hourlyRateForLog() uses.
+    // Pass every session that should consume budget, already-paid ones included.
+    private function allocatePayableMinutes(Collection $logs, Collection $holidays): array
     {
         $perDayUsed = [];
-        $weekUsed = 0;
+        $perWeekUsed = [];
         $allocated = [];
 
         foreach ($logs->sortBy('start_time') as $log) {
             $day = $log->start_time->toDateString();
+            $minutes = (int) $log->duration_minutes;
 
-            $dailyRemaining = max(0, OvertimeLog::MAX_DAILY_PAYABLE_MINUTES - ($perDayUsed[$day] ?? 0));
-            $weeklyRemaining = max(0, OvertimeLog::MAX_WEEKLY_PAYABLE_MINUTES - $weekUsed);
+            // Rest-day and holiday work is exempt from both ceilings under the same
+            // article — it has its own multiplier table — so it is neither trimmed
+            // nor allowed to eat the weekday budget.
+            if ($log->start_time->isWeekend() || $holidays->contains($day)) {
+                $allocated[$log->id] = $minutes;
 
-            $minutes = (int) min((int) $log->duration_minutes, $dailyRemaining, $weeklyRemaining);
+                continue;
+            }
+
+            $week = $log->start_time->format('o-W');
+
+            $minutes = (int) min(
+                $minutes,
+                max(0, OvertimeLog::MAX_DAILY_PAYABLE_MINUTES - ($perDayUsed[$day] ?? 0)),
+                max(0, OvertimeLog::MAX_WEEKLY_PAYABLE_MINUTES - ($perWeekUsed[$week] ?? 0)),
+            );
 
             $allocated[$log->id] = $minutes;
             $perDayUsed[$day] = ($perDayUsed[$day] ?? 0) + $minutes;
-            $weekUsed += $minutes;
+            $perWeekUsed[$week] = ($perWeekUsed[$week] ?? 0) + $minutes;
         }
 
         return $allocated;
+    }
+
+    // Whole ISO weeks covering an arbitrary batch window.
+    private function isoWeekSpan(Carbon $from, Carbon $to): array
+    {
+        return [
+            $from->copy()->startOfWeek(Carbon::MONDAY)->startOfDay(),
+            $to->copy()->endOfWeek(Carbon::SUNDAY)->endOfDay(),
+        ];
+    }
+
+    private function holidayDates(Carbon $from, Carbon $to): Collection
+    {
+        return MasterHoliday::active()
+            ->forDateRange($from->toDateString(), $to->toDateString())
+            ->pluck('date')
+            ->map(fn ($date) => Carbon::parse($date)->toDateString());
+    }
+
+    // Paid ones included: the allocator needs settled hours to know what is left.
+    private function weekLogsFor(Employee $employee, Carbon $from, Carbon $to): Collection
+    {
+        return OvertimeLog::approved()
+            ->where('user_id', $employee->user_id)
+            ->whereBetween('start_time', [$from, $to])
+            ->get();
     }
 
     /**
