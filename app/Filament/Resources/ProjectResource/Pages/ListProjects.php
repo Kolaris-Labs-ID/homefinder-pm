@@ -2,12 +2,13 @@
 
 namespace App\Filament\Resources\ProjectResource\Pages;
 
+use App\Filament\Actions\ExportProjectsAction;
 use App\Filament\Resources\ProjectResource;
 use App\Models\Project;
 use App\Models\User;
 use Filament\Actions;
-use Filament\Resources\Pages\ListRecords;
 use Filament\Resources\Components\Tab;
+use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListProjects extends ListRecords
@@ -18,6 +19,8 @@ class ListProjects extends ListRecords
     {
         return [
             Actions\CreateAction::make(),
+            ExportProjectsAction::make()
+                ->visible(fn () => ProjectResource::canViewAny()),
         ];
     }
 
@@ -41,8 +44,8 @@ class ListProjects extends ListRecords
             ->icon('heroicon-o-user');
 
         $divisions = User::whereHas('projects', function (Builder $q) {
-                $q->active();
-            })
+            $q->active();
+        })
             ->whereNotNull('division')
             ->where('division', '!=', '')
             ->distinct()

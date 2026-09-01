@@ -20,6 +20,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\On;
 use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ProjectBoard extends Page
 {
@@ -94,6 +95,25 @@ class ProjectBoard extends Page
         return $user;
     }
 
+    // The slug takes an arbitrary project id and every public Livewire method here is
+    // callable regardless of which header actions render, so the id must be authorized
+    // here rather than by the ->visible() closures.
+    private function resolveAuthorizedProject($projectId): ?Project
+    {
+        $user = $this->getUser();
+        $project = $projectId ? Project::find($projectId) : null;
+
+        if (! $user || ! $project) {
+            return null;
+        }
+
+        if ($user->hasRole(['super_admin'])) {
+            return $project;
+        }
+
+        return $project->members()->whereKey($user->id)->exists() ? $project : null;
+    }
+
     public function mount($project_id = null): void
     {
         $user = $this->getUser();
@@ -129,8 +149,8 @@ class ProjectBoard extends Page
         }
 
         if ($project_id) {
-            $this->selectedProjectId = (int) $project_id;
-            $this->selectedProject = Project::find($project_id);
+            $this->selectedProject = $this->resolveAuthorizedProject($project_id);
+            $this->selectedProjectId = $this->selectedProject?->id;
             $this->loadProjectUsers();
             $this->loadTicketStatuses();
         } else {
@@ -310,8 +330,8 @@ class ProjectBoard extends Page
     {
         $this->selectedTicket = null;
         $this->ticketStatuses = collect();
-        $this->selectedProjectId = $projectId;
-        $this->selectedProject = Project::find($projectId);
+        $this->selectedProject = $this->resolveAuthorizedProject($projectId);
+        $this->selectedProjectId = $this->selectedProject?->id;
         $this->selectedUserIds = [];
 
         if ($this->selectedProject) {
@@ -650,7 +670,7 @@ class ProjectBoard extends Page
             || $ticket->assignees()->where('users.id', $userId)->exists();
     }
 
-    public function exportTickets(array $selectedColumns): void
+    public function exportTickets(array $selectedColumns): ?BinaryFileResponse
     {
         if (empty($selectedColumns)) {
             Notification::make()
@@ -659,13 +679,16 @@ class ProjectBoard extends Page
                 ->danger()
                 ->send();
 
-            return;
+            return null;
         }
 
         $tickets = collect();
 
         if ($this->selectedProject) {
-            $tickets = $this->selectedProject->tickets()
+            // Same query the Tickets list exports from, so the two paths agree on
+            // archived tickets, closed projects and per-user visibility.
+            $tickets = TicketResource::getEloquentQuery()
+                ->where('project_id', $this->selectedProject->id)
                 ->with(['assignees', 'status', 'project', 'epic'])
                 ->orderBy('created_at', 'desc')
                 ->get();
@@ -674,7 +697,8 @@ class ProjectBoard extends Page
                 return $status->tickets->pluck('id');
             });
 
-            $tickets = Ticket::whereIn('id', $ticketIds)
+            $tickets = TicketResource::getEloquentQuery()
+                ->whereIn('id', $ticketIds)
                 ->with(['assignees', 'status', 'project', 'epic'])
                 ->orderBy('created_at', 'asc')
                 ->get();
@@ -687,44 +711,15 @@ class ProjectBoard extends Page
                 ->warning()
                 ->send();
 
-            return;
+            return null;
         }
 
-        try {
-            $projectLabel = \Illuminate\Support\Str::slug($this->selectedProject?->name ?? 'export', '_');
-            $fileName = 'tickets_'.$projectLabel.'_'.now()->format('Y_m_d_H_i_s').'.xlsx';
-            $export = new TicketsExport($tickets, $selectedColumns);
-            Excel::store($export, 'exports/'.$fileName, 'public');
-            $downloadUrl = asset('storage/exports/'.$fileName);
-            $this->js("
-                fetch('{$downloadUrl}')
-                    .then(response => response.blob())
-                    .then(blob => {
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.style.display = 'none';
-                        a.href = url;
-                        a.download = '{$fileName}';
-                        document.body.appendChild(a);
-                        a.click();
-                        window.URL.revokeObjectURL(url);
-                        document.body.removeChild(a);
-                    });
-            ");
+        $projectLabel = \Illuminate\Support\Str::slug($this->selectedProject?->name ?? 'export', '_');
 
-            Notification::make()
-                ->title('Export Successful')
-                ->body('Your Excel file is being downloaded.')
-                ->success()
-                ->send();
-
-        } catch (\Exception $e) {
-            Notification::make()
-                ->title('Export Failed')
-                ->body('An error occurred while exporting: '.$e->getMessage())
-                ->danger()
-                ->send();
-        }
+        return Excel::download(
+            new TicketsExport($tickets, $selectedColumns),
+            'tickets_'.$projectLabel.'_'.now()->format('Y_m_d_H_i_s').'.xlsx'
+        );
     }
 
     /**

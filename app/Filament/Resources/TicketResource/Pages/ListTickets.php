@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TicketResource\Pages;
 
+use App\Filament\Actions\ExportTicketsAction;
 use App\Filament\Resources\TicketResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
@@ -14,6 +15,8 @@ class ListTickets extends ListRecords
     {
         return [
             Actions\CreateAction::make(),
+            ExportTicketsAction::make()
+                ->visible(fn () => TicketResource::canViewAny()),
         ];
     }
 }

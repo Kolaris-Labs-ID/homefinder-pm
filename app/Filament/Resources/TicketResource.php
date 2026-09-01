@@ -4,20 +4,19 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TicketResource\Pages;
 use App\Helpers\RoleHelper;
+use App\Models\Epic;
 use App\Models\Project;
 use App\Models\Ticket;
-use App\Models\TicketStatus;
 use App\Models\TicketPriority;
+use App\Models\TicketStatus;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
-use Filament\Tables\Table;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
-use App\Models\Epic;
 
 class TicketResource extends Resource
 {
@@ -46,8 +45,8 @@ class TicketResource extends Resource
         if (! RoleHelper::canCommentOnAnyTicket(auth()->user())) {
             $query->where(function ($query) {
                 $query->whereHas('assignees', function ($query) {
-                        $query->where('users.id', auth()->id());
-                    })
+                    $query->where('users.id', auth()->id());
+                })
                     ->orWhere('created_by', auth()->id())
                     ->orWhereHas('project.members', function ($query) {
                         $query->where('users.id', auth()->id());
@@ -56,6 +55,14 @@ class TicketResource extends Resource
         }
 
         return $query;
+    }
+
+    // Livewire updates carry filter state on the component, not as request input, so a
+    // request-only lookup leaves the dependent Status/Epic dropdowns empty until a reload.
+    protected static function activeProjectFilterValue($livewire = null): mixed
+    {
+        return data_get($livewire?->tableFilters ?? [], 'project_id.value')
+            ?: request()->input('tableFilters.project_id.value');
     }
 
     public static function form(Form $form): Form
@@ -113,11 +120,11 @@ class TicketResource extends Resource
                     ->label('Epic')
                     ->options(function (callable $get) {
                         $projectId = $get('project_id');
-                        
-                        if (!$projectId) {
+
+                        if (! $projectId) {
                             return [];
                         }
-                        
+
                         return Epic::where('project_id', $projectId)
                             ->pluck('name', 'id')
                             ->toArray();
@@ -125,7 +132,7 @@ class TicketResource extends Resource
                     ->searchable()
                     ->preload()
                     ->nullable()
-                    ->hidden(fn (callable $get): bool => !$get('project_id')),
+                    ->hidden(fn (callable $get): bool => ! $get('project_id')),
 
                 Forms\Components\TextInput::make('name')
                     ->label('Ticket Name')
@@ -173,16 +180,17 @@ class TicketResource extends Resource
                         if (RoleHelper::isHeadDivision()) {
                             return 'Head Division can assign to any project member.';
                         }
+
                         return 'Select multiple users to assign this ticket to. Only project members can be assigned.';
                     })
-                    ->hidden(fn (callable $get): bool => !$get('project_id'))
+                    ->hidden(fn (callable $get): bool => ! $get('project_id'))
                     ->live(),
-                
+
                 Forms\Components\DatePicker::make('start_date')
                     ->label('Start Date')
                     ->default(now())
                     ->nullable(),
-                
+
                 Forms\Components\DatePicker::make('due_date')
                     ->label('Due Date')
                     ->nullable(),
@@ -255,7 +263,7 @@ class TicketResource extends Resource
                     ->label('Due Date')
                     ->date()
                     ->sortable(),
-                    
+
                 Tables\Columns\TextColumn::make('epic.name')
                     ->label('Epic')
                     ->sortable()
@@ -275,37 +283,37 @@ class TicketResource extends Resource
                         if (auth()->user()->hasRole(['super_admin'])) {
                             return Project::active()->whereNull('done_at')->pluck('name', 'id')->toArray();
                         }
-            
+
                         return auth()->user()->projects()->whereNull('archived_at')->whereNull('done_at')->pluck('name', 'projects.id')->toArray();
                     })
                     ->searchable()
                     ->preload(),
-            
+
                 Tables\Filters\SelectFilter::make('ticket_status_id')
                     ->label('Status')
-                    ->options(function () {
-                        $projectId = request()->input('tableFilters.project_id');
-                        
-                        if (!$projectId) {
+                    ->options(function ($livewire) {
+                        $projectId = static::activeProjectFilterValue($livewire);
+
+                        if (! $projectId) {
                             return [];
                         }
-                        
+
                         return TicketStatus::where('project_id', $projectId)
                             ->pluck('name', 'id')
                             ->toArray();
                     })
                     ->searchable()
                     ->preload(),
-                    
+
                 Tables\Filters\SelectFilter::make('epic_id')
                     ->label('Epic')
-                    ->options(function () {
-                        $projectId = request()->input('tableFilters.project_id');
-                        
-                        if (!$projectId) {
+                    ->options(function ($livewire) {
+                        $projectId = static::activeProjectFilterValue($livewire);
+
+                        if (! $projectId) {
                             return [];
                         }
-                        
+
                         return Epic::where('project_id', $projectId)
                             ->pluck('name', 'id')
                             ->toArray();
@@ -333,7 +341,7 @@ class TicketResource extends Resource
                     ->relationship('creator', 'name')
                     ->searchable()
                     ->preload(),
-            
+
                 Tables\Filters\Filter::make('due_date')
                     ->form([
                         Forms\Components\DatePicker::make('due_from'),
