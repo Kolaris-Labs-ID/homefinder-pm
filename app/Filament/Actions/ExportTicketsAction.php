@@ -8,7 +8,6 @@ use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Section;
 use Filament\Notifications\Notification;
 use Maatwebsite\Excel\Facades\Excel;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExportTicketsAction
 {
@@ -24,27 +23,42 @@ class ExportTicketsAction
                     ->schema([
                         CheckboxList::make('columns')
                             ->label('Columns')
-                            ->options([
-                                'uuid' => 'Ticket ID',
-                                'name' => 'Title',
-                                'description' => 'Description',
-                                'status' => 'Status',
-                                'assignee' => 'Assignee',
-                                'project' => 'Project',
-                                'epic' => 'Epic',
-                                'due_date' => 'Due Date',
-                                'created_at' => 'Created At',
-                                'updated_at' => 'Updated At',
-                            ])
+                            ->options((new TicketsExport(collect(), []))->getAvailableColumns())
                             ->default(['uuid', 'name', 'status', 'assignee', 'due_date', 'created_at'])
                             ->required()
                             ->minItems(1)
                             ->columns(2)
-                            ->gridDirection('row')
-                    ])
+                            ->gridDirection('row'),
+                    ]),
             ])
-            ->action(function (array $data, $livewire): void {
-                $livewire->exportTickets($data['columns'] ?? []);
+            ->action(function (array $data, $livewire) {
+                $columns = $data['columns'] ?? [];
+
+                // ProjectBoard is a plain Page with no table; it owns its own query building.
+                if (! method_exists($livewire, 'getFilteredSortedTableQuery')) {
+                    return $livewire->exportTickets($columns);
+                }
+
+                // ponytail: materialises the whole filtered set in memory (~1KB/ticket).
+                // If a tenant ever exports >50k tickets, switch to FromQuery + WithChunkReading.
+                $tickets = $livewire->getFilteredSortedTableQuery()
+                    ->with(['assignees', 'status', 'project', 'epic'])
+                    ->get();
+
+                if ($tickets->isEmpty()) {
+                    Notification::make()
+                        ->title('Nothing to export')
+                        ->body('The current filters returned no tickets.')
+                        ->warning()
+                        ->send();
+
+                    return null;
+                }
+
+                return Excel::download(
+                    new TicketsExport($tickets, $columns),
+                    'tickets-'.now()->format('Y-m-d-Hi').'.xlsx'
+                );
             });
     }
 }

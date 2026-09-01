@@ -6,10 +6,16 @@ use App\Models\Ticket;
 use App\Models\TicketHistory;
 use App\Models\TicketStatus;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+
+afterEach(function () {
+    Carbon::setTestNow();
+});
 
 beforeEach(function () {
     $this->project = Project::factory()->create();
@@ -650,8 +656,9 @@ test('collapsedGroups and hiddenColumns are initialized on mount', function () {
     expect($component->get('projectSortDirection'))->toBe('asc');
 });
 
-test('exportTickets stores a file with a properly separated extension', function () {
+test('exportTickets streams the file instead of publishing it to the public disk', function () {
     Storage::fake('public');
+    Carbon::setTestNow(Carbon::parse('2026-09-01 10:15:00'));
 
     Ticket::factory()->create([
         'project_id' => $this->project->id,
@@ -660,13 +667,11 @@ test('exportTickets stores a file with a properly separated extension', function
 
     auth()->login($this->user);
 
+    $expected = 'tickets_'.Str::slug($this->project->name, '_').'_2026_09_01_10_15_00.xlsx';
+
     Livewire::test(ProjectBoard::class, ['project_id' => $this->project->id])
-        ->call('exportTickets', ['name', 'status']);
+        ->call('exportTickets', ['name', 'status'])
+        ->assertFileDownloaded($expected);
 
-    $files = Storage::disk('public')->files('exports');
-
-    expect($files)->toHaveCount(1);
-    expect($files[0])->toEndWith('.xlsx');
-    expect($files[0])->not->toMatch('/[a-z0-9]xlsx\.xlsx$/i');
-    expect(preg_match('/^exports\/tickets_[a-z0-9_]+_\d{4}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2}\.xlsx$/', $files[0]))->toBe(1);
+    expect(Storage::disk('public')->allFiles())->toBeEmpty();
 });

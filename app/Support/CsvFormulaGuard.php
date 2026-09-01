@@ -24,4 +24,16 @@ class CsvFormulaGuard
 
         return $value;
     }
+
+    // .xlsx only: PhpSpreadsheet's DefaultValueBinder promotes a string to a formula
+    // solely on a leading '=', so applying the CSV triggers here would prefix an
+    // apostrophe onto ordinary text such as "- fix login redirect".
+    public static function escapeXlsx(?string $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return $value;
+        }
+
+        return $value[0] === '=' ? "'".$value : $value;
+    }
 }

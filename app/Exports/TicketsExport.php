@@ -2,19 +2,22 @@
 
 namespace App\Exports;
 
-use App\Models\Ticket;
+use App\Support\CsvFormulaGuard;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use Illuminate\Support\Collection;
 
-class TicketsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
+class TicketsExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
-    protected $tickets;
+    protected Collection|Builder $tickets;
+
     protected $selectedColumns;
+
     protected $availableColumns = [
         'uuid' => 'Ticket ID',
         'name' => 'Title',
@@ -29,15 +32,17 @@ class TicketsExport implements FromCollection, WithHeadings, WithMapping, WithSt
         'updated_at' => 'Updated At',
     ];
 
-    public function __construct(Collection $tickets, array $selectedColumns)
+    public function __construct(Collection|Builder $tickets, array $selectedColumns)
     {
         $this->tickets = $tickets;
-        $this->selectedColumns = $selectedColumns;
+        // headings() skips unknown keys; map() must skip the same ones or the
+        // written sheet ships one data cell wider than its header row.
+        $this->selectedColumns = array_values(array_intersect($selectedColumns, array_keys($this->availableColumns)));
     }
 
     public function collection()
     {
-        return $this->tickets;
+        return $this->tickets instanceof Builder ? $this->tickets->get() : $this->tickets;
     }
 
     public function headings(): array
@@ -48,6 +53,7 @@ class TicketsExport implements FromCollection, WithHeadings, WithMapping, WithSt
                 $headings[] = $this->availableColumns[$column];
             }
         }
+
         return $headings;
     }
 
@@ -58,25 +64,25 @@ class TicketsExport implements FromCollection, WithHeadings, WithMapping, WithSt
         foreach ($this->selectedColumns as $column) {
             switch ($column) {
                 case 'uuid':
-                    $row[] = $ticket->uuid;
+                    $row[] = CsvFormulaGuard::escapeXlsx($ticket->uuid);
                     break;
                 case 'name':
-                    $row[] = $ticket->name;
+                    $row[] = CsvFormulaGuard::escapeXlsx($ticket->name);
                     break;
                 case 'description':
-                    $row[] = strip_tags($ticket->description ?? '');
+                    $row[] = CsvFormulaGuard::escapeXlsx(strip_tags($ticket->description ?? ''));
                     break;
                 case 'status':
-                    $row[] = $ticket->status?->name ?? 'No Status';
+                    $row[] = CsvFormulaGuard::escapeXlsx($ticket->status?->name ?? 'No Status');
                     break;
                 case 'assignee':
-                    $row[] = $ticket->assignees->pluck('name')->implode(', ');;
+                    $row[] = CsvFormulaGuard::escapeXlsx($ticket->assignees->pluck('name')->implode(', '));
                     break;
                 case 'project':
-                    $row[] = $ticket->project?->name ?? 'No Project';
+                    $row[] = CsvFormulaGuard::escapeXlsx($ticket->project?->name ?? 'No Project');
                     break;
                 case 'epic':
-                    $row[] = $ticket->epic?->name ?? 'No Epic';
+                    $row[] = CsvFormulaGuard::escapeXlsx($ticket->epic?->name ?? 'No Epic');
                     break;
                 case 'start_date':
                     $row[] = $ticket->start_date ? $ticket->start_date->format('Y-m-d') : '';
@@ -85,10 +91,10 @@ class TicketsExport implements FromCollection, WithHeadings, WithMapping, WithSt
                     $row[] = $ticket->due_date ? $ticket->due_date->format('Y-m-d') : '';
                     break;
                 case 'created_at':
-                    $row[] = $ticket->created_at->format('Y-m-d H:i:s');
+                    $row[] = $ticket->created_at?->format('Y-m-d H:i:s') ?? '';
                     break;
                 case 'updated_at':
-                    $row[] = $ticket->updated_at->format('Y-m-d H:i:s');
+                    $row[] = $ticket->updated_at?->format('Y-m-d H:i:s') ?? '';
                     break;
                 default:
                     $row[] = '';
@@ -106,18 +112,15 @@ class TicketsExport implements FromCollection, WithHeadings, WithMapping, WithSt
                 'font' => [
                     'bold' => true,
                     'size' => 12,
+                    'color' => [
+                        'argb' => 'FFFFFFFF',
+                    ],
                 ],
                 'fill' => [
                     'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
                     'startColor' => [
                         'argb' => 'FF366092',
                     ],
-                ],
-                'font' => [
-                    'color' => [
-                        'argb' => 'FFFFFFFF',
-                    ],
-                    'bold' => true,
                 ],
             ],
         ];
