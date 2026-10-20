@@ -11,8 +11,8 @@ use Illuminate\Support\Collection;
 class PgpDashboardPage extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
-    protected static ?string $navigationLabel = 'PHI Growth Point';
-    protected static ?string $title = 'PHI Growth Point Dashboard';
+    protected static ?string $navigationLabel = 'Homefinder Growth Point';
+    protected static ?string $title = 'Homefinder Growth Point Dashboard';
     protected static ?int $navigationSort = 5;
     protected static string $view = 'filament.pages.pgp-dashboard';
     protected static ?string $navigationGroup = 'HRIS';

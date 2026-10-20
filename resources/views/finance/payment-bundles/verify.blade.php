@@ -104,7 +104,7 @@
     </div>
 
     <div class="footer">
-        Verification provided by PartnersHub &mdash; for authorized personnel only
+        Verification provided by Homefinder &mdash; for authorized personnel only
     </div>
 </div>
 </body>

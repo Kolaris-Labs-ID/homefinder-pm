@@ -1,6 +1,6 @@
 # Panduan Kepala Divisi (Head Division)
 
-## Sistem Manajemen Proyek PartnersHub
+## Sistem Manajemen Proyek Homefinder
 
 Panduan lengkap untuk Kepala Divisi dalam mengelola tim dan pekerjaan divisi.
 

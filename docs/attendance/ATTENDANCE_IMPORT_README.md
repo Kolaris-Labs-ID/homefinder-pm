@@ -112,14 +112,14 @@ john@company.com  | 2024-01-15 | 08:30         | 17:30
 
 ### For Google Sheets Format:
 
-1. Go to: https://pm.partnershub.co/admin/attendance-logs
+1. Go to: https://your-homefinder-domain.example/admin/attendance-logs
 2. Click: **"Import from Google Sheets"** (blue button)
 3. Upload your Excel file
 4. Review results
 
 ### For Standard HRIS Format:
 
-1. Go to: https://pm.partnershub.co/admin/attendance-logs
+1. Go to: https://your-homefinder-domain.example/admin/attendance-logs
 2. Click: **"Import Attendance Logs"** (green button)
 3. Upload your Excel file
 4. Review results

@@ -1,6 +1,6 @@
 # Panduan Anggota Tim (User Biasa)
 
-## Sistem Manajemen Proyek PartnersHub
+## Sistem Manajemen Proyek Homefinder
 
 Panduan lengkap untuk anggota tim dalam menggunakan sistem manajemen proyek.
 
@@ -23,7 +23,7 @@ Panduan lengkap untuk anggota tim dalam menggunakan sistem manajemen proyek.
 
 ### Login ke Sistem
 
-1. Buka browser dan akses `http://pm.partnershub.co/admin`
+1. Buka browser dan akses `https://your-homefinder-domain.example/admin`
 2. Masukkan email dan password
 3. Klik **"Sign in"**
 
@@ -481,7 +481,7 @@ Epic adalah kumpulan ticket yang saling berhubungan untuk satu fitur atau tujuan
 
 #### 1. VISUALISASIKAN
 
-> "Masukkan semua ke pm.partnershub.co. Tidak ada tiket = Tidak dikerjakan."
+> "Masukkan semua ke your-homefinder-domain.example. Tidak ada tiket = Tidak dikerjakan."
 
 #### 2. BATASI (LIMIT)
 

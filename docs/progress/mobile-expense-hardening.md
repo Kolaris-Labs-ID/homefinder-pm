@@ -6,14 +6,14 @@ reconciliation, or gateway behaviour was changed.
 
 ## Phase 0 — Scan (existing flow)
 
-Backend (`partnershub-pm`, on `main`):
+Backend (`homefinder-pm`, on `main`):
 
 - `POST /api/hris/expense-requests` → `ExpenseRequestController@store` → `ExpenseRequestService::create()`
   → **always** `ExpenseRequest::create()`. Only unique key was the generated `request_number`.
 - Mobile submit is 3 calls: create draft → upload evidence → submit. No idempotency anywhere.
 - **Duplicate risk: a repeated `store` (double tap / retry) inserted a second ER.**
 
-Mobile (`partnershub-app/frontend`, on `main`):
+Mobile (`homefinder-app/frontend`, on `main`):
 
 - `app/expense-request.tsx` `handleSubmit` guarded **only** by `disabled={submitting}` (React state).
   A same-frame double tap enters `handleSubmit` twice before the button disables → two `create` calls.

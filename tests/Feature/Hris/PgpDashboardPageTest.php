@@ -36,7 +36,7 @@ describe('PgpDashboardPage Rendering', function () {
         Livewire::actingAs($this->user)
             ->test(PgpDashboardPage::class)
             ->assertSuccessful()
-            ->assertSee('PHI Growth Point Dashboard');
+            ->assertSee('Homefinder Growth Point Dashboard');
     });
 
     it('displays quarter label correctly', function () {

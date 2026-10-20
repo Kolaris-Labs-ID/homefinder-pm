@@ -152,11 +152,11 @@ _For any_ employee who does NOT have an `AttendanceLog` record for today, when a
 
 ### 6. Mobile App Updates
 
-**`partnershub-app/frontend/services/api.ts`**: Add `visit_type: 'planned' | 'sudden'` to the `ClientVisit` interface.
+**`homefinder-app/frontend/services/api.ts`**: Add `visit_type: 'planned' | 'sudden'` to the `ClientVisit` interface.
 
-**`partnershub-app/frontend/app/visit-request.tsx`**: Change default `visitDate` from `addDays(new Date(), 1)` to `new Date()` so employees can create same-day visits by default.
+**`homefinder-app/frontend/app/visit-request.tsx`**: Change default `visitDate` from `addDays(new Date(), 1)` to `new Date()` so employees can create same-day visits by default.
 
-**`partnershub-app/frontend/app/visit-history.tsx`**: Add a visit type badge next to the status badge in `renderVisitCard`. Use red/danger for `sudden` and blue/info for `planned`.
+**`homefinder-app/frontend/app/visit-history.tsx`**: Add a visit type badge next to the status badge in `renderVisitCard`. Use red/danger for `sudden` and blue/info for `planned`.
 
 ## Error Handling
 

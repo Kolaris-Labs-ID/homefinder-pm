@@ -159,7 +159,7 @@ Falls back to Location field if address fields are empty.
 
 ### For End Users
 
-1. Go to https://pm.partnershub.co/admin/attendance-logs
+1. Go to https://your-homefinder-domain.example/admin/attendance-logs
 2. Click "Import from Google Sheets" button
 3. (Optional) Download template to see format
 4. Upload Google Sheets file (exported as Excel)

@@ -1,6 +1,6 @@
 # Product Overview
 
-DewaKoding Project Management is a comprehensive Laravel-based project management and HRIS system built on Filament 3.
+Homefinder Project Management is a comprehensive Laravel-based project management and HRIS system built on Filament 3.
 
 ## Core Features
 

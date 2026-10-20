@@ -172,9 +172,9 @@ If successful, you can proceed.
 | `DEPLOY_HOST` | VPS IP address (use IP, not subdomain) | `123.456.789.0` |
 | `DEPLOY_USER` | SSH username | `root` or `username` |
 | `DEPLOY_SSH_KEY` | Private SSH key content | Content of `~/.ssh/github_actions_deploy` |
-| `DEPLOY_PATH` | Application directory on server | `/var/www/partnershub-pm` |
+| `DEPLOY_PATH` | Application directory on server | `/var/www/homefinder-pm` |
 
-**Note**: Use the VPS IP address for `DEPLOY_HOST`, not the subdomain. The subdomain (`pm.partnershub.co`) is configured in Nginx and used for web access, while SSH connections use the IP address.
+**Note**: Use the VPS IP address for `DEPLOY_HOST`, not the subdomain. The subdomain (`your-homefinder-domain.example`) is configured in Nginx and used for web access, while SSH connections use the IP address.
 
 #### How to Get Private Key Content
 
@@ -456,7 +456,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-PROJECT_PATH="/var/www/partnershub-pm"
+PROJECT_PATH="/var/www/homefinder-pm"
 BRANCH="main"
 
 cd $PROJECT_PATH
@@ -528,7 +528,7 @@ echo -e "${YELLOW}📅 Completed at: $(date)${NC}"
 Make it executable:
 
 ```bash
-chmod +x /var/www/partnershub-pm/deploy.sh
+chmod +x /var/www/homefinder-pm/deploy.sh
 ```
 
 Then update GitHub Actions workflow to use the script:
@@ -553,7 +553,7 @@ The `.env` file should **never** be committed to Git. It must exist on the serve
 1. Create `.env` file on server (first deployment only):
 
 ```bash
-cd /var/www/partnershub-pm
+cd /var/www/homefinder-pm
 cp .env.example .env
 nano .env
 ```
@@ -570,9 +570,9 @@ php artisan key:generate
 
 - [ ] `APP_ENV=production`
 - [ ] `APP_DEBUG=false`
-- [ ] `APP_URL=https://pm.partnershub.co` (production subdomain)
+- [ ] `APP_URL=https://your-homefinder-domain.example` (production subdomain)
 - [ ] Database credentials
-- [ ] Google OAuth credentials (with redirect URI: `https://pm.partnershub.co/auth/google/callback`)
+- [ ] Google OAuth credentials (with redirect URI: `https://your-homefinder-domain.example/auth/google/callback`)
 - [ ] Mail configuration
 - [ ] Queue connection
 
@@ -613,8 +613,8 @@ Add:
 ```
 deployer ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl restart laravel-worker:*
 deployer ALL=(ALL) NOPASSWD: /bin/systemctl reload php8.2-fpm
-deployer ALL=(ALL) NOPASSWD: /bin/chown -R www-data:www-data /var/www/partnershub-pm/*
-deployer ALL=(ALL) NOPASSWD: /bin/chmod -R 775 /var/www/partnershub-pm/storage
+deployer ALL=(ALL) NOPASSWD: /bin/chown -R www-data:www-data /var/www/homefinder-pm/*
+deployer ALL=(ALL) NOPASSWD: /bin/chmod -R 775 /var/www/homefinder-pm/storage
 ```
 
 ### 3. Repository Security
@@ -702,7 +702,7 @@ Then use conditions:
 
 1. **Check Application Status:**
    ```bash
-   curl -I https://pm.partnershub.co
+   curl -I https://your-homefinder-domain.example
    ```
    
    Should return `200 OK` or `302 Found` (redirect to login). Verify the response includes SSL certificate details.
@@ -728,7 +728,7 @@ If deployment fails, rollback to previous commit:
 
 ```bash
 # On VPS
-cd /var/www/partnershub-pm
+cd /var/www/homefinder-pm
 git log --oneline -10  # Find previous commit
 git reset --hard <previous-commit-hash>
 php artisan config:cache
@@ -938,14 +938,14 @@ Add notification step to workflow:
 | `DEPLOY_HOST` | VPS IP address | `123.456.789.0` |
 | `DEPLOY_USER` | SSH username | `root` or `deployer` |
 | `DEPLOY_SSH_KEY` | Private SSH key | Content of `~/.ssh/github_actions_deploy` |
-| `DEPLOY_PATH` | Application path | `/var/www/partnershub-pm` |
+| `DEPLOY_PATH` | Application path | `/var/www/homefinder-pm` |
 
 ### Important Notes
 
 - **Use VPS IP for SSH**: `DEPLOY_HOST` should be the VPS IP address, not the subdomain
-- **Subdomain for Web**: The subdomain (`pm.partnershub.co`) is configured in Nginx for web access
-- **APP_URL**: Must be set to `https://pm.partnershub.co` in `.env` file on server
-- **Google OAuth**: Redirect URI must be `https://pm.partnershub.co/auth/google/callback`
+- **Subdomain for Web**: The subdomain (`your-homefinder-domain.example`) is configured in Nginx for web access
+- **APP_URL**: Must be set to `https://your-homefinder-domain.example` in `.env` file on server
+- **Google OAuth**: Redirect URI must be `https://your-homefinder-domain.example/auth/google/callback`
 
 ---
 

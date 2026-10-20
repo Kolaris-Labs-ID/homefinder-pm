@@ -2,9 +2,9 @@
     {{-- Intro --}}
     <x-filament::section>
         <x-slot name="heading">📘 Panduan Alur Kerja ER / PR</x-slot>
-        <x-slot name="description">Referensi lengkap modul Expense Request, Payment Request & Payment Bundle di PartnersHub HRIS.</x-slot>
+        <x-slot name="description">Referensi lengkap modul Expense Request, Payment Request & Payment Bundle di Homefinder.</x-slot>
         <p class="text-sm text-gray-600 dark:text-gray-400">
-            Dokumen ini menjelaskan alur kerja lengkap modul Expense Request (ER), Payment Request (PR), dan Payment Bundle di sistem PartnersHub HRIS.
+            Dokumen ini menjelaskan alur kerja lengkap modul Expense Request (ER), Payment Request (PR), dan Payment Bundle di sistem Homefinder.
             Gunakan panduan ini sebagai referensi saat memproses pengajuan biaya, membuat payment request, atau mengelola payment bundle.
         </p>
     </x-filament::section>
@@ -1105,6 +1105,6 @@
     {{-- Footer --}}
     <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center text-xs text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-gray-400">
         <p>Dokumen ini terakhir diperbarui: Juni 2026</p>
-        <p>Berdasarkan implementasi aktual di codebase PartnersHub HRIS</p>
+        <p>Berdasarkan implementasi aktual di codebase Homefinder</p>
     </div>
 </x-filament-panels::page>

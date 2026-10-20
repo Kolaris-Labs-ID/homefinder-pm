@@ -59,7 +59,7 @@ class HiringCompanyResource extends Resource
                             ->rows(4)
                             ->columnSpanFull(),
                         Forms\Components\Toggle::make('is_internal')
-                            ->label('Internal company (PartnersHub itself)'),
+                            ->label('Internal company (Homefinder)'),
                         Forms\Components\Select::make('status')
                             ->options([
                                 HiringCompany::STATUS_ACTIVE => 'Active',

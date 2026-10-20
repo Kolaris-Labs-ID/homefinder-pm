@@ -5,11 +5,11 @@ This guide provides hosting recommendations and step-by-step deployment instruct
 
 ### Deployment Target
 
-**Subdomain**: `pm.partnershub.co`  
-**Main Domain**: `partnershub.co` (already registered in Domainesia)  
+**Subdomain**: `your-homefinder-domain.example`
+**Main Domain**: `your-homefinder-domain.example` (already registered in Domainesia)
 **Deployment Type**: Subdomain-based deployment
 
-> **Important**: This guide is configured for subdomain deployment. The application will be accessible at `https://pm.partnershub.co` after deployment.
+> **Important**: This guide is configured for subdomain deployment. The application will be accessible at `https://your-homefinder-domain.example` after deployment.
 
 ---
 
@@ -65,11 +65,11 @@ This guide provides hosting recommendations and step-by-step deployment instruct
 
 ### Why Not Shared Hosting?
 
-❌ Limited CPU/RAM resources  
-❌ No root access for optimization  
-❌ Database connection limits  
-❌ Slower performance due to shared resources  
-❌ Limited control over PHP configuration  
+❌ Limited CPU/RAM resources
+❌ No root access for optimization
+❌ Database connection limits
+❌ Slower performance due to shared resources
+❌ Limited control over PHP configuration
 
 ---
 
@@ -111,8 +111,8 @@ php-opcache
 
 ### Before Deployment
 
-- [ ] Domain registered (`partnershub.co`) in Domainesia
-- [ ] Subdomain DNS A record created (`pm.partnershub.co` → VPS IP)
+- [ ] Domain registered (`your-homefinder-domain.example`) in Domainesia
+- [ ] Subdomain DNS A record created (`your-homefinder-domain.example` → VPS IP)
 - [ ] Domainesia VPS account created and activated
 - [ ] SSH access to VPS configured
 - [ ] Subdomain pointing to VPS IP address
@@ -124,11 +124,11 @@ php-opcache
 
 ### Environment Variables to Prepare
 
-- [ ] `APP_URL=https://pm.partnershub.co` (production subdomain)
+- [ ] `APP_URL=https://your-homefinder-domain.example` (production subdomain)
 - [ ] `APP_ENV=production`
 - [ ] `APP_DEBUG=false`
 - [ ] Database credentials
-- [ ] Google OAuth Client ID and Secret (with redirect URI: `https://pm.partnershub.co/auth/google/callback`)
+- [ ] Google OAuth Client ID and Secret (with redirect URI: `https://your-homefinder-domain.example/auth/google/callback`)
 - [ ] Mail configuration (SMTP)
 - [ ] Queue connection settings
 
@@ -141,23 +141,23 @@ php-opcache
 Before accessing your VPS, configure the DNS for your subdomain:
 
 1. Log in to Domainesia client area
-2. Navigate to **Domain Management** → Select `partnershub.co`
+2. Navigate to **Domain Management** → Select `your-homefinder-domain.example`
 3. Go to **DNS Management** or **DNS Zone Editor**
 4. Add a new **A Record**:
    - **Type**: `A`
-   - **Name**: `pm` (or `pm.partnershub.co` depending on your DNS panel)
+   - **Name**: `pm` (or `your-homefinder-domain.example` depending on your DNS panel)
    - **Value/Target**: Your VPS IP address
    - **TTL**: `3600` (1 hour) or default
 5. Save the DNS record
 6. Wait for DNS propagation (usually 5-60 minutes, can take up to 24 hours)
 7. Verify DNS is working:
    ```bash
-   ping pm.partnershub.co
+   ping your-homefinder-domain.example
    # Should return your VPS IP address
    ```
    Or use:
    ```bash
-   nslookup pm.partnershub.co
+   nslookup your-homefinder-domain.example
    ```
 
 ### Step 1: Access Your VPS
@@ -293,9 +293,9 @@ sudo mysql -u root -p
 ```
 
 ```sql
-CREATE DATABASE partnershub_pm CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE homefinder_pm CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'pm_user'@'localhost' IDENTIFIED BY 'strong_password_here';
-GRANT ALL PRIVILEGES ON partnershub_pm.* TO 'pm_user'@'localhost';
+GRANT ALL PRIVILEGES ON homefinder_pm.* TO 'pm_user'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
 ```
@@ -305,7 +305,7 @@ EXIT;
 Create Nginx configuration:
 
 ```bash
-sudo nano /etc/nginx/sites-available/partnershub-pm
+sudo nano /etc/nginx/sites-available/homefinder-pm
 ```
 
 Add configuration:
@@ -313,8 +313,8 @@ Add configuration:
 ```nginx
 server {
     listen 80;
-    server_name pm.partnershub.co;
-    root /var/www/partnershub-pm/public;
+    server_name your-homefinder-domain.example;
+    root /var/www/homefinder-pm/public;
 
     # App upload rules allow up to 10MB (overtime evidence); without this nginx's 1MB default 413s uploads.
     client_max_body_size 12m;
@@ -356,7 +356,7 @@ server {
 Enable site:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/partnershub-pm /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/homefinder-pm /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -372,10 +372,10 @@ sudo apt-get install -y certbot python3-certbot-nginx
 Obtain certificate:
 
 ```bash
-sudo certbot --nginx -d pm.partnershub.co
+sudo certbot --nginx -d your-homefinder-domain.example
 ```
 
-**Note**: Since you're using a subdomain, you only need to specify the subdomain. The main domain (`partnershub.co`) can have its own SSL certificate if needed for other services.
+**Note**: Since you're using a subdomain, you only need to specify the subdomain. The main domain (`your-homefinder-domain.example`) can have its own SSL certificate if needed for other services.
 
 Auto-renewal is set up automatically.
 
@@ -386,14 +386,14 @@ Auto-renewal is set up automatically.
 ### Step 1: Create Application Directory
 
 ```bash
-sudo mkdir -p /var/www/partnershub-pm
-sudo chown -R $USER:$USER /var/www/partnershub-pm
+sudo mkdir -p /var/www/homefinder-pm
+sudo chown -R $USER:$USER /var/www/homefinder-pm
 ```
 
 ### Step 2: Clone Repository
 
 ```bash
-cd /var/www/partnershub-pm
+cd /var/www/homefinder-pm
 git clone https://github.com/your-username/your-repo.git .
 ```
 
@@ -415,11 +415,11 @@ nano .env
 Update `.env` file:
 
 ```env
-APP_NAME="PartnersHub PM"
+APP_NAME="Homefinder PM"
 APP_ENV=production
 APP_KEY=
 APP_DEBUG=false
-APP_URL=https://pm.partnershub.co
+APP_URL=https://your-homefinder-domain.example
 
 LOG_CHANNEL=stack
 LOG_LEVEL=error
@@ -427,7 +427,7 @@ LOG_LEVEL=error
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=partnershub_pm
+DB_DATABASE=homefinder_pm
 DB_USERNAME=pm_user
 DB_PASSWORD=your_password_here
 
@@ -484,9 +484,9 @@ php artisan storage:link
 ### Step 7: Set Permissions
 
 ```bash
-sudo chown -R www-data:www-data /var/www/partnershub-pm
-sudo chmod -R 775 /var/www/partnershub-pm/storage
-sudo chmod -R 775 /var/www/partnershub-pm/bootstrap/cache
+sudo chown -R www-data:www-data /var/www/homefinder-pm
+sudo chmod -R 775 /var/www/homefinder-pm/storage
+sudo chmod -R 775 /var/www/homefinder-pm/bootstrap/cache
 ```
 
 ### Step 8: Optimize Application
@@ -515,7 +515,7 @@ Add:
 ```ini
 [program:laravel-worker]
 process_name=%(program_name)s_%(process_num)02d
-command=php /var/www/partnershub-pm/artisan queue:work --sleep=3 --tries=3 --max-time=3600
+command=php /var/www/homefinder-pm/artisan queue:work --sleep=3 --tries=3 --max-time=3600
 autostart=true
 autorestart=true
 stopasgroup=true
@@ -523,7 +523,7 @@ killasgroup=true
 user=www-data
 numprocs=2
 redirect_stderr=true
-stdout_logfile=/var/www/partnershub-pm/storage/logs/worker.log
+stdout_logfile=/var/www/homefinder-pm/storage/logs/worker.log
 stopwaitsecs=3600
 ```
 
@@ -546,7 +546,7 @@ sudo crontab -e -u www-data
 Add:
 
 ```cron
-* * * * * cd /var/www/partnershub-pm && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /var/www/homefinder-pm && php artisan schedule:run >> /dev/null 2>&1
 ```
 
 ### Step 3: Configure Google OAuth
@@ -556,7 +556,7 @@ Add:
 3. Edit your OAuth 2.0 Client ID
 4. Add to **Authorized redirect URIs**:
    ```
-   https://pm.partnershub.co/auth/google/callback
+   https://your-homefinder-domain.example/auth/google/callback
    ```
 5. Save changes
 6. Update `.env` with production credentials:
@@ -647,8 +647,8 @@ Add indexes to frequently queried columns. Run migrations after adding indexes.
 
 1. **Check Logs:**
    ```bash
-   tail -f /var/www/partnershub-pm/storage/logs/laravel.log
-   tail -f /var/www/partnershub-pm/storage/logs/worker.log
+   tail -f /var/www/homefinder-pm/storage/logs/laravel.log
+   tail -f /var/www/homefinder-pm/storage/logs/worker.log
    ```
 
 2. **Monitor Disk Space:**
@@ -663,7 +663,7 @@ Add indexes to frequently queried columns. Run migrations after adding indexes.
 
 4. **Database Backups:**
    ```bash
-   mysqldump -u pm_user -p partnershub_pm > backup_$(date +%Y%m%d).sql
+   mysqldump -u pm_user -p homefinder_pm > backup_$(date +%Y%m%d).sql
    ```
 
 ### Automated Backups
@@ -676,15 +676,15 @@ sudo nano /usr/local/bin/backup-pm.sh
 
 ```bash
 #!/bin/bash
-BACKUP_DIR="/var/backups/partnershub-pm"
+BACKUP_DIR="/var/backups/homefinder-pm"
 DATE=$(date +%Y%m%d_%H%M%S)
 mkdir -p $BACKUP_DIR
 
 # Database backup
-mysqldump -u pm_user -p'your_password' partnershub_pm > $BACKUP_DIR/db_$DATE.sql
+mysqldump -u pm_user -p'your_password' homefinder_pm > $BACKUP_DIR/db_$DATE.sql
 
 # Files backup
-tar -czf $BACKUP_DIR/files_$DATE.tar.gz /var/www/partnershub-pm
+tar -czf $BACKUP_DIR/files_$DATE.tar.gz /var/www/homefinder-pm
 
 # Keep only last 7 days
 find $BACKUP_DIR -type f -mtime +7 -delete
@@ -713,7 +713,7 @@ Add (daily at 2 AM):
 
 Check logs:
 ```bash
-tail -f /var/www/partnershub-pm/storage/logs/laravel.log
+tail -f /var/www/homefinder-pm/storage/logs/laravel.log
 tail -f /var/log/nginx/error.log
 ```
 
@@ -742,7 +742,7 @@ sudo supervisorctl restart laravel-worker:*
 
 Fix permissions:
 ```bash
-sudo chown -R www-data:www-data /var/www/partnershub-pm
+sudo chown -R www-data:www-data /var/www/homefinder-pm
 sudo chmod -R 775 storage bootstrap/cache
 ```
 
@@ -756,24 +756,24 @@ sudo systemctl reload nginx
 
 #### 6. Subdomain DNS Not Resolving
 
-**Error**: `pm.partnershub.co` not accessible or not resolving to VPS IP
+**Error**: `your-homefinder-domain.example` not accessible or not resolving to VPS IP
 
 **Solution**:
 1. Verify DNS record exists:
    ```bash
-   nslookup pm.partnershub.co
+   nslookup your-homefinder-domain.example
    # Should return your VPS IP address
    ```
 2. Check DNS record in Domainesia:
    - Log in to Domainesia client area
-   - Navigate to DNS Management for `partnershub.co`
+   - Navigate to DNS Management for `your-homefinder-domain.example`
    - Verify A record exists: `pm` → VPS IP
 3. Wait for DNS propagation (can take 5-60 minutes, up to 24 hours)
 4. Clear local DNS cache:
    ```bash
    # macOS/Linux
    sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
-   
+
    # Windows
    ipconfig /flushdns
    ```
@@ -790,11 +790,11 @@ sudo systemctl reload nginx
 
 **Solution**:
 1. Verify redirect URI in Google Cloud Console:
-   - Must be exactly: `https://pm.partnershub.co/auth/google/callback`
+   - Must be exactly: `https://your-homefinder-domain.example/auth/google/callback`
    - Check for typos (no trailing slash, correct protocol)
 2. Verify `.env` file has correct `APP_URL`:
    ```env
-   APP_URL=https://pm.partnershub.co
+   APP_URL=https://your-homefinder-domain.example
    ```
 3. Clear application cache:
    ```bash
@@ -835,13 +835,13 @@ sudo systemctl reload nginx
 
 | Configuration | Value |
 |---------------|-------|
-| **Subdomain** | `pm.partnershub.co` |
-| **Main Domain** | `partnershub.co` |
-| **Nginx server_name** | `pm.partnershub.co` |
-| **SSL Certificate** | `pm.partnershub.co` |
-| **APP_URL** | `https://pm.partnershub.co` |
-| **Google OAuth Redirect URI** | `https://pm.partnershub.co/auth/google/callback` |
-| **Application Path** | `/var/www/partnershub-pm` |
+| **Subdomain** | `your-homefinder-domain.example` |
+| **Main Domain** | `your-homefinder-domain.example` |
+| **Nginx server_name** | `your-homefinder-domain.example` |
+| **SSL Certificate** | `your-homefinder-domain.example` |
+| **APP_URL** | `https://your-homefinder-domain.example` |
+| **Google OAuth Redirect URI** | `https://your-homefinder-domain.example/auth/google/callback` |
+| **Application Path** | `/var/www/homefinder-pm` |
 
 ### DNS Configuration
 
@@ -856,19 +856,19 @@ TTL: 3600
 
 ```bash
 # Check DNS resolution
-nslookup pm.partnershub.co
-ping pm.partnershub.co
+nslookup your-homefinder-domain.example
+ping your-homefinder-domain.example
 
 # Check application accessibility
-curl -I https://pm.partnershub.co
+curl -I https://your-homefinder-domain.example
 
 # Check SSL certificate
-openssl s_client -connect pm.partnershub.co:443 -servername pm.partnershub.co
+openssl s_client -connect your-homefinder-domain.example:443 -servername your-homefinder-domain.example
 ```
 
 ---
 
-**Last Updated**: [Current Date]  
+**Last Updated**: [Current Date]
 **Version**: 1.1 (Updated for subdomain deployment)
 
 

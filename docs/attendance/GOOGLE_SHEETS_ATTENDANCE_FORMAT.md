@@ -147,7 +147,7 @@ No,Name,Action,Date & Time,Location,Address,City,State/Province,Country,Postal C
     - File → Download → Microsoft Excel (.xlsx)
 
 2. **Import to HRIS**
-    - Go to https://pm.partnershub.co/admin/attendance-logs
+    - Go to https://your-homefinder-domain.example/admin/attendance-logs
     - Click "Import from Google Sheets" (blue button)
     - Upload your Excel file
     - Click Submit

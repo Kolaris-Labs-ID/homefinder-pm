@@ -2,11 +2,11 @@
 
 ## Introduction
 
-This specification covers the PHI Growth Point (PGP) System feature revamp. The PGP system is a quarterly-based reward mechanism that incentivizes employees to complete training programs. Employees earn PGP points for completing training (35 PGP for free training, 15-25 PGP for paid training), and upon reaching quarterly targets, they receive monetary rewards. The system integrates with the existing Training Record menu and Approval Dashboard.
+This specification covers the Homefinder Growth Point (PGP) System feature revamp. The PGP system is a quarterly-based reward mechanism that incentivizes employees to complete training programs. Employees earn PGP points for completing training (35 PGP for free training, 15-25 PGP for paid training), and upon reaching quarterly targets, they receive monetary rewards. The system integrates with the existing Training Record menu and Approval Dashboard.
 
 ## Glossary
 
-- **PGP_System**: The module responsible for tracking PHI Growth Points earned through training completion and calculating associated rewards.
+- **PGP_System**: The module responsible for tracking Homefinder Growth Points earned through training completion and calculating associated rewards.
 - **PGP_Point**: A unit of measurement representing growth achievement through training completion.
 - **Training_Type**: Classification of training as either "free" (company-provided) or "paid" (external/certification).
 - **Quarterly_Period**: A three-month period (Q1: Jan-Mar, Q2: Apr-Jun, Q3: Jul-Sep, Q4: Oct-Dec) used for PGP tracking and reset.
@@ -65,16 +65,16 @@ This specification covers the PHI Growth Point (PGP) System feature revamp. The 
 3. WHEN a free training is approved THEN the Approval_Dashboard SHALL auto-populate 35 PGP_Points without requiring manual input
 4. WHEN a training approval is submitted THEN the PGP_System SHALL record the PGP_Points value and approval timestamp on the TrainingRecord
 
-### Requirement 5: PHI Growth Point Menu
+### Requirement 5: Homefinder Growth Point Menu
 
 **User Story:** As an employee, I want to view my PGP progress and history, so that I can track my training achievements and projected rewards.
 
 #### Acceptance Criteria
 
-1. THE PGP_System SHALL provide a dedicated PHI Growth Point menu page accessible to employees
-2. WHEN displaying the PHI Growth Point page THEN the PGP_System SHALL show a progress visualization toward the 150 PGP quarterly target
-3. WHEN displaying the PHI Growth Point page THEN the PGP_System SHALL list all approved training records with their associated PGP_Points for the current quarter
-4. WHEN displaying the PHI Growth Point page THEN the PGP_System SHALL show the current Projected_Reward based on approved points
+1. THE PGP_System SHALL provide a dedicated Homefinder Growth Point menu page accessible to employees
+2. WHEN displaying the Homefinder Growth Point page THEN the PGP_System SHALL show a progress visualization toward the 150 PGP quarterly target
+3. WHEN displaying the Homefinder Growth Point page THEN the PGP_System SHALL list all approved training records with their associated PGP_Points for the current quarter
+4. WHEN displaying the Homefinder Growth Point page THEN the PGP_System SHALL show the current Projected_Reward based on approved points
 5. WHEN an employee has no approved training in the current quarter THEN the PGP_System SHALL display zero progress and Rp0 projected reward
 
 ### Requirement 6: Training Record Enhancement

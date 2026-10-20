@@ -111,7 +111,7 @@ Three tests in `PayslipContentCompletenessPropertyTest` are still failing. They 
 Run this command:
 
 ```bash
-cd partnershub-pm
+cd homefinder-pm
 php artisan test
 ```
 

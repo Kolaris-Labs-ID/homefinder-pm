@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-The HRIS (Human Resources Information System) module extends the existing PartnersHub Project Management system to manage employees, time & attendance, payroll, talent, and employee self-service (ESS), with Indonesian HR and tax context in mind.
+The HRIS (Human Resources Information System) module extends the existing Homefinder Project Management system to manage employees, time & attendance, payroll, talent, and employee self-service (ESS), with Indonesian HR and tax context in mind.
 
 The HRIS module will:
 

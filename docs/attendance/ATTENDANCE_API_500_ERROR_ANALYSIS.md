@@ -144,15 +144,15 @@ php create-missing-employee-records.php
 
 ## Deployment Steps
 
-### On Production Server (pm.partnershub.co)
+### On Production Server (your-homefinder-domain.example)
 
 ```bash
 # 1. Upload the new files
-scp diagnose-attendance-api.php user@pm.partnershub.co:/path/to/app/
-scp create-missing-employee-records.php user@pm.partnershub.co:/path/to/app/
+scp diagnose-attendance-api.php user@your-homefinder-domain.example:/path/to/app/
+scp create-missing-employee-records.php user@your-homefinder-domain.example:/path/to/app/
 
 # 2. SSH into server
-ssh user@pm.partnershub.co
+ssh user@your-homefinder-domain.example
 cd /path/to/app
 
 # 3. Run diagnostic
@@ -174,7 +174,7 @@ php diagnose-attendance-api.php jiuhengtech@gmail.com
 
 ```bash
 # 1. Get authentication token
-curl -X POST https://pm.partnershub.co/api/auth/login \
+curl -X POST https://your-homefinder-domain.example/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "jiuhengtech@gmail.com",
@@ -185,15 +185,15 @@ curl -X POST https://pm.partnershub.co/api/auth/login \
 TOKEN="your-token-here"
 
 # 2. Test daily attendance (should return 200 or 404, not 500)
-curl -X GET https://pm.partnershub.co/api/hris/attendance/daily \
+curl -X GET https://your-homefinder-domain.example/api/hris/attendance/daily \
   -H "Authorization: Bearer $TOKEN"
 
 # 3. Test WFH quota (should return 200)
-curl -X GET https://pm.partnershub.co/api/hris/attendance/wfh-quota \
+curl -X GET https://your-homefinder-domain.example/api/hris/attendance/wfh-quota \
   -H "Authorization: Bearer $TOKEN"
 
 # 4. Test check-in (should return 201)
-curl -X POST https://pm.partnershub.co/api/hris/attendance/check-in \
+curl -X POST https://your-homefinder-domain.example/api/hris/attendance/check-in \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -458,4 +458,4 @@ If issues persist:
 1. Check Laravel logs: `tail -f storage/logs/laravel.log`
 2. Run diagnostic: `php diagnose-attendance-api.php`
 3. Verify database: `php artisan tinker --execute="User::with('employee')->find(1)"`
-4. Test authentication: `curl https://pm.partnershub.co/api/hris/profile -H "Authorization: Bearer TOKEN"`
+4. Test authentication: `curl https://your-homefinder-domain.example/api/hris/profile -H "Authorization: Bearer TOKEN"`

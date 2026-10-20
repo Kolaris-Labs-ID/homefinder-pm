@@ -1,8 +1,8 @@
-# Design Document: PHI Growth Point (PGP) System
+# Design Document: Homefinder Growth Point (PGP) System
 
 ## Overview
 
-The PHI Growth Point (PGP) System is a quarterly-based employee reward mechanism that incentivizes training completion. This design extends the existing Training Record system and integrates with the Approval Dashboard to provide a comprehensive PGP tracking and reward calculation solution.
+The Homefinder Growth Point (PGP) System is a quarterly-based employee reward mechanism that incentivizes training completion. This design extends the existing Training Record system and integrates with the Approval Dashboard to provide a comprehensive PGP tracking and reward calculation solution.
 
 The system follows a quarterly cycle (Q1-Q4) where employees accumulate PGP points through approved training completions. Points are awarded based on training type: 35 PGP for free (company-provided) training and 15-25 PGP for paid (external/certification) training. Upon reaching the 150 PGP quarterly target, employees earn a base reward of Rp150,000, with additional Rp35,000 for each complete 35-point block beyond the target.
 

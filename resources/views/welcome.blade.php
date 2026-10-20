@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ config('app.name', 'People&Co Project Management') }}</title>
+        <title>{{ config('app.name', 'Homefinder') }}</title>
 
         <!-- Tailwind CSS CDN -->
         <script src="https://cdn.tailwindcss.com"></script>
@@ -31,8 +31,8 @@
         <div class="min-h-screen flex flex-col items-center">
             <header class="w-full py-6 px-6 sm:px-10 flex justify-between items-center">
                 <div class="flex items-center space-x-2">
-                    <img src="{{ asset('images/logo-app.png') }}" alt="People&Co Project Management Logo" class="w-12 h-12 object-contain">
-                    <span class="text-xl font-semibold">People&Co Project Management</span>
+                    <img src="{{ asset('images/logo-app.png') }}" alt="Homefinder logo" class="w-12 h-12 object-contain">
+                    <span class="text-xl font-semibold">Homefinder</span>
                 </div>
                 
                 @if (Route::has('login'))
@@ -100,7 +100,7 @@
 
             <footer class="w-full py-8 px-6 sm:px-10">
                 <div class="max-w-4xl mx-auto text-center">
-                    <p class="text-gray-600">© {{ date('Y') }} DewaKoding. All rights reserved.</p>
+                    <p class="text-gray-600">© {{ date('Y') }} Homefinder. All rights reserved.</p>
                     <p class="text-sm text-gray-500 mt-2">Built with Laravel and Filament</p>
                 </div>
             </footer>

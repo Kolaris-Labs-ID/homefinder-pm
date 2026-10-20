@@ -22,7 +22,7 @@ git pull
 php artisan config:clear
 
 # 4. Test
-curl -X GET https://pm.partnershub.co/api/hris/attendance/daily \
+curl -X GET https://your-homefinder-domain.example/api/hris/attendance/daily \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 

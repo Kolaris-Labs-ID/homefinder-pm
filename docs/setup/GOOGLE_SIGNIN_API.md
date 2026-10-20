@@ -217,7 +217,7 @@ const signIn = async () => {
 
         // Send to backend
         const response = await fetch(
-            "https://pm.partnershub.co/api/auth/google",
+            "https://your-homefinder-domain.example/api/auth/google",
             {
                 method: "POST",
                 headers: {
@@ -249,7 +249,7 @@ You can test the endpoint using a real Google ID token:
 # Visit: https://developers.google.com/oauthplayground/
 
 # 2. Test the endpoint
-curl -X POST https://pm.partnershub.co/api/auth/google \
+curl -X POST https://your-homefinder-domain.example/api/auth/google \
   -H "Content-Type: application/json" \
   -d '{
     "id_token": "YOUR_GOOGLE_ID_TOKEN",

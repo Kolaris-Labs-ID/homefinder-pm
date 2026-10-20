@@ -3,7 +3,7 @@
 **Scope:** Read-only audit before implementing internal file storage for documents attached to a Project (= one client/company). **No production code changed. No migrations, models, resources, routes, or tests created.**
 
 **Date:** 2026-06-13
-**Repo:** `partnershub-pm` (Laravel 12 + Filament 3)
+**Repo:** `homefinder-pm` (Laravel 12 + Filament 3)
 **Hard MVP rule:** project documents are **internal-only**; they must never appear on the external client dashboard.
 
 ---

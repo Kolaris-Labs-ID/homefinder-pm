@@ -1,15 +1,15 @@
-# Panduan Lengkap PartnersHub Project Management
+# Panduan Lengkap Homefinder Project Management
 
 ## Dokumentasi Fitur untuk Semua Divisi
 
-Dokumen ini berisi panduan lengkap penggunaan sistem manajemen proyek PartnersHub dalam Bahasa Indonesia. Panduan ini mencakup semua fitur utama termasuk Project, Epic, Ticket, Kanban Board, dan fitur HRIS.
+Dokumen ini berisi panduan lengkap penggunaan sistem manajemen proyek Homefinder dalam Bahasa Indonesia. Panduan ini mencakup semua fitur utama termasuk Project, Epic, Ticket, Kanban Board, dan fitur HRIS.
 
 ---
 
 ## Daftar Isi
 
 1. [Glosarium (Penjelasan Istilah)](#glosarium-penjelasan-istilah)
-2. [Struktur Divisi PartnersHub](#struktur-divisi-partnershub)
+2. [Struktur Divisi Homefinder](#struktur-divisi-homefinder)
 3. [Panduan untuk Head Division (Kepala Divisi)](#panduan-untuk-head-division-kepala-divisi)
 4. [Panduan untuk Staff (Anggota Tim)](#panduan-untuk-staff-anggota-tim)
 5. [Cara Membuat Project](#cara-membuat-project)
@@ -77,9 +77,9 @@ Berikut adalah penjelasan istilah-istilah yang digunakan dalam sistem:
 
 ---
 
-## Struktur Divisi PartnersHub
+## Struktur Divisi Homefinder
 
-PartnersHub memiliki 4 divisi utama:
+Homefinder memiliki 4 divisi utama:
 
 ### 1. Tax & Accounting (Pajak & Akuntansi)
 
@@ -209,7 +209,7 @@ Sebagai anggota tim (Staff Tax/Legal/Commerce), Anda dapat:
 
 #### Langkah 1: Buka Menu Projects
 
-1. Login ke sistem di `http://pm.partnershub.co/admin`
+1. Login ke sistem di `https://your-homefinder-domain.example/admin`
 2. Klik menu **"Projects"** di sidebar kiri
 3. Anda akan melihat daftar semua project
 
@@ -276,7 +276,7 @@ Sebagai anggota tim (Staff Tax/Legal/Commerce), Anda dapat:
 
 ### Apa itu Epic?
 
-Epic adalah kumpulan ticket yang saling berhubungan. Untuk PartnersHub, Epic biasanya digunakan untuk:
+Epic adalah kumpulan ticket yang saling berhubungan. Untuk Homefinder, Epic biasanya digunakan untuk:
 
 - Mengelompokkan tahapan pekerjaan klien
 - Mengelompokkan jenis layanan
@@ -939,7 +939,7 @@ Head Division bisa export data ticket ke Excel untuk:
 
 #### 1. VISUALISASIKAN
 
-> "Masukkan semua ke pm.partnershub.co. Tidak ada tiket = Tidak dikerjakan."
+> "Masukkan semua ke your-homefinder-domain.example. Tidak ada tiket = Tidak dikerjakan."
 
 - Semua pekerjaan HARUS ada tiketnya
 - Kalau tidak ada di sistem, dianggap tidak ada

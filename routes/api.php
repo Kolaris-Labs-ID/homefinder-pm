@@ -41,7 +41,7 @@ Route::get('/hris/attendance/photo', [AttendanceController::class, 'servePhoto']
 
 /*
 |--------------------------------------------------------------------------
-| Public Job Portal API (v1) — unauthenticated, for jobs.partnershub.co
+| Public Job Portal API (v1) — unauthenticated, for your-homefinder-jobs-domain.example
 |--------------------------------------------------------------------------
 */
 Route::prefix('public/v1')->group(function () {

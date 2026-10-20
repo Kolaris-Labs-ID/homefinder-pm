@@ -1,6 +1,6 @@
 # Glosarium Lengkap
 
-## Kamus Istilah Sistem Manajemen Proyek PartnersHub
+## Kamus Istilah Sistem Manajemen Proyek Homefinder
 
 Dokumen ini berisi penjelasan semua istilah yang digunakan dalam sistem dalam Bahasa Indonesia.
 
@@ -1004,7 +1004,7 @@ Dokumen ini berisi penjelasan semua istilah yang digunakan dalam sistem dalam Ba
 
 ## Referensi Terkait
 
-- [Panduan Lengkap PartnersHub](PANDUAN_LENGKAP_PARTNERSHUB.md)
+- [Panduan Lengkap Homefinder](PANDUAN_LENGKAP_HOMEFINDER.md)
 - [Panduan Head Division](PANDUAN_HEAD_DIVISION_ID.md)
 - [Panduan User](PANDUAN_USER_ID.md)
 - [Panduan Kanban](PANDUAN_KANBAN_ID.md)

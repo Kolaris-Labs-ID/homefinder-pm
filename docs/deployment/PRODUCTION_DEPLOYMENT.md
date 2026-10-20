@@ -23,7 +23,7 @@ ssh your-user@your-vps-ip
 
 ```bash
 cd /path/to/your/laravel/project
-# Example: cd /var/www/dewakoding-pm
+# Example: cd /var/www/homefinder-pm
 ```
 
 ### Step 3: Run the permission setup commands
@@ -138,7 +138,7 @@ Here's the full workflow for deploying your code with HRIS features:
 ssh your-user@your-vps-ip
 
 # 2. Navigate to project
-cd /var/www/dewakoding-pm  # Adjust path
+cd /var/www/homefinder-pm  # Adjust path
 
 # 3. Put application in maintenance mode
 php artisan down

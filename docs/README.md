@@ -1,8 +1,8 @@
-# Dokumentasi PartnersHub Project Management
+# Dokumentasi Homefinder Project Management
 
 ## Panduan Lengkap dalam Bahasa Indonesia
 
-Selamat datang di dokumentasi sistem manajemen proyek PartnersHub. Dokumen ini berisi panduan lengkap untuk semua pengguna sistem dari divisi Tax & Accounting, Legal, dan Commerce.
+Selamat datang di dokumentasi sistem manajemen proyek Homefinder. Dokumen ini berisi panduan lengkap untuk semua pengguna sistem dari divisi Tax & Accounting, Legal, dan Commerce.
 
 ---
 
@@ -12,7 +12,7 @@ Selamat datang di dokumentasi sistem manajemen proyek PartnersHub. Dokumen ini b
 
 | Dokumen                                               | Deskripsi                                                    |
 | ----------------------------------------------------- | ------------------------------------------------------------ |
-| [**Panduan Lengkap**](PANDUAN_LENGKAP_PARTNERSHUB.md) | ⭐ Panduan komprehensif semua fitur dengan contoh per divisi |
+| [**Panduan Lengkap**](PANDUAN_LENGKAP_HOMEFINDER.md) | ⭐ Panduan komprehensif semua fitur dengan contoh per divisi |
 | [Glosarium](GLOSARIUM_ID.md)                          | Kamus istilah dalam Bahasa Indonesia                         |
 | [Panduan Kanban](PANDUAN_KANBAN_ID.md)                | Panduan detail penggunaan Kanban Board                       |
 
@@ -25,7 +25,7 @@ Selamat datang di dokumentasi sistem manajemen proyek PartnersHub. Dokumen ini b
 
 ---
 
-## 🏢 Struktur Divisi PartnersHub
+## 🏢 Struktur Divisi Homefinder
 
 ### 1. Tax & Accounting (The Factory Line)
 
@@ -61,15 +61,15 @@ Selamat datang di dokumentasi sistem manajemen proyek PartnersHub. Dokumen ini b
 
 ### Untuk Staff Baru
 
-1. **Login** ke sistem di `http://pm.partnershub.co/admin`
-2. **Baca** [Panduan Lengkap](PANDUAN_LENGKAP_PARTNERSHUB.md) - terutama bagian divisi Anda
+1. **Login** ke sistem di `https://your-homefinder-domain.example/admin`
+2. **Baca** [Panduan Lengkap](PANDUAN_LENGKAP_HOMEFINDER.md) - terutama bagian divisi Anda
 3. **Pelajari** [Glosarium](GLOSARIUM_ID.md) untuk memahami istilah
 4. **WAJIB Pahami** [Panduan Kanban](PANDUAN_KANBAN_ID.md) - terutama aturan WIP Limit
 
 ### Untuk Kepala Divisi
 
 1. **Baca** [Panduan Head Division](PANDUAN_HEAD_DIVISION_ID.md)
-2. **Pahami** workflow divisi Anda di [Panduan Lengkap](PANDUAN_LENGKAP_PARTNERSHUB.md#panduan-per-divisi)
+2. **Pahami** workflow divisi Anda di [Panduan Lengkap](PANDUAN_LENGKAP_HOMEFINDER.md#panduan-per-divisi)
 3. **Setup** status Kanban sesuai kebutuhan divisi
 4. **Terapkan** WIP Limit untuk tim Anda
 
@@ -79,7 +79,7 @@ Selamat datang di dokumentasi sistem manajemen proyek PartnersHub. Dokumen ini b
 
 ### 1. VISUALISASIKAN
 
-> "Masukkan semua ke pm.partnershub.co. Tidak ada tiket = Tidak dikerjakan."
+> "Masukkan semua ke your-homefinder-domain.example. Tidak ada tiket = Tidak dikerjakan."
 
 ### 2. BATASI (LIMIT)
 
@@ -97,9 +97,9 @@ Selamat datang di dokumentasi sistem manajemen proyek PartnersHub. Dokumen ini b
 
 ### Project Management
 
-- [Cara Membuat Project](PANDUAN_LENGKAP_PARTNERSHUB.md#cara-membuat-project)
-- [Cara Membuat Epic](PANDUAN_LENGKAP_PARTNERSHUB.md#cara-membuat-epic)
-- [Cara Membuat Ticket](PANDUAN_LENGKAP_PARTNERSHUB.md#cara-membuat-ticket)
+- [Cara Membuat Project](PANDUAN_LENGKAP_HOMEFINDER.md#cara-membuat-project)
+- [Cara Membuat Epic](PANDUAN_LENGKAP_HOMEFINDER.md#cara-membuat-epic)
+- [Cara Membuat Ticket](PANDUAN_LENGKAP_HOMEFINDER.md#cara-membuat-ticket)
 
 ### Kanban Board
 
@@ -109,9 +109,9 @@ Selamat datang di dokumentasi sistem manajemen proyek PartnersHub. Dokumen ini b
 
 ### Panduan per Divisi
 
-- [Divisi Tax & Accounting](PANDUAN_LENGKAP_PARTNERSHUB.md#divisi-tax--accounting)
-- [Divisi Legal](PANDUAN_LENGKAP_PARTNERSHUB.md#divisi-legal)
-- [Divisi Commerce](PANDUAN_LENGKAP_PARTNERSHUB.md#divisi-commerce)
+- [Divisi Tax & Accounting](PANDUAN_LENGKAP_HOMEFINDER.md#divisi-tax--accounting)
+- [Divisi Legal](PANDUAN_LENGKAP_HOMEFINDER.md#divisi-legal)
+- [Divisi Commerce](PANDUAN_LENGKAP_HOMEFINDER.md#divisi-commerce)
 
 ---
 

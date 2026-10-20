@@ -118,7 +118,7 @@ Implement automatic classification of client visits as "Planned" or "Sudden", a 
 
     - [x] 7.2 Update visit-request default date to today
         - Change default `visitDate` state from `addDays(new Date(), 1)` to `new Date()`
-        - File: `partnershub-app/frontend/app/visit-request.tsx`
+        - File: `homefinder-app/frontend/app/visit-request.tsx`
         - _Requirements: 7.2_
 
     - [x] 7.3 Display visit type badge in visit-history

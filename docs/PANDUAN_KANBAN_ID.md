@@ -1,6 +1,6 @@
 # Panduan Lengkap Kanban Board
 
-## Sistem Manajemen Proyek PartnersHub
+## Sistem Manajemen Proyek Homefinder
 
 Panduan detail tentang cara menggunakan Kanban Board untuk mengelola pekerjaan tim.
 
@@ -278,7 +278,7 @@ Slot Ready to Pay: 10/10 (PENUH)
 
 ### Langkah-langkah
 
-1. Login ke sistem di `http://pm.partnershub.co/admin`
+1. Login ke sistem di `https://your-homefinder-domain.example/admin`
 2. Klik menu **"Project Board"** di sidebar kiri
 3. Pilih project dari dropdown di bagian atas
 4. Board akan menampilkan semua ticket
@@ -446,7 +446,7 @@ Inbox (10) → Validasi (20) → Ready to Pay (30) → Paid (40)
 
 ### 1. VISUALISASIKAN
 
-> "Masukkan semua ke pm.partnershub.co. Tidak ada tiket = Tidak dikerjakan."
+> "Masukkan semua ke your-homefinder-domain.example. Tidak ada tiket = Tidak dikerjakan."
 
 - Semua pekerjaan HARUS ada tiketnya
 - Kalau tidak ada di sistem, dianggap tidak ada

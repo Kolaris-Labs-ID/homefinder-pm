@@ -1,7 +1,7 @@
 <?php
 
 /**
- * PHI Growth Point (PGP) — end-to-end and edge-case coverage:
+ * Homefinder Growth Point (PGP) — end-to-end and edge-case coverage:
  * training workflow init on create, approval/PGP wiring, bulk PGP, model & policy behaviour.
  */
 

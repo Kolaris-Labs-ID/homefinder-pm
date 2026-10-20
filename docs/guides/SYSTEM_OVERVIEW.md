@@ -1,6 +1,6 @@
-# PartnersHub PM - Complete System Overview
+# Homefinder PM - Complete System Overview
 
-**PartnersHub PM** is a comprehensive Laravel 12-based enterprise application built on Filament 3 that combines **Project Management** and **HRIS (Human Resource Information System)** capabilities.
+**Homefinder PM** is a comprehensive Laravel 12-based enterprise application built on Filament 3 that combines **Project Management** and **HRIS (Human Resource Information System)** capabilities.
 
 ---
 
@@ -300,7 +300,7 @@ The system is specifically built for Indonesian companies with:
 
 ## Mobile App Integration
 
-This backend powers the **PHI-Connect** mobile app (React Native/Expo) providing:
+This backend powers the **Homefinder** mobile app (React Native/Expo) providing:
 
 - Employee self-service (ESS) functionality
 - Attendance check-in/out with GPS and photos
@@ -351,7 +351,7 @@ php artisan test --testsuite=Unit
 ## File Structure
 
 ```
-partnershub-pm/
+homefinder-pm/
 ├── app/
 │   ├── Console/Commands/     # Artisan commands
 │   ├── Filament/             # Admin panel resources

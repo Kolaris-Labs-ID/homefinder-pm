@@ -50,18 +50,18 @@ After running the script, test the API endpoints:
 
 ```bash
 # Get a token first
-curl -X POST https://pm.partnershub.co/api/auth/login \
+curl -X POST https://your-homefinder-domain.example/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"jiuhengtech@gmail.com","password":"your-password"}'
 
 # Test the endpoints with the token
-curl -X GET https://pm.partnershub.co/api/hris/attendance/daily \
+curl -X GET https://your-homefinder-domain.example/api/hris/attendance/daily \
   -H "Authorization: Bearer YOUR_TOKEN"
 
-curl -X GET https://pm.partnershub.co/api/hris/attendance/wfh-quota \
+curl -X GET https://your-homefinder-domain.example/api/hris/attendance/wfh-quota \
   -H "Authorization: Bearer YOUR_TOKEN"
 
-curl -X POST https://pm.partnershub.co/api/hris/attendance/check-in \
+curl -X POST https://your-homefinder-domain.example/api/hris/attendance/check-in \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"mode":"office","source":"mobile"}'

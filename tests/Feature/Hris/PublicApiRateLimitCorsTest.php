@@ -24,9 +24,9 @@ it('allows browsing within the moderate jobs limit', function () {
     expect($res->headers->has('X-RateLimit-Limit'))->toBeTrue();
 });
 
-it('echoes the allow-origin header for the jobs portal origin', function () {
-    $res = $this->getJson('/api/public/v1/jobs', ['Origin' => 'https://jobs.partnershub.co']);
+it('echoes the allow-origin header for the configured local frontend origin', function () {
+    $res = $this->getJson('/api/public/v1/jobs', ['Origin' => 'http://localhost:3000']);
 
     $res->assertOk();
-    expect($res->headers->get('Access-Control-Allow-Origin'))->toBe('https://jobs.partnershub.co');
+    expect($res->headers->get('Access-Control-Allow-Origin'))->toBe('http://localhost:3000');
 });

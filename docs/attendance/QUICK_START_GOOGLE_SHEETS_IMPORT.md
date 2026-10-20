@@ -10,7 +10,7 @@
 
 ### Step 2: Import to HRIS
 
-1. Go to: https://pm.partnershub.co/admin/attendance-logs
+1. Go to: https://your-homefinder-domain.example/admin/attendance-logs
 2. Click: **"Import from Google Sheets"** (blue button)
 3. Upload your Excel file
 4. Click: **Submit**

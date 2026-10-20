@@ -7,7 +7,7 @@ Date: 2026-06-03
 
 ## Baseline
 
-### Backend (partnershub-pm)
+### Backend (homefinder-pm)
 
 Command: `./vendor/bin/pest --compact`
 
@@ -22,7 +22,7 @@ Command: `./vendor/bin/pint --test` (dry-run)
 
 Result: Reports style issues in ~several legacy files (e.g. `tests/Unit/Hris/Pph21CalculationServiceTest.php`, `tests/Unit/Hris/SalaryStructureModelTest.php`, `tests/Unit/ProjectTest.php`, `tests/Unit/TicketTest.php`, `tests/Unit/UserTest.php`). These are pre-existing legacy style issues (ordered_imports, no_whitespace_in_blank_line, single_blank_line_at_eof, new_with_parentheses). Exit code non-zero but no app-logic failures.
 
-### Mobile (partnershub-app/frontend)
+### Mobile (homefinder-app/frontend)
 
 Command used: `npm test -- --testPathPattern=expense --passWithNoTests`
 
@@ -628,10 +628,10 @@ tests/Fixtures/payment_bundle_canonical_payload_v1.sha256
 
 ## Phase 18 — Mobile E2E smoke (NOT added — tooling absent, deferred)
 
-**Status:** No mobile E2E tooling exists (Phase 0 confirmed: no Maestro, no Detox in `partnershub-app/frontend`). Per the plan, new E2E tooling was NOT added without approval. The Phase 17 unit/integration tests (`expenseSubmitter.test.ts`, `expenseApi.test.ts`, `expenseErrors.test.ts` — 29 tests) cover the idempotency/double-submit logic at the submitter+api layer, which is where the duplicate-submit bug actually lived.
+**Status:** No mobile E2E tooling exists (Phase 0 confirmed: no Maestro, no Detox in `homefinder-app/frontend`). Per the plan, new E2E tooling was NOT added without approval. The Phase 17 unit/integration tests (`expenseSubmitter.test.ts`, `expenseApi.test.ts`, `expenseErrors.test.ts` — 29 tests) cover the idempotency/double-submit logic at the submitter+api layer, which is where the duplicate-submit bug actually lived.
 
 **Recommended Maestro setup (if/when approved):**
-1. Add Maestro: `curl -Ls "https://get.maestro.mobile.dev" | bash`; create `partnershub-app/frontend/.maestro/`.
+1. Add Maestro: `curl -Ls "https://get.maestro.mobile.dev" | bash`; create `homefinder-app/frontend/.maestro/`.
 2. Flow `expense-request-submit.yaml`: launch app → login as employee → open Expense Request → fill form → attach evidence → submit → assert success message → open Expense History → assert the submitted item appears.
 3. Flow `expense-request-double-submit.yaml`: fill form → tap submit twice rapidly → assert exactly one success → navigate to history → assert only ONE submitted expense exists (the real-device guarantee complementing the unit-level in-flight-guard test).
 4. CI: add a Maestro Cloud / `maestro test` step gated behind a build (EAS dev client). Wire into `.eas/workflows/` per the existing CI conventions.

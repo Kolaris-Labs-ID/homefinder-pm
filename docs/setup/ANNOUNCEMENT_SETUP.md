@@ -5,7 +5,7 @@
 ### 1. Run Migration
 
 ```bash
-cd partnershub-pm
+cd homefinder-pm
 php artisan migrate
 ```
 
@@ -30,7 +30,7 @@ This creates 7 sample announcements of different types for testing.
 
 ### 3. Access Admin Panel
 
-1. Log in to Filament admin panel: `https://pm.partnershub.co/admin`
+1. Log in to Filament admin panel: `https://your-homefinder-domain.example/admin`
 2. Navigate to **HRIS** → **Announcements**
 3. You should see the navigation item with a badge showing active announcement count
 

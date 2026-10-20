@@ -24,7 +24,7 @@ This comprehensive guide will help you understand and effectively use the Kanban
 
 ### Accessing the System
 
-1. Log in to the admin panel at `http://pm.partnershub.co/admin`
+1. Log in to the admin panel at `https://your-homefinder-domain.example/admin`
 2. As a Head Division, you'll see the dashboard with an overview of your division's work
 3. Navigate using the left sidebar menu
 

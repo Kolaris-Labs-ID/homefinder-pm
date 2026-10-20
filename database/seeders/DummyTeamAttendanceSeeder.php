@@ -24,7 +24,7 @@ class DummyTeamAttendanceSeeder extends Seeder
 
     public const EMAIL_PREFIX = 'dummyteam+';
 
-    public const EMAIL_DOMAIN = 'partnershub.local';
+    public const EMAIL_DOMAIN = 'homefinder.local';
 
     public const POSITION_CODE_PREFIX = 'DMY_';
 

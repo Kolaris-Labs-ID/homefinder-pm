@@ -2,10 +2,10 @@
 
 ## Overview
 
-This guide will help you migrate historical attendance data from Google Sheets to the PartnersHub HRIS system for payroll and weekly allowance calculations.
+This guide will help you migrate historical attendance data from Google Sheets to the Homefinder HRIS system for payroll and weekly allowance calculations.
 
 **Source:** Google Sheets - https://docs.google.com/spreadsheets/d/1cRGp-G_aLf1OfB4g-UJhaENJd39Ng9dCO5UfcO1iDjE/edit  
-**Destination:** HRIS Attendance Logs - https://pm.partnershub.co/admin/attendance-logs
+**Destination:** HRIS Attendance Logs - https://your-homefinder-domain.example/admin/attendance-logs
 
 ---
 
@@ -50,7 +50,7 @@ Before starting the migration:
 
 Before importing, ensure employee names in your Google Sheets match the names in HRIS:
 
-1. Go to https://pm.partnershub.co/admin/employees
+1. Go to https://your-homefinder-domain.example/admin/employees
 2. Check that all employee names match exactly
 3. Fix any mismatches (typos, different name formats, etc.)
 
@@ -62,7 +62,7 @@ Before importing, ensure employee names in your Google Sheets match the names in
 
 ### Step 3: Import to HRIS
 
-1. Navigate to https://pm.partnershub.co/admin/attendance-logs
+1. Navigate to https://your-homefinder-domain.example/admin/attendance-logs
 2. Click the **"Import from Google Sheets"** button (blue button)
 3. (Optional) Click **"Download Google Sheets Template"** to see the expected format
 4. Click **"Choose File"** and select your exported Excel file
@@ -87,7 +87,7 @@ After import completes, you'll see a summary:
 
 ### Step 5: Verify Data
 
-1. Go to https://pm.partnershub.co/admin/attendance-logs
+1. Go to https://your-homefinder-domain.example/admin/attendance-logs
 2. Filter by date range to see imported data
 3. Click on a few records to verify details
 4. Check that check-in and check-out times are correct
@@ -100,7 +100,7 @@ If you prefer to use the standard HRIS format, follow these steps:
 
 ### Step 1: Download HRIS Template
 
-1. Navigate to https://pm.partnershub.co/admin/attendance-logs
+1. Navigate to https://your-homefinder-domain.example/admin/attendance-logs
 2. Click the **"Import Attendance Logs"** button (green button)
 3. Click **"Download Import Template"**
 4. Open the template to see the required format
@@ -139,7 +139,7 @@ The HRIS format requires these columns:
 
 ### Step 3: Import to HRIS
 
-1. Navigate to https://pm.partnershub.co/admin/attendance-logs
+1. Navigate to https://your-homefinder-domain.example/admin/attendance-logs
 2. Click **"Import Attendance Logs"** (green button)
 3. Upload your converted file
 4. Review import results
@@ -311,9 +311,9 @@ After successful migration:
 ## Additional Resources
 
 - **HRIS Documentation:** Check `/docs` folder for user guides
-- **Employee Management:** https://pm.partnershub.co/admin/employees
-- **Payroll Module:** https://pm.partnershub.co/admin/payroll-records
-- **Weekly Allowance:** https://pm.partnershub.co/admin/weekly-allowances
+- **Employee Management:** https://your-homefinder-domain.example/admin/employees
+- **Payroll Module:** https://your-homefinder-domain.example/admin/payroll-records
+- **Weekly Allowance:** https://your-homefinder-domain.example/admin/weekly-allowances
 
 ---
 

@@ -4,7 +4,7 @@
 
 **Date**: January 26, 2026  
 **Features**: Weekly Allowance Batches, Payroll Settings, Prorate Calculations  
-**Target**: Production VPS Server (`pm.partnershub.co`)
+**Target**: Production VPS Server (`your-homefinder-domain.example`)
 
 ---
 
@@ -40,16 +40,16 @@
 ssh root@your-vps-ip
 
 # Navigate to project directory
-cd /var/www/partnershub-pm
+cd /var/www/homefinder-pm
 
 # Create backup directory if not exists
-mkdir -p /var/backups/partnershub-pm
+mkdir -p /var/backups/homefinder-pm
 
 # Backup database
-mysqldump -u pm_user -p partnershub_pm > /var/backups/partnershub-pm/backup_$(date +%Y%m%d_%H%M%S).sql
+mysqldump -u pm_user -p homefinder_pm > /var/backups/homefinder-pm/backup_$(date +%Y%m%d_%H%M%S).sql
 
 # Verify backup was created
-ls -lh /var/backups/partnershub-pm/
+ls -lh /var/backups/homefinder-pm/
 ```
 
 **Expected Output**: You should see a new `.sql` file with current timestamp
@@ -67,7 +67,7 @@ php artisan down --message="System upgrade in progress. Back in 10 minutes." --r
 
 **What happens**: Users will see a maintenance page. They can retry after 60 seconds.
 
-**Verify**: Visit `https://pm.partnershub.co` in browser - should show maintenance page
+**Verify**: Visit `https://your-homefinder-domain.example` in browser - should show maintenance page
 
 ---
 
@@ -294,7 +294,7 @@ All should show "active (running)"
 php artisan up
 ```
 
-**Verify**: Visit `https://pm.partnershub.co` - application should be accessible
+**Verify**: Visit `https://your-homefinder-domain.example` - application should be accessible
 
 ---
 
@@ -315,7 +315,7 @@ tail -f storage/logs/laravel.log
 
 #### B. Verify New Features in Admin Panel
 
-1. **Log in to Filament Admin**: `https://pm.partnershub.co/admin`
+1. **Log in to Filament Admin**: `https://your-homefinder-domain.example/admin`
 
 2. **Check Payroll Settings**:
     - Navigate to **HRIS** → **Payroll Settings**
@@ -489,7 +489,7 @@ tail -f /var/log/php8.2-fpm.log
 php artisan down
 
 # 2. Restore database backup
-mysql -u pm_user -p partnershub_pm < /var/backups/partnershub-pm/backup_YYYYMMDD_HHMMSS.sql
+mysql -u pm_user -p homefinder_pm < /var/backups/homefinder-pm/backup_YYYYMMDD_HHMMSS.sql
 
 # 3. Revert to previous code
 git log --oneline -10  # Find previous commit hash
@@ -606,7 +606,7 @@ php artisan config:clear
 php artisan route:clear
 
 # Check file permissions
-sudo chown -R www-data:www-data /var/www/partnershub-pm
+sudo chown -R www-data:www-data /var/www/homefinder-pm
 sudo chmod -R 775 storage bootstrap/cache
 
 # Restart services

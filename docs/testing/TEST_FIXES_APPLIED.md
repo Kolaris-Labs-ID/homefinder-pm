@@ -225,7 +225,7 @@ To verify the fixes:
 
 ```bash
 # Run all tests
-cd partnershub-pm
+cd homefinder-pm
 php artisan test
 
 # Run specific test suites

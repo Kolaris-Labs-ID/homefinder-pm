@@ -162,7 +162,7 @@ php artisan debug:head-division-permissions --user=USER_ID
 ```bash
 # 1. Connect to server
 ssh user@your-server.com
-cd /path/to/partnershub-pm
+cd /path/to/homefinder-pm
 
 # 2. Deploy updated files
 # (Upload: RoleHelper.php, EnableProjectMemberManagement.php)

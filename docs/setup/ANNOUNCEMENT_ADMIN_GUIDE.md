@@ -215,7 +215,7 @@ Announcements appear on the employee home screen:
 For technical issues or questions:
 
 -   Contact IT Support
--   Email: support@partnershub.co
+-   Email: support@your-homefinder-domain.example
 -   Check the system documentation
 
 ---

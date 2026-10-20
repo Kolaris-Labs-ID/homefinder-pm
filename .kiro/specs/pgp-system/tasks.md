@@ -1,4 +1,4 @@
-# Implementation Plan: PHI Growth Point (PGP) System
+# Implementation Plan: Homefinder Growth Point (PGP) System
 
 ## Overview
 

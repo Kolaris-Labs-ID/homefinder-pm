@@ -65,7 +65,7 @@ class JobPostingResource extends Resource
                     ]),
 
                 Forms\Components\Section::make('Public Portal')
-                    ->description('Content and settings for the public job board (jobs.partnershub.co).')
+                    ->description('Content and settings for the public job board.')
                     ->columns(2)
                     ->collapsed()
                     ->schema([
@@ -238,7 +238,7 @@ class JobPostingResource extends Resource
                     ->color('info')
                     ->requiresConfirmation()
                     ->modalHeading('Publish to Public Portal')
-                    ->modalDescription('Make this job visible on jobs.partnershub.co.')
+                    ->modalDescription('Make this job visible on the public job board.')
                     ->visible(fn (JobPosting $record): bool => $record->isPublished() && ! $record->is_public)
                     ->action(function (JobPosting $record): void {
                         try {

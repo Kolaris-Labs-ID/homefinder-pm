@@ -57,7 +57,7 @@ was done on dev (see memory/`.remember`), or the migrate run aborts mid-deploy.
 ## Deploy order (order matters — model `$table` and the rename must land together)
 
 ```bash
-mysqldump --single-transaction partnershub > pre_deploy_$(date +%F_%H%M).sql   # 1. backup
+mysqldump --single-transaction homefinder > pre_deploy_$(date +%F_%H%M).sql   # 1. backup
 php artisan down                                   # 2. close the code/schema window
 git pull && composer install --no-dev              # 3. new code
 php artisan migrate --force                        # 4. rename + create + push_subscriptions

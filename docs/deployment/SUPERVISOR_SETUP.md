@@ -8,8 +8,8 @@
 
 - **Program Name**: `laravel-worker`
 - **Processes**: 8 worker processes
-- **Project Path**: `/Users/arirudiana/Devs/partnershub-pm`
-- **Log File**: `/Users/arirudiana/Devs/partnershub-pm/storage/logs/worker.log`
+- **Project Path**: `/Users/arirudiana/Devs/homefinder-pm`
+- **Log File**: `/Users/arirudiana/Devs/homefinder-pm/storage/logs/worker.log`
 - **User**: `arirudiana` (your macOS user)
 
 ## Managing Supervisor on macOS
@@ -60,7 +60,7 @@ supervisorctl stop laravel-worker:*
 supervisorctl restart laravel-worker:*
 
 # View logs
-tail -f /Users/arirudiana/Devs/partnershub-pm/storage/logs/worker.log
+tail -f /Users/arirudiana/Devs/homefinder-pm/storage/logs/worker.log
 ```
 
 ### Stop Supervisor
@@ -131,7 +131,7 @@ You should see 8 processes running.
 ### Check worker logs:
 
 ```bash
-tail -f /Users/arirudiana/Devs/partnershub-pm/storage/logs/worker.log
+tail -f /Users/arirudiana/Devs/homefinder-pm/storage/logs/worker.log
 ```
 
 ### Test Queue Processing

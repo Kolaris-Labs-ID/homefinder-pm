@@ -49,7 +49,7 @@ Fixed **15 out of 18** failing tests (83% success rate) by addressing 3 main iss
 ## How to Verify
 
 ```bash
-cd partnershub-pm
+cd homefinder-pm
 php artisan test
 ```
 
