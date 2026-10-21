@@ -2,11 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Ticket;
-use App\Models\TicketComment;
-use App\Models\TicketHistory;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class ContributionLeaderboardService
@@ -18,38 +16,96 @@ class ContributionLeaderboardService
      */
     public function getLeaderboard(string $timeRange, int $topCount): array
     {
-        $users = User::with(['employee.primaryPosition.position'])->orderBy('name')->get();
-        $leaderboardData = [];
+        try {
+            $dateRange = $this->getDateRangeFromTimeRange($timeRange);
+            $startUtc = $dateRange['start']->copy()->startOfDay()->utc();
+            $endUtc = $dateRange['end']->copy()->endOfDay()->utc();
 
-        foreach ($users as $user) {
-            $stats = $this->getUserStats($user->id, $timeRange);
-            $totalScore = $this->calculateContributionScore($stats);
+            // 1. Gabungkan semua aktivitas (Tiket, History, Komentar) menggunakan UNION ALL
+            $activities = DB::table('tickets')
+                ->selectRaw("created_by as user_id, created_at, 'ticket' as type")
+                ->whereBetween('created_at', [$startUtc, $endUtc])
+                ->unionAll(
+                    DB::table('ticket_histories')
+                        ->selectRaw("user_id, created_at, 'history' as type")
+                        ->whereBetween('created_at', [$startUtc, $endUtc])
+                )
+                ->unionAll(
+                    DB::table('ticket_comments')
+                        ->selectRaw("user_id, created_at, 'comment' as type")
+                        ->whereBetween('created_at', [$startUtc, $endUtc])
+                );
 
-            if ($totalScore > 0) {
+            // 2. Satu Query Utama: Join user, hitung skor, dan urutkan langsung dari Database
+            $users = User::query()
+                // Eager load posisi agar tidak memicu N+1 query saat mengambil fallback title
+                ->with(['employee.primaryPosition.position', 'employee.positions.position'])
+                ->leftJoinSub($activities, 'activities', 'users.id', '=', 'activities.user_id')
+                ->select([
+                    'users.id', 
+                    'users.name', 
+                    'users.avatar_url', 
+                    'users.avatar_initials'
+                ])
+                ->selectRaw("
+                    COALESCE(SUM(CASE WHEN activities.type = 'ticket' THEN 1 ELSE 0 END), 0) as tickets_created,
+                    COALESCE(SUM(CASE WHEN activities.type = 'history' THEN 1 ELSE 0 END), 0) as status_changes,
+                    COALESCE(SUM(CASE WHEN activities.type = 'comment' THEN 1 ELSE 0 END), 0) as comments_made,
+                    COUNT(DISTINCT DATE(activities.created_at)) as active_days,
+                    (
+                        COALESCE(SUM(CASE WHEN activities.type = 'ticket' THEN 1 ELSE 0 END), 0) * 2 +
+                        COALESCE(SUM(CASE WHEN activities.type = 'history' THEN 1 ELSE 0 END), 0) * 5 +
+                        COALESCE(SUM(CASE WHEN activities.type = 'comment' THEN 1 ELSE 0 END), 0) * 2 +
+                        COUNT(DISTINCT DATE(activities.created_at)) * 1
+                    ) as total_score
+                ")
+                ->groupBy('users.id', 'users.name', 'users.avatar_url', 'users.avatar_initials')
+                // Filter hanya user yang memiliki skor > 0
+                ->havingRaw('total_score > 0')
+                // Urutkan berdasarkan skor tertinggi
+                ->orderByDesc('total_score')
+                ->limit($topCount)
+                ->get();
+
+            // 3. Formatting Data (Tanpa query tambahan)
+            $leaderboardData = [];
+            $rank = 1;
+
+            foreach ($users as $user) {
+                $ticketsCreated = (int) $user->tickets_created;
+                $statusChanges  = (int) $user->status_changes;
+                $commentsMade   = (int) $user->comments_made;
+                $activeDays     = (int) $user->active_days;
+                $totalScore     = (int) $user->total_score;
+
+                // Ambil posisi dari memory (Eager Loaded), bukan query baru
+                $latestPosition = $user->employee?->positions->sortByDesc('start_date')->first()?->position?->title;
+
                 $leaderboardData[] = [
                     'user' => [
                         'id'               => $user->id,
                         'name'             => $user->name ?? '',
                         'avatar_url'       => $user->avatar_url,
                         'avatar_initials'  => $user->avatar_initials,
-                        'position_title'   => $user->employee?->primaryPosition?->position?->title 
-                                              ?? $user->employee?->positions()->latest('start_date')->first()?->position?->title,
+                        'position_title'   => $user->employee?->primaryPosition?->position?->title ?? $latestPosition,
                     ],
-                    'stats' => $stats,
+                    'stats' => [
+                        'tickets_created' => $ticketsCreated,
+                        'status_changes'  => $statusChanges,
+                        'comments_made'   => $commentsMade,
+                        'active_days'     => $activeDays,
+                    ],
                     'total_score' => $totalScore,
-                    'rank' => 0,
+                    'rank' => $rank++,
                 ];
             }
+
+            return $leaderboardData;
+
+        } catch (\Exception $e) {
+            Log::error('Error getting leaderboard: ' . $e->getMessage());
+            return [];
         }
-
-        usort($leaderboardData, fn ($a, $b) => $b['total_score'] <=> $a['total_score']);
-
-        foreach ($leaderboardData as $index => &$data) {
-            $data['rank'] = $index + 1;
-        }
-        unset($data);
-
-        return array_slice($leaderboardData, 0, $topCount);
     }
 
     /**
@@ -123,80 +179,5 @@ class ContributionLeaderboardService
             + ($stats['status_changes'] * $weights['status_changes'])
             + ($stats['comments_made'] * $weights['comments_made'])
             + ($stats['active_days'] * $weights['active_days']);
-    }
-
-    /**
-     * @return array{tickets_created: int, status_changes: int, comments_made: int, active_days: int}
-     */
-    public function getUserStats(int $userId, string $timeRange): array
-    {
-        $dateRange = $this->getDateRangeFromTimeRange($timeRange);
-        $startDate = $dateRange['start'];
-        $endDate = $dateRange['end'];
-
-        try {
-            return [
-                'tickets_created' => Ticket::where('created_by', $userId)
-                    ->whereBetween('created_at', [
-                        $startDate->copy()->startOfDay()->utc(),
-                        $endDate->copy()->endOfDay()->utc(),
-                    ])
-                    ->count(),
-                'status_changes' => TicketHistory::where('user_id', $userId)
-                    ->whereBetween('created_at', [
-                        $startDate->copy()->startOfDay()->utc(),
-                        $endDate->copy()->endOfDay()->utc(),
-                    ])
-                    ->count(),
-                'comments_made' => TicketComment::where('user_id', $userId)
-                    ->whereBetween('created_at', [
-                        $startDate->copy()->startOfDay()->utc(),
-                        $endDate->copy()->endOfDay()->utc(),
-                    ])
-                    ->count(),
-                'active_days' => $this->getUserActiveDays($userId, $timeRange),
-            ];
-        } catch (\Exception $e) {
-            Log::error('Error getting user stats: '.$e->getMessage());
-
-            return [
-                'tickets_created' => 0,
-                'status_changes' => 0,
-                'comments_made' => 0,
-                'active_days' => 0,
-            ];
-        }
-    }
-
-    public function getUserActiveDays(int $userId, string $timeRange): int
-    {
-        $dateRange = $this->getDateRangeFromTimeRange($timeRange);
-        $startDate = $dateRange['start'];
-        $endDate = $dateRange['end'];
-        $startUtc = $startDate->copy()->startOfDay()->utc();
-        $endUtc = $endDate->copy()->endOfDay()->utc();
-
-        $ticketDates = Ticket::where('created_by', $userId)
-            ->whereBetween('created_at', [$startUtc, $endUtc])
-            ->selectRaw('DATE(created_at) as activity_date')
-            ->distinct()
-            ->pluck('activity_date');
-
-        $historyDates = TicketHistory::where('user_id', $userId)
-            ->whereBetween('created_at', [$startUtc, $endUtc])
-            ->selectRaw('DATE(created_at) as activity_date')
-            ->distinct()
-            ->pluck('activity_date');
-
-        $commentDates = TicketComment::where('user_id', $userId)
-            ->whereBetween('created_at', [$startUtc, $endUtc])
-            ->selectRaw('DATE(created_at) as activity_date')
-            ->distinct()
-            ->pluck('activity_date');
-
-        return $ticketDates->merge($historyDates)
-            ->merge($commentDates)
-            ->unique()
-            ->count();
     }
 }
