@@ -41,11 +41,12 @@ class ContributionLeaderboardService
                 // Eager load posisi agar tidak memicu N+1 query saat mengambil fallback title
                 ->with(['employee.primaryPosition.position', 'employee.positions.position'])
                 ->leftJoinSub($activities, 'activities', 'users.id', '=', 'activities.user_id')
+                // avatar_initials is an accessor computed from name, not a
+                // column: selecting it fails the query and empties the board.
                 ->select([
-                    'users.id', 
-                    'users.name', 
-                    'users.avatar_url', 
-                    'users.avatar_initials'
+                    'users.id',
+                    'users.name',
+                    'users.avatar_url',
                 ])
                 ->selectRaw("
                     COALESCE(SUM(CASE WHEN activities.type = 'ticket' THEN 1 ELSE 0 END), 0) as tickets_created,
@@ -59,7 +60,7 @@ class ContributionLeaderboardService
                         COUNT(DISTINCT DATE(activities.created_at)) * 1
                     ) as total_score
                 ")
-                ->groupBy('users.id', 'users.name', 'users.avatar_url', 'users.avatar_initials')
+                ->groupBy('users.id', 'users.name', 'users.avatar_url')
                 // Filter hanya user yang memiliki skor > 0
                 ->havingRaw('total_score > 0')
                 // Urutkan berdasarkan skor tertinggi
