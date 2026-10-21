@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Laporan Hasil E2E Testing - Admin Panel Homefinder</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2937; font-size: 11pt; line-height: 1.6; }
+  h1 { font-size: 20pt; margin-bottom: 4px; color: #0f172a; }
+  h2 { font-size: 14pt; margin-top: 24px; padding-bottom: 6px; border-bottom: 2px solid #e5e7eb; color: #0f172a; }
+  .subtitle { color: #6b7280; font-size: 11pt; margin-bottom: 20px; }
+  .meta { margin-bottom: 24px; background: #f9fafb; padding: 12px; border-radius: 6px; }
+  .meta div { margin: 3px 0; }
+  .meta strong { display: inline-block; width: 130px; color: #374151; }
+  .summary-box { background: #ecfdf5; border-left: 4px solid #10b981; padding: 12px 16px; margin: 16px 0; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10.5pt; }
+  th, td { border: 1px solid #d1d5db; padding: 8px 10px; text-align: left; }
+  th { background: #f3f4f6; font-weight: 600; }
+  .pass { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 10px; font-weight: 600; font-size: 9pt; }
+  .skip { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px; font-weight: 600; font-size: 9pt; }
+  ul { margin: 8px 0; padding-left: 20px; }
+  .footer { margin-top: 30px; font-size: 9pt; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 10px; }
+</style>
+</head>
+<body>
+
+<h1>Laporan Hasil Pengujian E2E</h1>
+<div class="subtitle">Admin Panel Homefinder — Autentikasi, CRUD, & User Management</div>
+
+<div class="meta">
+  <div><strong>Tanggal</strong> 21 Oktober 2026</div>
+  <div><strong>Repository</strong> Kolaris-Labs-ID/homefinder-pm</div>
+  <div><strong>Metode</strong> Automated E2E Testing (Playwright + TypeScript)</div>
+  <div><strong>Lingkungan</strong> Laravel 12 · Filament 3.3 · Vite 6 · Node 20</div>
+</div>
+
+<div class="summary-box">
+  <strong>Status Akhir: ✅ LULUS — 6 Passed, 1 Skipped, 0 Failed.</strong><br>
+  Seluruh skenario utama (Login, CRUD, dan Manajemen User) berjalan dengan sempurna dalam waktu 50.9 detik.
+</div>
+
+<h2>1. Ringkasan Eksekusi</h2>
+<table>
+  <tr><th style="width: 60%">Metrik</th><th>Hasil</th></tr>
+  <tr><td>Total Test Case</td><td>7</td></tr>
+  <tr><td>Passed (Lulus)</td><td><strong>6</strong></td></tr>
+  <tr><td>Skipped (Dilewati)</td><td>1 <em>(Khusus non-admin, karena semua akun saat ini super_admin)</em></td></tr>
+  <tr><td>Failed (Gagal)</td><td><strong>0</strong></td></tr>
+  <tr><td>Waktu Eksekusi</td><td><strong>50,9 detik</strong></td></tr>
+</table>
+
+<h2>2. Detail Test Case</h2>
+<table>
+  <tr><th style="width: 5%">No</th><th>Skenario Pengujian</th><th style="width: 15%">Hasil</th></tr>
+  <tr><td>1</td><td>Halaman login menampilkan branding Homefinder</td><td><span class="pass">Passed</span></td></tr>
+  <tr><td>2</td><td>Login gagal dengan password salah (validasi error)</td><td><span class="pass">Passed</span></td></tr>
+  <tr><td>3</td><td>Login berhasil masuk dashboard admin</td><td><span class="pass">Passed</span></td></tr>
+  <tr><td>4</td><td>CRUD Department (Create data & verifikasi di tabel)</td><td><span class="pass">Passed</span></td></tr>
+  <tr><td>5</td><td>Admin dapat mengakses menu Users</td><td><span class="pass">Passed</span></td></tr>
+  <tr><td>6</td><td>Admin dapat membuat user baru (Assign Role)</td><td><span class="pass">Passed</span></td></tr>
+  <tr><td>7</td><td>User biasa tidak bisa akses menu Users</td><td><span class="skip">Skipped</span></td></tr>
+</table>
+
+<h2>3. Catatan Teknis</h2>
+<ul>
+  <li><strong>Stabilitas Server:</strong> Playwright dikonfigurasi untuk menjalankan test secara <em>serial</em> (`workers: 1`) guna menghindari pemblokiran Rate Limit dari Laravel.</li>
+  <li><strong>Sinkronisasi Livewire:</strong> Menggunakan `waitForURL` dan `networkidle` untuk memastikan data benar-benar tersimpan sebelum pindah halaman.</li>
+  <li><strong>Isolasi Database:</strong> Pengujian menggunakan database <code>testing</code> yang di-<em>fresh</em> otomatis, sehingga tidak mengotori data lokal maupun produksi.</li>
+</ul>
+
+<h2>4. Rekomendasi Lanjutan</h2>
+<ol>
+  <li><strong>Integrasi CI/CD:</strong> Konfigurasi sudah siap dipasang di GitHub Actions untuk otomatisasi pengujian setiap ada <em>Pull Request</em>.</li>
+  <li><strong>Perluas Cakupan:</strong> Menambahkan test case untuk fitur lain seperti Leaderboard, Payroll, atau Attendance.</li>
+</ol>
+
+<div class="footer">
+  Laporan dihasilkan secara otomatis dari eksekusi Playwright.<br>
+  &copy; 2026 Homefinder PM - QA Automation
+</div>
+
+</body>
+</html>
