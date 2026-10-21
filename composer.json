@@ -6,7 +6,7 @@
     "keywords": ["laravel", "framework"],
     "license": "GPL-3.0-or-later",
     "require": {
-        "php": "^8.2",
+        "php": "^8.3",
         "alexsyvolap/filament-confetti": "^1.0",
         "barryvdh/laravel-dompdf": "^3.1",
         "bezhansalleh/filament-shield": "^3.3",
