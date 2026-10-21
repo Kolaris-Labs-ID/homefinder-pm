@@ -50,3 +50,16 @@ it('limits the board to the requested size', function () {
 
     expect(app(ContributionLeaderboardService::class)->getLeaderboard('7days', 2))->toHaveCount(2);
 });
+
+it('ranks equal scores alphabetically by name', function () {
+    // Created out of order, so insertion order cannot pass for name order.
+    foreach (['Zed Example', 'Amy Example', 'Mia Example'] as $name) {
+        $user = User::factory()->create(['name' => $name]);
+        Ticket::factory()->create(['created_by' => $user->id, 'created_at' => now()->subDays(1)->setTime(12, 0)]);
+    }
+
+    $board = app(ContributionLeaderboardService::class)->getLeaderboard('7days', 10);
+
+    expect(collect($board)->pluck('user.name')->all())->toBe(['Amy Example', 'Mia Example', 'Zed Example'])
+        ->and(collect($board)->pluck('rank')->all())->toBe([1, 2, 3]);
+});
