@@ -54,9 +54,11 @@ class ProjectObserver
             $wasDone = $previousState['wasDone'];
 
             $this->archiveService->handleProjectStatusChange($project, $wasArchived, $wasDone);
-
-            // Clean up stored state
-            unset(static::$previousState[$project->id]);
         }
+
+        // Always clean up: under Octane this static array lives as long as the
+        // worker, so an entry left by an update that did not touch these
+        // columns would accumulate for every project ever saved.
+        unset(static::$previousState[$project->id]);
     }
 }
