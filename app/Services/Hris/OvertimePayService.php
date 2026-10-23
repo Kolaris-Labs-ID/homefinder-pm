@@ -4,6 +4,8 @@ namespace App\Services\Hris;
 
 use App\Exceptions\Hris\OvertimeBatchLockedException;
 use App\Exceptions\Hris\OvertimeRateCoverageException;
+use App\Facades\Features;
+use App\Features\Feature;
 use App\Models\Hris\AttendanceLog;
 use App\Models\Hris\Employee;
 use App\Models\Hris\MasterHoliday;
@@ -348,6 +350,11 @@ class OvertimePayService
     // Pass every session that should consume budget, already-paid ones included.
     private function allocatePayableMinutes(Collection $logs, Collection $holidays): array
     {
+        // A company with the statutory caps off pays every approved minute.
+        if (! Features::active(Feature::OvertimeStatutoryCaps)) {
+            return $logs->mapWithKeys(fn (OvertimeLog $log) => [$log->id => (int) $log->duration_minutes])->all();
+        }
+
         $perDayUsed = [];
         $perWeekUsed = [];
         $allocated = [];

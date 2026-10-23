@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Features\Feature;
+use App\Filament\Concerns\RequiresFeature;
 use App\Filament\Resources\HiringCompanyResource\Pages;
 use App\Models\Hris\HiringCompany;
 use Filament\Forms;
@@ -12,6 +14,8 @@ use Filament\Tables\Table;
 
 class HiringCompanyResource extends Resource
 {
+    use RequiresFeature;
+
     protected static ?string $model = HiringCompany::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-building-office-2';
@@ -21,6 +25,11 @@ class HiringCompanyResource extends Resource
     protected static ?string $navigationGroup = 'Recruitment';
 
     protected static ?int $navigationSort = 0;
+
+    public static function requiredFeature(): Feature
+    {
+        return Feature::Recruitment;
+    }
 
     public static function form(Form $form): Form
     {

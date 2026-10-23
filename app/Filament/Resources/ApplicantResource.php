@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Features\Feature;
+use App\Filament\Concerns\RequiresFeature;
 use App\Filament\Resources\ApplicantResource\Pages;
 use App\Models\Hris\Applicant;
 use App\Models\Hris\Interview;
@@ -18,6 +20,8 @@ use Illuminate\Support\Collection;
 
 class ApplicantResource extends Resource
 {
+    use RequiresFeature;
+
     protected static ?string $model = Applicant::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-user-plus';
@@ -27,6 +31,11 @@ class ApplicantResource extends Resource
     protected static ?string $navigationGroup = 'Recruitment';
 
     protected static ?int $navigationSort = 2;
+
+    public static function requiredFeature(): Feature
+    {
+        return Feature::Recruitment;
+    }
 
     public static function form(Form $form): Form
     {
