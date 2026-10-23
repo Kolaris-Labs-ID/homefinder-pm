@@ -2,6 +2,8 @@
 
 namespace App\Models\Hris;
 
+use App\Facades\Features;
+use App\Features\Feature;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -104,16 +106,22 @@ class OvertimeLog extends Model
     // -------------------------------------------------------------------------
 
     // Idempotent, so a narrower allocation from the pay run survives the clamp.
+    // Companies with the statutory caps off pay every approved minute.
     public function payableMinutes(?int $minutes = null): int
     {
         $mins = (int) ($minutes ?? $this->duration_minutes);
+
+        if (! Features::active(Feature::OvertimeStatutoryCaps)) {
+            return max(0, $mins);
+        }
 
         return max(0, min($mins, self::MAX_DAILY_PAYABLE_MINUTES));
     }
 
     public function isCapped(?int $minutes = null): bool
     {
-        return (int) ($minutes ?? $this->duration_minutes) > self::MAX_DAILY_PAYABLE_MINUTES;
+        return Features::active(Feature::OvertimeStatutoryCaps)
+            && (int) ($minutes ?? $this->duration_minutes) > self::MAX_DAILY_PAYABLE_MINUTES;
     }
 
     /**

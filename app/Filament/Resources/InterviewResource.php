@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources;
 
+use App\Features\Feature;
+use App\Filament\Concerns\RequiresFeature;
 use App\Filament\Resources\InterviewResource\Pages;
 use App\Models\Hris\Interview;
 use App\Services\Hris\RecruitmentService;
@@ -14,6 +16,8 @@ use Filament\Tables\Table;
 
 class InterviewResource extends Resource
 {
+    use RequiresFeature;
+
     protected static ?string $model = Interview::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
@@ -23,6 +27,11 @@ class InterviewResource extends Resource
     protected static ?string $navigationGroup = 'Recruitment';
 
     protected static ?int $navigationSort = 3;
+
+    public static function requiredFeature(): Feature
+    {
+        return Feature::Recruitment;
+    }
 
     public static function form(Form $form): Form
     {

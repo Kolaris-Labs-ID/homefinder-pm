@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\FeatureController;
 use App\Http\Controllers\Api\Hris\AnnouncementController;
 use App\Http\Controllers\Api\Hris\AttendanceController;
 use App\Http\Controllers\Api\Hris\ClientVisitController;
@@ -33,8 +34,11 @@ use Illuminate\Support\Facades\Route;
 */
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/google', [AuthController::class, 'googleLogin']);
+    Route::post('/google', [AuthController::class, 'googleLogin'])->middleware('feature:auth.google_login');
 });
+
+// Company feature flags, read by the mobile app before login.
+Route::get('/features', [FeatureController::class, 'index'])->middleware('throttle:60,1');
 
 // Attendance photo serving (uses token query param for auth, needed by <Image> components)
 Route::get('/hris/attendance/photo', [AttendanceController::class, 'servePhoto']);
@@ -44,7 +48,7 @@ Route::get('/hris/attendance/photo', [AttendanceController::class, 'servePhoto']
 | Public Job Portal API (v1) — unauthenticated, for your-homefinder-jobs-domain.example
 |--------------------------------------------------------------------------
 */
-Route::prefix('public/v1')->group(function () {
+Route::prefix('public/v1')->middleware('feature:module.recruitment')->group(function () {
     Route::get('/jobs', [JobPortalController::class, 'index'])->middleware('throttle:public-jobs');
     Route::get('/jobs/{slug}', [JobPortalController::class, 'show'])->middleware('throttle:public-jobs');
     Route::get('/companies/{companySlug}', [JobPortalController::class, 'company'])->middleware('throttle:public-jobs');

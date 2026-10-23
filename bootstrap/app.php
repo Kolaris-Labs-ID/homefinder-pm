@@ -35,6 +35,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // is the real client IP (used for applicant applied_ip + rate limiting).
         $middleware->trustProxies(at: '*');
 
+        $middleware->alias([
+            'feature' => \App\Http\Middleware\EnsureFeatureActive::class,
+        ]);
+
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
         ]);

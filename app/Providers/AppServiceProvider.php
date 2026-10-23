@@ -26,6 +26,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Scoped: Octane flushes it per request, so a flag stored mid-run is seen next request.
+        $this->app->scoped(\App\Features\FeatureManager::class);
+
         $this->app->bind(
             \App\Services\Hris\Screening\Contracts\ResumeTextExtractor::class,
             \App\Services\Hris\Screening\Extractors\PopplerResumeTextExtractor::class,

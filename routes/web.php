@@ -13,8 +13,10 @@ Route::get('/', function () {
 });
 
 // Google Authentication Routes
-Route::get('auth/google', [GoogleController::class, 'redirectToGoogle'])->name('auth.google');
-Route::get('auth/google/callback', [GoogleController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+Route::middleware('feature:auth.google_login')->group(function () {
+    Route::get('auth/google', [GoogleController::class, 'redirectToGoogle'])->name('auth.google');
+    Route::get('auth/google/callback', [GoogleController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+});
 
 // Emergency logout route (accessible without authentication)
 Route::get('logout', function () {
@@ -79,7 +81,7 @@ Route::middleware(['web', 'auth'])->get(
 )->name('finance.payment-bundles.signed-pdf');
 
 // Recruitment résumé streaming — HR only (ApplicantPolicy), private disk, never a public URL.
-Route::middleware(['web', 'auth'])->group(function () {
+Route::middleware(['web', 'auth', 'feature:module.recruitment'])->group(function () {
     Route::get('/admin/recruitment/applicants/{applicant}/resume/view',
         [\App\Http\Controllers\Admin\ResumeController::class, 'view'])
         ->name('recruitment.resume.view');

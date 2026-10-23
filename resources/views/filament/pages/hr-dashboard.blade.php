@@ -335,6 +335,7 @@
     </div>
 
     {{-- Recruitment Metrics --}}
+    @if (\App\Facades\Features::active(\App\Features\Feature::Recruitment))
     <x-filament::section>
         <x-slot name="heading">
             <div class="flex items-center gap-2">
@@ -376,6 +377,7 @@
             </div>
         </div>
     </x-filament::section>
+    @endif
 
     {{-- ─────────────────────────────────────────────────────────────
          Working Hours Analytics

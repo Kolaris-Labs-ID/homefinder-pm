@@ -3,6 +3,8 @@
 namespace App\Filament\Resources;
 
 use App\Exports\RecruitmentReportExport;
+use App\Features\Feature;
+use App\Filament\Concerns\RequiresFeature;
 use App\Filament\Resources\JobPostingResource\Pages;
 use App\Filament\Resources\JobPostingResource\RelationManagers;
 use App\Models\Hris\JobPosting;
@@ -18,6 +20,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class JobPostingResource extends Resource
 {
+    use RequiresFeature;
+
     protected static ?string $model = JobPosting::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-briefcase';
@@ -27,6 +31,11 @@ class JobPostingResource extends Resource
     protected static ?string $navigationGroup = 'Recruitment';
 
     protected static ?int $navigationSort = 1;
+
+    public static function requiredFeature(): Feature
+    {
+        return Feature::Recruitment;
+    }
 
     public static function form(Form $form): Form
     {

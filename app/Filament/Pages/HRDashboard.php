@@ -5,6 +5,8 @@ namespace App\Filament\Pages;
 use App\Exports\HeadcountExport;
 use App\Exports\RecruitmentReportExport;
 use App\Exports\TurnoverExport;
+use App\Facades\Features;
+use App\Features\Feature;
 use App\Models\Hris\Employee;
 use App\Services\Hris\HRAnalyticsService;
 use Carbon\Carbon;
@@ -242,6 +244,7 @@ class HRDashboard extends Page implements HasForms
                     );
                 }),
             Action::make('exportRecruitment')
+                ->visible(fn () => Features::active(Feature::Recruitment))
                 ->label('Export Recruitment')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
